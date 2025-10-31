@@ -31,6 +31,17 @@ export const usuarioSchema = z.object({
   fecha_creacion: z.string().optional(),
 });
 
+// --- AÑADIDO: Esquema para la actualización del perfil ---
+// Este esquema es más flexible y solo incluye los campos que el usuario puede editar.
+const updateUsuarioSchema = z.object({
+  nombre_completo: z.string().min(1).optional(),
+  telefono: z.string().optional(),
+  direccion: z.string().optional(),
+  foto_url: z.string().url().optional().or(z.literal('')), // Permite URL o string vacío
+  fecha_nacimiento: z.string().optional(),
+  genero: z.string().optional(),
+});
+
 
 // 🔹 Crear usuario sin hash (por ejemplo, para seeds o pruebas)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
@@ -147,18 +158,44 @@ export const getUserByUid = async (req: Request, res: Response): Promise<void> =
 
 // 🔹 Actualizar usuario
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
-  console.log("[updateUser] ID:", req.params.id, "Body:", req.body);
+  const userId = req.params.uid; // <-- CAMBIO: de 'id' a 'uid'
+  console.log("[updateUser] UID:", userId, "Body:", req.body);
+
   try {
-    const parsed = usuarioSchema.partial().safeParse(req.body);
+    // Usamos el nuevo esquema de actualización
+    const parsed = updateUsuarioSchema.safeParse(req.body);
     if (!parsed.success) {
       console.log("[updateUser] Error de validación Zod:", parsed.error.issues);
       res.status(400).json({ error: parsed.error.issues });
       return;
     }
 
-    await db.collection("usuarios").doc(req.params.id).update(parsed.data);
+    const dataToUpdate = parsed.data;
+
+    // Limpiar claves con valores undefined para no sobrescribir con nada
+    Object.keys(dataToUpdate).forEach(key => {
+      if ((dataToUpdate as any)[key] === undefined) {
+        delete (dataToUpdate as any)[key];
+      }
+    });
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      res.status(400).json({ error: "No hay datos para actualizar." });
+      return;
+    }
+
+    await db.collection("usuarios").doc(userId).update(dataToUpdate);
     console.log("[updateUser] Usuario actualizado correctamente.");
-    res.json({ message: "Usuario actualizado" });
+
+    // Después de actualizar, obtenemos y devolvemos el documento actualizado
+    const updatedDoc = await db.collection("usuarios").doc(userId).get();
+    if (!updatedDoc.exists) {
+      res.status(404).json({ error: "Usuario no encontrado después de actualizar." });
+      return;
+    }
+
+    res.status(200).json({ id: updatedDoc.id, ...updatedDoc.data() });
+
   } catch (error: any) {
     console.error("[updateUser] Error al actualizar usuario:", error);
     res.status(500).json({ error: error.message });
@@ -168,9 +205,9 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
 // 🔹 Eliminar usuario
 export const deleteUser = async (req: Request, res: Response): Promise<void> => {
-  console.log("[deleteUser] ID recibido:", req.params.id);
+  console.log("[deleteUser] UID recibido:", req.params.uid);
   try {
-    await db.collection("usuarios").doc(req.params.id).delete();
+    await db.collection("usuarios").doc(req.params.uid).delete();
     console.log("[deleteUser] Usuario eliminado correctamente.");
     res.json({ message: "Usuario eliminado" });
   } catch (error: any) {

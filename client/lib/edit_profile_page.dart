@@ -113,18 +113,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final idToken = await user.getIdToken();
-      // CORRECCIÓN: La URL base ya incluye /api/api, solo se añade el recurso.
       final url = Uri.parse('http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users/${user.uid}');
 
       // Datos a enviar a la API
-      final body = json.encode({
+      // Se construye un mapa solo con los datos que tienen valor.
+      final Map<String, dynamic> profileData = {
         'nombre_completo': _nameController.text.trim(),
         'telefono': _phoneController.text.trim(),
         'direccion': _addressController.text.trim(),
-        'foto_url': _photoUrlController.text.trim(),
-        'fecha_nacimiento': _dobController.text.trim(), // <-- AÑADIDO
-        'genero': _selectedGender, // <-- AÑADIDO
-      });
+        'foto_url': _photoUrlController.text.trim(), // <-- Se envía la nueva URL
+        'fecha_nacimiento': _dobController.text.trim(),
+        'genero': _selectedGender,
+      };
+
+     
+      profileData.removeWhere((key, value) => value == null || (value is String && value.isEmpty));
+
+      final body = json.encode(profileData);
 
       final response = await http.put(
         url,
@@ -140,10 +145,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
           const SnackBar(content: Text('Perfil actualizado con éxito')),
         );
         if (mounted) {
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(true);
         }
       } else {
-        // Muestra un error si la API falla
         final errorData = json.decode(response.body);
         final errorMessage = errorData['message'] ?? 'Error al actualizar el perfil.';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -176,7 +180,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // --- Selector de Imagen ---
             Center(
               child: Stack(
                 alignment: Alignment.center,

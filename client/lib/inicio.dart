@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_menu.dart'; // agregado import para navegar al menú de perfil
+import 'search_page.dart'; // <-- AÑADE ESTE IMPORT
 
 class InicioPage extends StatelessWidget {
   final salones = [
@@ -210,9 +211,18 @@ class InicioPage extends StatelessWidget {
                     label: 'Inicio',
                     selected: true,
                   ),
-                  _NavItem(
-                    icon: Icons.search,
-                    label: 'Buscar',
+                  // Buscar: al tocar abre SearchPage
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SearchPage()),
+                      );
+                    },
+                    child: const _NavItem(
+                      icon: Icons.search,
+                      label: 'Buscar',
+                    ),
                   ),
                   _NavItem(
                     icon: Icons.favorite_border,
