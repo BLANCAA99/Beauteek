@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'api_constants.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,24 +28,24 @@ class _LoginScreenState extends State<LoginScreen>
   OverlayEntry? _toastEntry;
 
   @override
-  void dispose() {
-    _toastController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _showToast(String text) async {
+  void initState() {
+    super.initState();
     _toastController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
       reverseDuration: const Duration(milliseconds: 220),
     );
+  }
 
-    final curved = CurvedAnimation(
-      parent: _toastController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
+  @override
+  void dispose() {
+    _toastController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _showToast(String text) async {
     _toastEntry = OverlayEntry(
       builder: (context) => Positioned(
         top: 40,
@@ -53,7 +54,13 @@ class _LoginScreenState extends State<LoginScreen>
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
-          ).animate(curved),
+          ).animate(
+            CurvedAnimation(
+              parent: _toastController,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          ),
           child: Material(
             color: Colors.transparent,
             child: Container(
@@ -166,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen>
       // 2a) (Opcional) Intentar tu API primero
       try {
         final url = Uri.parse(
-          'http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users/uid/${user.uid}',
+          '$apiBaseUrl/api/users/uid/${user.uid}',
         );
         final resp = await http.get(url).timeout(const Duration(seconds: 10));
         if (resp.statusCode == 200) {
@@ -203,6 +210,134 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // ───────── Restablecer contraseña ─────────
+  Future<void> _resetPassword() async {
+    final emailControllerDialog = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // No cerrar al tocar afuera
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Restablecer contraseña',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailControllerDialog,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'Correo electrónico',
+                filled: true,
+                fillColor: const Color(0xFFF3F1EE),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              emailControllerDialog.dispose();
+              Navigator.of(context).pop(false);
+            },
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEA963A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(context).pop(true);
+            },
+            child: const Text('Enviar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && emailControllerDialog.text.trim().isNotEmpty) {
+      try {
+        await FirebaseAuth.instance.sendPasswordResetEmail(
+          email: emailControllerDialog.text.trim(),
+        );
+        
+        emailControllerDialog.dispose();
+        
+        if (!mounted) return;
+        
+        // Mostrar mensaje de éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '¡Correo enviado! Revisa tu bandeja de entrada.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } on FirebaseAuthException catch (e) {
+        emailControllerDialog.dispose();
+        if (!mounted) return;
+        
+        String errorMessage = 'Error al enviar el correo';
+        if (e.code == 'user-not-found') {
+          errorMessage = 'No existe una cuenta con ese correo';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Correo electrónico inválido';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } catch (e) {
+        emailControllerDialog.dispose();
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Error inesperado. Intenta de nuevo.'),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } else {
+      emailControllerDialog.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -224,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    'Bienvenido de nuevo',
+                    'Bienvenido',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 32,
@@ -278,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen>
                         Align(
                           alignment: Alignment.centerLeft,
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: _resetPassword, // Conectar función
                             child: const Text(
                               '¿Olvidaste tu contraseña?',
                               style: TextStyle(

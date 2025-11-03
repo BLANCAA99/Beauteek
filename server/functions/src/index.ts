@@ -11,28 +11,12 @@ import {setGlobalOptions} from "firebase-functions";
 import {onRequest} from "firebase-functions/https";
 process.env.FIREBASE_DEBUG = "true";
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
 import express from 'express';
 import cors from 'cors';
 import userRoutes from './routes/user.routes';
+import comercioRoutes from './routes/comercio.routes'; // Asegúrate de tener este import
 import horarioRoutes from './routes/horario.routes';
 import categoriasServicioRoutes from './routes/categorias_servicio.routes';
 import servicioRoutes from './routes/servicio.routes';
@@ -45,7 +29,19 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Agregar logs para debug
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  console.log(`📨 URL completa: ${req.originalUrl}`);
+  console.log(`📨 Base URL: ${req.baseUrl}`);
+  next();
+});
+
 app.use('/api/users', userRoutes);
+app.use('/comercios', comercioRoutes); // Sin /api porque Firebase lo quita automáticamente
+console.log('✅ Rutas registradas: /api/users, /comercios');
+
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/categorias_servicio', categoriasServicioRoutes);
 app.use('/api/servicios', servicioRoutes);
@@ -54,8 +50,7 @@ app.use('/api/favoritos', favoritoRoutes);
 app.use('/api/promociones', promocionRoutes);
 app.use('/api/reseñas', reseñaRoutes);
 
-
 export const api = onRequest(
-  { region: "us-central1" }, // ajusta región si quieres
+  { region: "us-central1" },
   app
 );

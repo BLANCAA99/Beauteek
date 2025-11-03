@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloudinary_public/cloudinary_public.dart'; // <-- AÑADIDO
+import 'package:cloudinary_public/cloudinary_public.dart';
+import 'api_constants.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -20,31 +21,36 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
   late TextEditingController _photoUrlController;
-  late TextEditingController _dobController; // <-- AÑADIDO (Fecha de Nacimiento)
-  String? _selectedGender; // <-- AÑADIDO (Género)
-  XFile? _imageFile; // <-- AÑADIDO (Para la imagen local)
-  final ImagePicker _picker = ImagePicker(); // <-- AÑADIDO
-  bool _isUploading = false; // <-- AÑADIDO para el loader de imagen
+  late TextEditingController _dobController; // Fecha de Nacimiento
+  String? _selectedGender;                   // Género
+
+  XFile? _imageFile;
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  bool _isLoading = false;   // Guardar
+  bool _isFetching = false;  // Carga inicial
 
   @override
   void initState() {
     super.initState();
+
+    // Prefill rápido con lo que venga en userData (si llega algo)
     final firstName = widget.userData['firstName'] ?? '';
-    final lastName = widget.userData['lastName'] ?? '';
+    final lastName  = widget.userData['lastName']  ?? '';
     final nombreCompleto = '$firstName $lastName'.trim();
+    final finalName = nombreCompleto.isNotEmpty
+        ? nombreCompleto
+        : (widget.userData['nombre_completo'] ?? '');
 
-    // Si el nombre completo sigue vacío, intenta leer 'nombre_completo' directamente.
-    final finalName = nombreCompleto.isNotEmpty ? nombreCompleto : (widget.userData['nombre_completo'] ?? '');
-
-    _nameController = TextEditingController(text: finalName);
-    _phoneController = TextEditingController(text: widget.userData['phone'] ?? widget.userData['telefono'] ?? '');
-    _addressController = TextEditingController(text: widget.userData['direccion'] ?? '');
+    _nameController     = TextEditingController(text: finalName);
+    _phoneController    = TextEditingController(text: widget.userData['phone'] ?? widget.userData['telefono'] ?? '');
+    _addressController  = TextEditingController(text: widget.userData['direccion'] ?? '');
     _photoUrlController = TextEditingController(text: widget.userData['photoURL'] ?? widget.userData['foto_url'] ?? '');
-    _dobController = TextEditingController(text: widget.userData['fecha_nacimiento'] ?? ''); // <-- AÑADIDO
-    _selectedGender = widget.userData['genero']; // <-- AÑADIDO
+    _dobController      = TextEditingController(text: widget.userData['fecha_nacimiento'] ?? '');
+    _selectedGender     = widget.userData['genero'];
+    _cargarUsuarioDeApi();
   }
 
   @override
@@ -53,29 +59,76 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _phoneController.dispose();
     _addressController.dispose();
     _photoUrlController.dispose();
-    _dobController.dispose(); // <-- AÑADIDO
+    _dobController.dispose();
     super.dispose();
   }
 
-  // --- Nueva función para seleccionar y subir una imagen a Cloudinary ---
-  Future<void> _pickAndUploadImage() async {
-    final XFile? selectedImage = await _picker.pickImage(source: ImageSource.gallery);
+  Future<void> _cargarUsuarioDeApi() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    if (selectedImage == null) return;
-
-    setState(() {
-      _isUploading = true;
-    });
-
-    // Reemplaza con tus credenciales de Cloudinary
-    final cloudinary = CloudinaryPublic('dskg1hw9n', 'Imagenes_Beauteek', cache: false);
+    setState(() => _isFetching = true);
 
     try {
-      CloudinaryResponse response = await cloudinary.uploadFile(
+      final idToken = await user.getIdToken(); // quítalo si tu API no valida token
+      final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+
+      final resp = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (resp.statusCode == 200) {
+        // Tu controlador responde plano: { id, ...campos }
+        final Map<String, dynamic> data = json.decode(resp.body);
+
+        // Extrae y rellena si hay valores
+        final nombre = (data['nombre_completo'] ?? '').toString();
+        final tel    = (data['telefono'] ?? '').toString();
+        final dir    = (data['direccion'] ?? '').toString();
+        final foto   = (data['foto_url'] ?? '').toString();
+        final dob    = (data['fecha_nacimiento'] ?? '').toString();
+        final genero = (data['genero'] ?? '').toString();
+
+        if (nombre.isNotEmpty) _nameController.text = nombre;
+        if (tel.isNotEmpty)    _phoneController.text = tel;
+        if (dir.isNotEmpty)    _addressController.text = dir;
+        if (foto.isNotEmpty)   _photoUrlController.text = foto;
+        if (dob.isNotEmpty)    _dobController.text = dob;
+
+        if (genero.isNotEmpty) {
+          const opciones = ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'];
+          _selectedGender = opciones.contains(genero) ? genero : null;
+        }
+
+        if (mounted) setState(() {});
+      } else {
+        // Puedes loguear/avisar si quieres
+        // print('GET perfil falló: ${resp.statusCode} - ${resp.body}');
+      }
+    } catch (e) {
+      // print('Error cargando usuario: $e');
+    } finally {
+      if (mounted) setState(() => _isFetching = false);
+    }
+  }
+
+  // --- Subir imagen a Cloudinary ---
+  Future<void> _pickAndUploadImage() async {
+    final XFile? selectedImage = await _picker.pickImage(source: ImageSource.gallery);
+    if (selectedImage == null) return;
+
+    setState(() => _isUploading = true);
+
+    final cloudinary = CloudinaryPublic('dskg1hw9n', 'Imagenes_Beauteek', cache: false);
+    try {
+      final response = await cloudinary.uploadFile(
         CloudinaryFile.fromFile(selectedImage.path, resourceType: CloudinaryResourceType.Image),
       );
 
-      // Si la subida es exitosa, actualiza el controlador y la vista previa
       setState(() {
         _imageFile = selectedImage;
         _photoUrlController.text = response.secureUrl;
@@ -86,9 +139,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         const SnackBar(content: Text('Imagen subida con éxito')),
       );
     } on CloudinaryException catch (e) {
-      setState(() {
-        _isUploading = false;
-      });
+      setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al subir la imagen: ${e.message}')),
       );
@@ -96,9 +147,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
@@ -113,23 +162,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final idToken = await user.getIdToken();
-      final url = Uri.parse('http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users/${user.uid}');
 
-      // Datos a enviar a la API
-      // Se construye un mapa solo con los datos que tienen valor.
+      final url = Uri.parse('$apiBaseUrl/api/users/${user.uid}');
+
       final Map<String, dynamic> profileData = {
         'nombre_completo': _nameController.text.trim(),
         'telefono': _phoneController.text.trim(),
         'direccion': _addressController.text.trim(),
-        'foto_url': _photoUrlController.text.trim(), // <-- Se envía la nueva URL
+        'foto_url': _photoUrlController.text.trim(),
         'fecha_nacimiento': _dobController.text.trim(),
         'genero': _selectedGender,
       };
 
-     
-      profileData.removeWhere((key, value) => value == null || (value is String && value.isEmpty));
-
-      final body = json.encode(profileData);
+      profileData.removeWhere((k, v) => v == null || (v is String && v.isEmpty));
 
       final response = await http.put(
         url,
@@ -137,31 +182,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-        body: body,
+        body: json.encode(profileData),
       );
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Perfil actualizado con éxito')),
         );
-        if (mounted) {
-          Navigator.of(context).pop(true);
-        }
+        if (mounted) Navigator.of(context).pop(true);
       } else {
         final errorData = json.decode(response.body);
-        final errorMessage = errorData['message'] ?? 'Error al actualizar el perfil.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        final errorMessage = (errorData is Map && errorData['message'] != null)
+            ? errorData['message'].toString()
+            : 'Error al actualizar el perfil.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo guardar el perfil: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -180,6 +221,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            if (_isFetching)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: LinearProgressIndicator(),
+              ),
             Center(
               child: Stack(
                 alignment: Alignment.center,
@@ -196,10 +242,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         ? Icon(Icons.person, size: 60, color: Colors.grey.shade400)
                         : null,
                   ),
-                  // Loader mientras se sube la imagen
-                  if (_isUploading)
-                    const CircularProgressIndicator(),
-                  // Botón para cambiar la imagen
+                  if (_isUploading) const CircularProgressIndicator(),
                   if (!_isUploading)
                     Positioned(
                       bottom: 0,
@@ -226,12 +269,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 labelText: 'Nombre Completo',
                 border: OutlineInputBorder(),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Por favor, ingresa tu nombre';
-                }
-                return null;
-              },
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? 'Por favor, ingresa tu nombre'
+                  : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -241,13 +281,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.phone,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Por favor, ingresa tu teléfono';
-                }
-                return null;
-              },
-            ), // <-- AÑADE UNA COMA AQUÍ
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? 'Por favor, ingresa tu teléfono'
+                  : null,
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _addressController,
@@ -255,15 +292,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 labelText: 'Dirección',
                 border: OutlineInputBorder(),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Por favor, ingresa tu dirección';
-                }
-                return null;
-              },
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? 'Por favor, ingresa tu dirección'
+                  : null,
             ),
             const SizedBox(height: 16),
-            // --- Campo Fecha de Nacimiento ---
+            // Fecha de Nacimiento
             TextFormField(
               controller: _dobController,
               decoration: const InputDecoration(
@@ -287,26 +321,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
               },
             ),
             const SizedBox(height: 16),
-            // --- Campo Género ---
+            // Género
             DropdownButtonFormField<String>(
               value: _selectedGender,
               decoration: const InputDecoration(
                 labelText: 'Género',
                 border: OutlineInputBorder(),
               ),
-              items: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo']
-                  .map((label) => DropdownMenuItem(
-                        child: Text(label),
-                        value: label,
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedGender = value;
-                });
-              },
+              items: const [
+                DropdownMenuItem(value: 'Masculino', child: Text('Masculino')),
+                DropdownMenuItem(value: 'Femenino', child: Text('Femenino')),
+                DropdownMenuItem(value: 'Otro', child: Text('Otro')),
+                DropdownMenuItem(value: 'Prefiero no decirlo', child: Text('Prefiero no decirlo')),
+              ],
+              onChanged: (value) => setState(() => _selectedGender = value),
             ),
-            const SizedBox(height: 16),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : _saveProfile,

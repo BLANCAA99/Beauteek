@@ -1,18 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({Key? key}) : super(key: key);
+  // Modo de uso: 'search' para buscar salones, 'select' para seleccionar dirección
+  final String mode;
+  final Function(LatLng, String)? onLocationSelected; // Callback para modo select
+  
+  const SearchPage({
+    Key? key,
+    this.mode = 'search',
+    this.onLocationSelected,
+  }) : super(key: key);
 
   @override
-  _SearchPageState createState() => _SearchPageState();
+  State<SearchPage> createState() => _SearchPageState();
 }
 
 class _SearchPageState extends State<SearchPage> {
   GoogleMapController? _mapController;
-  Position? _currentPosition;
+  LatLng _currentPosition = const LatLng(15.5, -88.0);
+  LatLng? _selectedPosition; // Para modo select
+  Set<Marker> _markers = {};
+  List<Map<String, dynamic>> _salonesCercanos = [];
   bool _isLoading = true;
+  final PageController _pageController = PageController(viewportFraction: 0.85);
+  int _currentPage = 0;
+  double _radioKm = 10.0;
+  String _selectedAddress = '';
 
   @override
   void initState() {
@@ -20,33 +36,205 @@ class _SearchPageState extends State<SearchPage> {
     _getCurrentLocation();
   }
 
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // Obtener ubicación actual del usuario
   Future<void> _getCurrentLocation() async {
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showError('Los servicios de ubicación están desactivados');
+        setState(() => _isLoading = false);
+        return;
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          // Los permisos fueron denegados, maneja el caso.
+          _showError('Permiso de ubicación denegado');
           setState(() => _isLoading = false);
           return;
         }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        // Los permisos están denegados permanentemente.
+      final position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+      });
+
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(_currentPosition, 14),
+      );
+
+      // Solo cargar salones si estamos en modo 'search'
+      if (widget.mode == 'search') {
+        await _loadSalonesCercanos();
+      } else {
         setState(() => _isLoading = false);
-        return;
+      }
+    } catch (e) {
+      print('Error obteniendo ubicación: $e');
+      _showError('Error al obtener tu ubicación');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Cargar salones cercanos desde Firestore
+  Future<void> _loadSalonesCercanos() async {
+    try {
+      final comerciosSnapshot = await FirebaseFirestore.instance
+          .collection('comercios')
+          .where('estado', isEqualTo: 'activo')
+          .get();
+
+      List<Map<String, dynamic>> salones = [];
+      Set<Marker> markers = {};
+
+      for (var doc in comerciosSnapshot.docs) {
+        final data = doc.data();
+        if (data['geo'] != null) {
+          final GeoPoint geoPoint = data['geo'];
+          final LatLng salonPos = LatLng(geoPoint.latitude, geoPoint.longitude);
+
+          // Calcular distancia
+          final distanciaMetros = Geolocator.distanceBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            salonPos.latitude,
+            salonPos.longitude,
+          );
+          final distanciaKm = distanciaMetros / 1000;
+
+          // Filtrar por radio
+          if (distanciaKm <= _radioKm) {
+            salones.add({
+              'id': doc.id,
+              'nombre': data['nombre'] ?? 'Sin nombre',
+              'direccion': data['direccion'] ?? 'Sin dirección',
+              'telefono': data['telefono'] ?? '',
+              'distancia': distanciaKm,
+              'position': salonPos,
+              'rating': 4.5, // TODO: Calcular rating real
+              'reviews': 0, // TODO: Contar reseñas reales
+              'imagen': 'https://via.placeholder.com/300x200', // TODO: Imagen real
+            });
+
+            // Crear marcador en el mapa
+            markers.add(
+              Marker(
+                markerId: MarkerId(doc.id),
+                position: salonPos,
+                infoWindow: InfoWindow(
+                  title: data['nombre'],
+                  snippet: '${distanciaKm.toStringAsFixed(1)} km',
+                ),
+                onTap: () {
+                  final index = salones.indexWhere((s) => s['id'] == doc.id);
+                  if (index != -1) {
+                    _pageController.animateToPage(
+                      index,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+              ),
+            );
+          }
+        }
       }
 
-      final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+      // Ordenar salones
+      salones.sort((a, b) => a['distancia'].compareTo(b['distancia']));
+
       setState(() {
-        _currentPosition = position;
+        _salonesCercanos = salones;
+        _markers = markers;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error cargando salones: $e');
       setState(() => _isLoading = false);
-      // Manejar error
+      _showError('Error al cargar salones cercanos');
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade600,
+      ),
+    );
+  }
+
+  void _showFiltros() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Filtros',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              Text('Radio: ${_radioKm.toStringAsFixed(0)} km'),
+              Slider(
+                value: _radioKm,
+                min: 1,
+                max: 50,
+                divisions: 49,
+                label: '${_radioKm.toStringAsFixed(0)} km',
+                onChanged: (val) => setModalState(() => _radioKm = val),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA963A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    _loadSalonesCercanos();
+                  },
+                  child: const Text(
+                    'Aplicar filtros',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Para modo 'select': confirmar ubicación seleccionada
+  void _confirmLocation() {
+    if (_selectedPosition != null && widget.onLocationSelected != null) {
+      widget.onLocationSelected!(_selectedPosition!, _selectedAddress);
+      Navigator.pop(context);
     }
   }
 
@@ -55,74 +243,304 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Mapa de fondo
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_currentPosition != null)
-            GoogleMap(
-              onMapCreated: (controller) => _mapController = controller,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(
-                    _currentPosition!.latitude, _currentPosition!.longitude),
-                zoom: 15.0,
-              ),
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false, // Usaremos nuestro propio botón si es necesario
-              zoomControlsEnabled: false,
-            )
-          else
-            const Center(child: Text("No se pudo obtener la ubicación.")),
+          // Mapa
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _currentPosition,
+              zoom: 14,
+            ),
+            markers: _markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            onMapCreated: (controller) => _mapController = controller,
+            onTap: widget.mode == 'select'
+                ? (position) {
+                    setState(() {
+                      _selectedPosition = position;
+                      _markers = {
+                        Marker(
+                          markerId: const MarkerId('selected'),
+                          position: position,
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueOrange,
+                          ),
+                        ),
+                      };
+                      _selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(5)}, Lng: ${position.longitude.toStringAsFixed(5)}';
+                    });
+                  }
+                : null,
+          ),
 
-          // Barra de búsqueda superior
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+          // Barra superior
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                // Botón volver
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Barra de búsqueda o título
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      widget.mode == 'search'
+                          ? 'Buscar salones cercanos'
+                          : 'Selecciona la ubicación',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                // Botón filtros (solo en modo search)
+                if (widget.mode == 'search') ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.tune),
+                      onPressed: _showFiltros,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Botón confirmar ubicación (solo en modo select)
+          if (widget.mode == 'select' && _selectedPosition != null)
+            Positioned(
+              bottom: 30,
+              left: 20,
+              right: 20,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEA963A),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _confirmLocation,
+                child: const Text(
+                  'Confirmar ubicación',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+          // Lista deslizable de salones (solo en modo search)
+          if (widget.mode == 'search' && !_isLoading && _salonesCercanos.isNotEmpty)
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              height: 200,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() => _currentPage = index);
+                  _mapController?.animateCamera(
+                    CameraUpdate.newLatLngZoom(
+                      _salonesCercanos[index]['position'],
+                      15,
+                    ),
+                  );
+                },
+                itemCount: _salonesCercanos.length,
+                itemBuilder: (context, index) {
+                  final salon = _salonesCercanos[index];
+                  return _buildSalonCard(salon, index == _currentPage);
+                },
+              ),
+            ),
+
+          // Indicador de carga
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+              ),
+            ),
+
+          // Mensaje si no hay salones (solo en modo search)
+          if (widget.mode == 'search' && !_isLoading && _salonesCercanos.isEmpty)
+            Positioned(
+              bottom: 100,
+              left: 20,
+              right: 20,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(30.0),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
                       blurRadius: 10,
-                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    const Icon(Icons.search, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Todos los tratamientos", style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text("Área del mapa", style: TextStyle(color: Colors.grey)),
-                        ],
+                    const Icon(Icons.search_off, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No hay salones cerca',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      height: 30,
-                      width: 1,
-                      color: Colors.grey.shade300,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.tune, color: Colors.grey),
-                      onPressed: () {
-                        // Lógica para filtros
-                      },
+                    const SizedBox(height: 8),
+                    Text(
+                      'Intenta aumentar el radio de búsqueda',
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-          // Aquí iría el DraggableScrollableSheet con la lista de salones
         ],
+      ),
+    );
+  }
+
+  Widget _buildSalonCard(Map<String, dynamic> salon, bool isActive) {
+    return AnimatedScale(
+      scale: isActive ? 1.0 : 0.9,
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Imagen placeholder
+            Container(
+              width: 120,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
+              ),
+              child: const Icon(Icons.store, size: 48, color: Colors.grey),
+            ),
+            // Información del salón
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      salon['nombre'],
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${salon['rating']} (${salon['reviews']})',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 16, color: Color(0xFFEA963A)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${salon['distancia'].toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            color: Color(0xFFEA963A),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      salon['direccion'],
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

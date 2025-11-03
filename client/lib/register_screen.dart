@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'api_constants.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -27,6 +28,16 @@ class _RegisterScreenState extends State<RegisterScreen>
   OverlayEntry? _toastEntry;
 
   @override
+  void initState() { // <-- AÑADIDO
+    super.initState();
+    _toastController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+  }
+
+  @override
   void dispose() {
     _toastController.dispose();
     _dobController.dispose(); // <-- AÑADIDO
@@ -35,11 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   // --- Método para mostrar un toast animado verde ---
   Future<void> _showSuccessToast(String text) async {
-    _toastController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 280),
-      reverseDuration: const Duration(milliseconds: 220),
-    );
+    // La inicialización del controller se mueve a initState
 
     final curved = CurvedAnimation(
       parent: _toastController,
@@ -99,7 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
   // --- Método principal de registro ---
   Future<void> register() async {
-    print('🟡 [register] Inicio de registro...');
+    print('[register] Inicio de registro...');
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
@@ -109,7 +116,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       setState(() {
         errorMsg = 'Todos los campos son requeridos';
       });
-      print('❌ [register] Campos vacíos detectados');
+      print('[register] Campos vacíos detectados');
       return;
     }
     if (passwordController.text.length < 6) {
@@ -123,11 +130,11 @@ class _RegisterScreenState extends State<RegisterScreen>
       setState(() {
         errorMsg = 'Las contraseñas no coinciden';
       });
-      print('❌ [register] Contraseñas no coinciden');
+      print('[register] Contraseñas no coinciden');
       return;
     }
     try {
-      print('🟢 [register] Creando usuario en Firebase Auth...');
+      print('[register] Creando usuario en Firebase Auth...');
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
@@ -143,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       print('[register] Usuario creado en Auth: ${user.uid}, ${user.email}');
 
       final url = Uri.parse(
-        'http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users',
+        '$apiBaseUrl/api/users',
       );
 
       print('[register] Enviando POST al backend: $url');
@@ -151,8 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         'uid': user.uid,
         'nombre_completo': nameController.text.trim(),
         'email': emailController.text.trim(),
-        'password': passwordController.text.trim(),
-        'fecha_nacimiento': _dobController.text.trim(), // <-- AÑADIDO
+        'fecha_nacimiento': _dobController.text.trim(),
         'genero': _selectedGender,
         'telefono': 'pendiente',
         'rol': 'cliente',
@@ -229,7 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 ),
               ),
               const SizedBox(height: 32),
-              const Text('Nombre', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              const Text('Nombre completo', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               const SizedBox(height: 8),
               TextField(
                 controller: nameController,

@@ -1,20 +1,21 @@
-import { Router } from 'express';
+import { Router } from "express";
 import {
   createUser,
   getUsers,
-  getUserById,
-  getUserByUid, // <-- IMPORTA LA NUEVA FUNCIÓN
+  getUserByUid,
   updateUser,
   deleteUser,
-} from '../controllers/user.controller';
+  getSalonsNearby,
+  registerUserComplete,
+} from "../controllers/user.controller";
 
 const router = Router();
-
-router.post('/', createUser);
-router.get('/', getUsers);
-router.get('/uid/:uid', getUserByUid); // <-- AÑADE LA NUEVA RUTA
-router.get('/:id', getUserById);
-router.put('/:uid', updateUser); // <-- CAMBIO: de ':id' a ':uid'
-router.delete('/:uid', deleteUser); // <-- CAMBIO: de ':id' a ':uid'
+router.post("/", createUser);
+router.get("/", getUsers);
+router.post('/register', registerUserComplete);
+router.get("/uid/:uid", getUserByUid);
+router.put("/:uid", updateUser);
+router.delete("/:uid", deleteUser);
+router.get("/salons/nearby", getSalonsNearby);
 
 export default router;

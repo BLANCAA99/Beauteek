@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'; // Agregar para kDebugMode
 import 'login_screen.dart';
 import 'inicio.dart';
 import 'firebase_options.dart';
@@ -10,6 +11,19 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // COMENTADO: Emulador de Auth (ahora usamos producción)
+  // if (kDebugMode) {
+  //   try {
+  //     await FirebaseAuth.instance.useAuthEmulator('10.0.2.2', 9099);
+  //     print('🔧 Auth Emulator configurado: 10.0.2.2:9099');
+  //   } catch (e) {
+  //     print('⚠️ Auth Emulator ya está configurado o hubo un error: $e');
+  //   }
+  // }
+  
+  print('🔥 Usando Firebase Auth en PRODUCCIÓN');
+  
   runApp(const MyApp());
 }
 

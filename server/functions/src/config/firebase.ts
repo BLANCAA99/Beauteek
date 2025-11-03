@@ -2,6 +2,7 @@
 import { initializeApp, getApps, applicationDefault, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
+import * as admin from "firebase-admin";
 
 const DEBUG = process.env.FIREBASE_DEBUG === "true";
 
@@ -12,8 +13,13 @@ function dlog(...args: any[]) {
 function detectCredentialSource() {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) return "ADC:file";
   if (process.env.FUNCTIONS_EMULATOR === "true") return "Emulator";
-  // En Cloud Functions/GCP, ADC usa la Service Account del runtime
   return "ADC:runtime";
+}
+
+// TEMPORAL: Desactivar emulador de Auth para pruebas con producción
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  dlog("⚠️ DESACTIVANDO Auth Emulator para usar producción");
+  delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
 }
 
 let app: App;
@@ -55,15 +61,6 @@ try {
   throw e;
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Utilidades de diagnóstico (opcional)
-// ───────────────────────────────────────────────────────────────────────────────
-
-/**
- * Hace un ping de conectividad *de solo lectura*:
- * - Lista colecciones raíz (no imprime nombres si no quieres; aquí imprimimos el count)
- * - Intenta leer un doc que no existe (para verificar permisos de lectura)
- */
 export async function diagnosticoFirebase() {
   const result: Record<string, any> = {
     debug: DEBUG,
@@ -90,19 +87,8 @@ export async function diagnosticoFirebase() {
     result.firestoreReadError = e?.message || String(e);
   }
 
-  // Si necesitas validar escritura, descomenta lo siguiente (crea un doc efímero)
-  // try {
-  //   const pingRef = db.collection("_salud").doc(`ping_${Date.now()}`);
-  //   await pingRef.set({ ts: new Date().toISOString() });
-  //   result.writeTest = "ok";
-  //   dlog("Escritura de prueba OK:", pingRef.id);
-  // } catch (e: any) {
-  //   console.error("[firebase.ts] ERROR write test:", e?.message || e);
-  //   result.firestoreWriteError = e?.message || String(e);
-  // }
-
   return result;
 }
 
 // Exponer instancias compartidas
-export { db, auth };
+export { db, auth, admin };

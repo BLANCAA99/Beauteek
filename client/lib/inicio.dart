@@ -211,12 +211,14 @@ class InicioPage extends StatelessWidget {
                     label: 'Inicio',
                     selected: true,
                   ),
-                  // Buscar: al tocar abre SearchPage
+                  // Buscar: al tocar abre SearchPage en modo 'search'
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const SearchPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const SearchPage(mode: 'search'),
+                        ),
                       );
                     },
                     child: const _NavItem(

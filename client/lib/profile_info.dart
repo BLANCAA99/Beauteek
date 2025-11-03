@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'edit_profile_page.dart';
+import 'api_constants.dart';
 
 class ProfileInfoPage extends StatelessWidget {
   final String? uid;
@@ -20,10 +21,9 @@ class ProfileInfoPage extends StatelessWidget {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final idToken = await user.getIdToken();
-        // CORRECCIÓN: Usar el endpoint que busca por ID de documento, no por campo 'uid'.
-        final url = Uri.parse('http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users/$resolvedUid');
-        
-        print('📞 [API Call] GET: $url'); // <-- LOG PARA VER LA URL
+        final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+
+        print('[API Call] GET: $url'); // <-- LOG PARA VER LA URL
 
         final response = await http.get(
           url,

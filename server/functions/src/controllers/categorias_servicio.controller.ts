@@ -10,7 +10,6 @@ const categoriaServicioSchema = z.object({
   descripcion: z.string().optional(),
 });
 
-// helper para normalizar el nombre (evita duplicados por mayúsculas/espacios)
 const normalizarNombre = (s: string) => s.trim().toLowerCase();
 
 // Crear categoría de servicio

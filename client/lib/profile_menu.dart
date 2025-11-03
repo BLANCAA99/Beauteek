@@ -4,9 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login_screen.dart';
-
 import 'profile_info.dart';
 import 'inicio.dart';
+import 'salon_registration_steps_page.dart'; 
+import 'api_constants.dart';
 
 class ProfileMenuPage extends StatelessWidget {
   final String? uid;
@@ -18,8 +19,8 @@ class ProfileMenuPage extends StatelessWidget {
     if (authUser == null) return null;
 
     final idToken = await authUser.getIdToken();
-    // CORRECCIÓN: Construir la URL completa directamente para consistencia.
-    final url = Uri.parse('http://10.0.2.2:5001/beauteek-b595e/us-central1/api/api/users/$uid');
+    // CORRECCIÓN: Construir la URL para que coincida con la ruta de la API /users/uid/:uid
+    final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
 
     final resp = await http.get(
       url,
@@ -180,19 +181,38 @@ class ProfileMenuPage extends StatelessWidget {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Ajustes')));
                     }),
                     const Divider(height: 1),
-                    // Opción para Cerrar Sesión
-                    _menuTile(context, Icons.logout, 'Cerrar sesión', () async {
-                      await FirebaseAuth.instance.signOut();
-                      // Navega a la pantalla de login y elimina todas las rutas anteriores.
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (context) => const LoginScreen()), // Asumiendo que tu login se llama LoginScreen
-                        (Route<dynamic> route) => false,
-                      );
+                    // --- CAMBIO: Movido aquí ---
+                    _menuTile(context, Icons.store_outlined, 'Registrar mi salón de belleza', () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const SalonRegistrationStepsPage()));
                     }),
                   ],
                 ),
               ),
             ),
+
+            const SizedBox(height: 20),
+
+            // --- CAMBIO: Movido aquí ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 6))],
+                ),
+                child: _menuTile(context, Icons.logout, 'Cerrar sesión', () async {
+                  await FirebaseAuth.instance.signOut();
+                  // Navega a la pantalla de login y elimina todas las rutas anteriores.
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()), // Asumiendo que tu login se llama LoginScreen
+                    (Route<dynamic> route) => false,
+                  );
+                }),
+              ),
+            ),
+            // --- FIN DE LA SECCIÓN ---
 
             const SizedBox(height: 28),
           ],
