@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty) {
-      setState(() => errorMsg = 'Ingresa correo y contraseña.');
+      setState(() => errorMsg = 'Por favor, ingresa tu correo y contraseña.');
       return;
     }
 
@@ -126,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen>
       );
       final user = credential.user;
       if (user == null) {
-        setState(() => errorMsg = 'No se pudo obtener el usuario.');
+        setState(() => errorMsg = 'No se pudo iniciar sesión. Intenta nuevamente.');
         return;
       }
 
@@ -139,9 +139,34 @@ class _LoginScreenState extends State<LoginScreen>
           MaterialPageRoute(builder: (_) => InicioPage()),
         );
     } on FirebaseAuthException catch (e) {
-      setState(() => errorMsg = e.message ?? 'Correo o contraseña incorrectos');
+      String mensaje = 'Error al iniciar sesión';
+      
+      switch (e.code) {
+        case 'user-not-found':
+          mensaje = 'No existe una cuenta con este correo electrónico';
+          break;
+        case 'wrong-password':
+          mensaje = 'La contraseña es incorrecta';
+          break;
+        case 'invalid-email':
+          mensaje = 'El correo electrónico no es válido';
+          break;
+        case 'user-disabled':
+          mensaje = 'Esta cuenta ha sido deshabilitada';
+          break;
+        case 'too-many-requests':
+          mensaje = 'Demasiados intentos. Intenta más tarde';
+          break;
+        case 'invalid-credential':
+          mensaje = 'Correo o contraseña incorrectos';
+          break;
+        default:
+          mensaje = 'Correo o contraseña incorrectos';
+      }
+      
+      setState(() => errorMsg = mensaje);
     } catch (e) {
-      setState(() => errorMsg = 'Error inesperado. Intenta de nuevo.');
+      setState(() => errorMsg = 'Error inesperado. Por favor, intenta de nuevo.');
     }
   }
 
@@ -163,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen>
           await FirebaseAuth.instance.signInWithCredential(credential);
       final user = userCred.user;
       if (user == null) {
-        setState(() => errorMsg = 'No se pudo obtener el usuario de Google.');
+        setState(() => errorMsg = 'No se pudo iniciar sesión con Google. Intenta nuevamente.');
         return;
       }
 
@@ -194,19 +219,19 @@ class _LoginScreenState extends State<LoginScreen>
       if (!existsInDb) {
         // Si no existe, podrías crear el doc llamando a tu API de registro
         // o crearlo directo en Firestore si tus reglas lo permiten.
-        setState(() => errorMsg = 'Tu cuenta Google no está registrada.');
+        setState(() => errorMsg = 'Tu cuenta de Google no está registrada en Beauteek. Por favor, regístrate primero.');
         await FirebaseAuth.instance.signOut();
         return;
       }
 
       await _showToast('¡Bienvenido!');
       if (!mounted) return;
-      Navigator.of(context).pushReplacement( // <--- CAMBIADO A pushReplacement
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => InicioPage()),
       );
 
     } catch (e) {
-      setState(() => errorMsg = 'Error de Google Sign-In');
+      setState(() => errorMsg = 'Error al iniciar sesión con Google. Intenta nuevamente.');
     }
   }
 
@@ -216,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen>
     
     final result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // No cerrar al tocar afuera
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
@@ -227,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+              'Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.',
               style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
@@ -306,10 +331,19 @@ class _LoginScreenState extends State<LoginScreen>
         if (!mounted) return;
         
         String errorMessage = 'Error al enviar el correo';
-        if (e.code == 'user-not-found') {
-          errorMessage = 'No existe una cuenta con ese correo';
-        } else if (e.code == 'invalid-email') {
-          errorMessage = 'Correo electrónico inválido';
+        
+        switch (e.code) {
+          case 'user-not-found':
+            errorMessage = 'No existe una cuenta registrada con este correo';
+            break;
+          case 'invalid-email':
+            errorMessage = 'El correo electrónico no es válido';
+            break;
+          case 'too-many-requests':
+            errorMessage = 'Demasiados intentos. Intenta más tarde';
+            break;
+          default:
+            errorMessage = 'No se pudo enviar el correo. Verifica tu conexión';
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -326,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen>
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Error inesperado. Intenta de nuevo.'),
+            content: const Text('Error inesperado. Por favor, intenta de nuevo.'),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

@@ -85,53 +85,71 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  // Cargar salones cercanos desde Firestore
+  // Cargar salones cercanos desde Firestore (buscar en sucursales, no comercios)
   Future<void> _loadSalonesCercanos() async {
     try {
-      final comerciosSnapshot = await FirebaseFirestore.instance
-          .collection('comercios')
+      // Obtener todas las sucursales activas
+      final sucursalesSnapshot = await FirebaseFirestore.instance
+          .collection('sucursales')
           .where('estado', isEqualTo: 'activo')
           .get();
 
       List<Map<String, dynamic>> salones = [];
       Set<Marker> markers = {};
 
-      for (var doc in comerciosSnapshot.docs) {
+      for (var doc in sucursalesSnapshot.docs) {
         final data = doc.data();
         if (data['geo'] != null) {
           final GeoPoint geoPoint = data['geo'];
-          final LatLng salonPos = LatLng(geoPoint.latitude, geoPoint.longitude);
+          final LatLng sucursalPos = LatLng(geoPoint.latitude, geoPoint.longitude);
 
           // Calcular distancia
           final distanciaMetros = Geolocator.distanceBetween(
             _currentPosition.latitude,
             _currentPosition.longitude,
-            salonPos.latitude,
-            salonPos.longitude,
+            sucursalPos.latitude,
+            sucursalPos.longitude,
           );
           final distanciaKm = distanciaMetros / 1000;
 
           // Filtrar por radio
           if (distanciaKm <= _radioKm) {
+            // Obtener info del comercio
+            final comercioId = data['comercio_id'];
+            final comercioDoc = await FirebaseFirestore.instance
+                .collection('comercios')
+                .doc(comercioId)
+                .get();
+            
+            final comercioData = comercioDoc.data();
+            final nombreComercio = comercioData?['nombre'] ?? 'Sin nombre';
+            final esPrincipal = data['es_principal'] ?? false;
+
             salones.add({
               'id': doc.id,
-              'nombre': data['nombre'] ?? 'Sin nombre',
+              'comercio_id': comercioId,
+              'nombre': esPrincipal 
+                  ? nombreComercio 
+                  : data['nombre'] ?? '$nombreComercio - Sucursal',
               'direccion': data['direccion'] ?? 'Sin dirección',
               'telefono': data['telefono'] ?? '',
               'distancia': distanciaKm,
-              'position': salonPos,
+              'position': sucursalPos,
+              'es_principal': esPrincipal,
               'rating': 4.5, // TODO: Calcular rating real
               'reviews': 0, // TODO: Contar reseñas reales
-              'imagen': 'https://via.placeholder.com/300x200', // TODO: Imagen real
             });
 
             // Crear marcador en el mapa
             markers.add(
               Marker(
                 markerId: MarkerId(doc.id),
-                position: salonPos,
+                position: sucursalPos,
+                icon: esPrincipal
+                    ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)
+                    : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
                 infoWindow: InfoWindow(
-                  title: data['nombre'],
+                  title: esPrincipal ? '$nombreComercio (Principal)' : data['nombre'],
                   snippet: '${distanciaKm.toStringAsFixed(1)} km',
                 ),
                 onTap: () {
@@ -150,7 +168,7 @@ class _SearchPageState extends State<SearchPage> {
         }
       }
 
-      // Ordenar salones
+      // Ordenar salones por distancia
       salones.sort((a, b) => a['distancia'].compareTo(b['distancia']));
 
       setState(() {
@@ -158,6 +176,8 @@ class _SearchPageState extends State<SearchPage> {
         _markers = markers;
         _isLoading = false;
       });
+
+      print('✅ ${salones.length} sucursales encontradas dentro de $_radioKm km');
     } catch (e) {
       print('Error cargando salones: $e');
       setState(() => _isLoading = false);

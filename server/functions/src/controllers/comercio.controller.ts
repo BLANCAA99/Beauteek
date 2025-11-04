@@ -13,6 +13,7 @@ const registerStep1Schema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   nombre: z.string().min(1, "El nombre del salón es requerido"),
   telefono: z.string().min(8, "El teléfono debe tener al menos 8 dígitos"),
+  rtn: z.string().length(14, "El RTN debe tener exactamente 14 dígitos").regex(/^\d+$/, "El RTN solo debe contener números"),
 });
 
 export const registerSalonStep1 = async (req: Request, res: Response): Promise<void> => {
@@ -24,7 +25,7 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const { email, password, nombre, telefono } = parsed.data;
+    const { email, password, nombre, telefono, rtn } = parsed.data;
 
     // 2. Obtener UID del propietario (desde el token verificado por middleware)
     const uidPropietario = (req as any).user?.uid;
@@ -45,7 +46,7 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
     // 4. Asignar rol 'salon' al usuario creado
     await admin.auth().setCustomUserClaims(uidNegocio, { role: "salon" });
 
-    // 5. Crear documento en colección 'usuarios' para el salón
+    // 5. Crear documento en colección 'usuarios' para el salón con TODOS los campos
     await db.collection("usuarios").doc(uidNegocio).set({
       uid: uidNegocio,
       nombre_completo: nombre,
@@ -53,6 +54,15 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
       telefono,
       rol: "salon",
       estado: "incompleto",
+      
+      // Campos por defecto para salones
+      direccion: "pendiente",
+      genero: "no_aplica",
+      fecha_nacimiento: "no_aplica",
+      foto_url: "https://example.com/no_aplica.jpg",
+      verificacion_bancaria_status: "pending",
+      
+      // Timestamps
       fecha_creacion: FieldValue.serverTimestamp(),
     });
 
@@ -67,6 +77,7 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
       nombre,
       telefono,
       email,
+      rtn,
       estado: "paso1_completado",
       fecha_creacion: FieldValue.serverTimestamp(),
     });
@@ -87,7 +98,7 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
 };
 
 /* =========================
-   PASO 2: Agregar dirección y ubicación
+   PASO 2: Crear sucursal principal con dirección y ubicación
    ========================= */
 
 const registerStep2Schema = z.object({
@@ -97,20 +108,19 @@ const registerStep2Schema = z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
   }),
+  telefono_sucursal: z.string().min(8).optional(),
 });
 
 export const registerSalonStep2 = async (req: Request, res: Response): Promise<void> => {
   try {
-    // 1. Validar datos
     const parsed = registerStep2Schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Datos inválidos", details: parsed.error.issues });
       return;
     }
 
-    const { comercioId, direccion, geo } = parsed.data;
+    const { comercioId, direccion, geo, telefono_sucursal } = parsed.data;
 
-    // 2. Verificar que el comercio existe y pertenece al usuario
     const uidPropietario = (req as any).user?.uid;
     const comercioDoc = await db.collection("comercios").doc(comercioId).get();
 
@@ -125,17 +135,31 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // 3. Actualizar documento de comercio con dirección y geolocalización
-    await db.collection("comercios").doc(comercioId).update({
+    // Crear sucursal principal con ubicación
+    const sucursalRef = db.collection("sucursales").doc();
+    await sucursalRef.set({
+      id_documento: sucursalRef.id,
+      comercio_id: comercioId,
+      nombre: `${comercioData.nombre} - Principal`,
       direccion,
-      geo: new GeoPoint(geo.latitude, geo.longitude), // Usar GeoPoint importado
+      geo: new GeoPoint(geo.latitude, geo.longitude),
+      telefono: telefono_sucursal || comercioData.telefono,
+      es_principal: true,
+      estado: "activo",
+      fecha_creacion: FieldValue.serverTimestamp(),
+    });
+
+    // Actualizar comercio
+    await db.collection("comercios").doc(comercioId).update({
+      sucursal_principal_id: sucursalRef.id,
       estado: "paso2_completado",
       fecha_actualizacion: FieldValue.serverTimestamp(),
     });
 
     res.status(200).json({
-      message: "Paso 2 completado: Dirección guardada exitosamente",
+      message: "Paso 2 completado: Sucursal principal creada",
       comercioId,
+      sucursalId: sucursalRef.id,
     });
   } catch (error: any) {
     console.error("Error en registerSalonStep2:", error);
@@ -144,10 +168,82 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
 };
 
 /* =========================
-   PASO 3: Agregar servicios y horarios
+   PASO 3: Agregar cuenta bancaria (sin crear sucursal)
    ========================= */
 
 const registerStep3Schema = z.object({
+  comercioId: z.string().min(1),
+  banco: z.string().min(1, "El nombre del banco es requerido"),
+  tipo_cuenta: z.enum(['ahorro', 'corriente'] as const), // Cambio aquí
+  numero_cuenta: z.string().min(5, "El número de cuenta es requerido"),
+  nombre_titular: z.string().min(1, "El nombre del titular es requerido"),
+  identificacion_titular: z.string().min(5, "La identificación del titular es requerida"),
+});
+
+export const registerSalonStep3 = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parsed = registerStep3Schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Datos inválidos", details: parsed.error.issues });
+      return;
+    }
+
+    const { comercioId, banco, tipo_cuenta, numero_cuenta, nombre_titular, identificacion_titular } = parsed.data;
+
+    const uidPropietario = (req as any).user?.uid;
+    const comercioDoc = await db.collection("comercios").doc(comercioId).get();
+
+    if (!comercioDoc.exists) {
+      res.status(404).json({ error: "Comercio no encontrado" });
+      return;
+    }
+
+    const comercioData = comercioDoc.data() as Comercio;
+    if (comercioData.uid_cliente_propietario !== uidPropietario) {
+      res.status(403).json({ error: "No tienes permiso para editar este comercio" });
+      return;
+    }
+
+    const uidNegocio = comercioData.uid_negocio;
+
+    // Crear cuenta bancaria
+    const cuentaBancariaRef = db.collection("cuentas_bancarias").doc();
+    await cuentaBancariaRef.set({
+      id_documento: cuentaBancariaRef.id,
+      usuario_id: uidNegocio,
+      comercio_id: comercioId,
+      banco,
+      tipo_cuenta,
+      numero_cuenta,
+      nombre_titular,
+      identificacion_titular,
+      estado: "pendiente_verificacion",
+      fecha_creacion: FieldValue.serverTimestamp(),
+    });
+
+    // Actualizar comercio (sin crear sucursal, ya existe del paso 2)
+    await db.collection("comercios").doc(comercioId).update({
+      estado: "paso3_completado",
+      cuenta_bancaria_id: cuentaBancariaRef.id,
+      fecha_actualizacion: FieldValue.serverTimestamp(),
+    });
+
+    res.status(200).json({
+      message: "Paso 3 completado: Cuenta bancaria registrada",
+      comercioId,
+      cuentaBancariaId: cuentaBancariaRef.id,
+    });
+  } catch (error: any) {
+    console.error("Error en registerSalonStep3:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/* =========================
+   PASO 4: Agregar servicios y horarios (antes era paso 3)
+   ========================= */
+
+const registerStep4Schema = z.object({
   comercioId: z.string().min(1),
   horarios: z.array(
     z.object({
@@ -170,10 +266,10 @@ const registerStep3Schema = z.object({
   ).min(1, "Debes agregar al menos un servicio"),
 });
 
-export const registerSalonStep3 = async (req: Request, res: Response): Promise<void> => {
+export const registerSalonStep4 = async (req: Request, res: Response): Promise<void> => {
   try {
     // 1. Validar datos
-    const parsed = registerStep3Schema.safeParse(req.body);
+    const parsed = registerStep4Schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Datos inválidos", details: parsed.error.issues });
       return;
@@ -207,6 +303,7 @@ export const registerSalonStep3 = async (req: Request, res: Response): Promise<v
       batch.set(horarioRef, {
         ...horario,
         usuario_id: uidNegocio,
+        comercio_id: comercioId,
         fecha_creacion: FieldValue.serverTimestamp(),
       });
     });
@@ -217,6 +314,7 @@ export const registerSalonStep3 = async (req: Request, res: Response): Promise<v
       batch.set(servicioRef, {
         ...servicio,
         usuario_id: uidNegocio,
+        comercio_id: comercioId,
         fecha_creacion: FieldValue.serverTimestamp(),
       });
     });
@@ -245,7 +343,7 @@ export const registerSalonStep3 = async (req: Request, res: Response): Promise<v
       uidNegocio,
     });
   } catch (error: any) {
-    console.error("Error en registerSalonStep3:", error);
+    console.error("Error en registerSalonStep4:", error);
     res.status(500).json({ error: error.message });
   }
 };

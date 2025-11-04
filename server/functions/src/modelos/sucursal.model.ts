@@ -1,17 +1,18 @@
 import { z } from 'zod';
-import { FieldValue } from 'firebase-admin/firestore';
+import { GeoPoint } from 'firebase-admin/firestore';
 
 export interface Sucursal {
   id?: string;
+  id_documento: string;
   comercio_id: string;
   nombre: string;
   telefono: string;
   direccion: string;
-  geo_lat: number;
-  geo_lng: number;
-  activa: boolean;
-  creado_en?: FieldValue;
-  actualizado_en?: FieldValue;
+  geo?: GeoPoint; // Cambiado a GeoPoint
+  es_principal: boolean; // Agregado
+  estado: "activo" | "inactivo";
+  fecha_creacion?: any;
+  fecha_actualizacion?: any;
 }
 
 export const sucursalSchema = z.object({
@@ -19,10 +20,12 @@ export const sucursalSchema = z.object({
   nombre: z.string().min(1, "El nombre de la sucursal es requerido."),
   telefono: z.string().min(8, "El teléfono es requerido."),
   direccion: z.string().min(1, "La dirección es requerida."),
-  geo_lat: z.number(),
-  geo_lng: z.number(),
-  activa: z.boolean().default(true),
+  geo: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }).optional(),
+  es_principal: z.boolean().default(false),
+  estado: z.enum(['activo', 'inactivo']).default('activo'),
 });
 
-// Añade esta línea para exportar el esquema de actualización
 export const updateSucursalSchema = sucursalSchema.partial();

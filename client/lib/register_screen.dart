@@ -111,7 +111,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
         confirmController.text.isEmpty ||
-        _dobController.text.isEmpty || // <-- AÑADIDO
+        _dobController.text.isEmpty ||
         _selectedGender == null) {
       setState(() {
         errorMsg = 'Todos los campos son requeridos';
@@ -149,9 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
       print('[register] Usuario creado en Auth: ${user.uid}, ${user.email}');
 
-      final url = Uri.parse(
-        '$apiBaseUrl/api/users',
-      );
+      final url = Uri.parse('$apiBaseUrl/api/users');
 
       print('[register] Enviando POST al backend: $url');
       final body = {
@@ -173,8 +171,8 @@ class _RegisterScreenState extends State<RegisterScreen>
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body)).timeout(const Duration(seconds: 15)
-      );
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 15));
 
       print('📨 [register] Respuesta del backend: ${response.statusCode}');
       print('📨 [register] Cuerpo de respuesta: ${response.body}');
@@ -186,6 +184,8 @@ class _RegisterScreenState extends State<RegisterScreen>
 
         await _showSuccessToast('Registro exitoso');
         if (!mounted) return;
+        
+        // Simplemente cerrar y volver al login
         Navigator.of(context).pop();
       } else {
         print('[register] Error al guardar usuario en la base de datos');

@@ -5,6 +5,8 @@ import 'inicio.dart';
 import 'api_constants.dart';
 import 'salon_address_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'add_card_page.dart';
 
 class SalonRegistrationFormPage extends StatefulWidget {
   const SalonRegistrationFormPage({Key? key}) : super(key: key);
@@ -17,17 +19,20 @@ class SalonRegistrationFormPage extends StatefulWidget {
 class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _tarjetaVerificada = false; // Agregar flag
 
   // Controladores para el formulario
   final _salonNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _salonPhoneController = TextEditingController();
+  final _rtnController = TextEditingController(); // Agregado
 
   @override
   void initState() {
     super.initState();
     _checkEmulatorMode();
+    _verificarTarjeta();
   }
 
   // Verificar si estamos en modo emulador
@@ -39,21 +44,122 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     }
   }
 
+  // Verificar si el usuario tiene tarjeta registrada
+  Future<void> _verificarTarjeta() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      Navigator.of(context).pushReplacementNamed('/login');
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('tarjetas_usuarios')
+          .where('usuario_id', isEqualTo: currentUser.uid)
+          .where('activa', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        if (!mounted) return;
+        
+        // Esperar un frame para que el widget esté completamente construido
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Column(
+                children: [
+                  Icon(Icons.credit_card, color: Color(0xFFEA963A), size: 48),
+                  SizedBox(height: 16),
+                  Text(
+                    'Método de pago requerido',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              content: const Text(
+                'Para registrar tu salón necesitas agregar un método de pago para tu suscripción.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(); // Volver a inicio
+                  },
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const AddCardPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA963A),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text(
+                    'Agregar tarjeta',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      } else {
+        print('✅ Usuario tiene tarjeta registrada');
+        setState(() => _tarjetaVerificada = true);
+      }
+    } catch (e) {
+      print('❌ Error verificando tarjeta: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al verificar método de pago')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _salonNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _salonPhoneController.dispose();
+    _rtnController.dispose(); // Agregado
     super.dispose();
   }
 
   Future<void> _submitForm() async {
+    // Verificar tarjeta antes de continuar
+    if (!_tarjetaVerificada) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Primero debes agregar un método de pago')),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
     if ((_passwordController.text.trim()).length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres.')),
+      );
+      return;
+    }
+
+    // Validar RTN
+    if (_rtnController.text.trim().length != 14) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El RTN debe tener exactamente 14 dígitos.')),
       );
       return;
     }
@@ -85,6 +191,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         'password': _passwordController.text.trim(),
         'nombre': _salonNameController.text.trim(),
         'telefono': _salonPhoneController.text.trim(),
+        'rtn': _rtnController.text.trim(),
       };
 
       print('📤 Enviando payload: ${json.encode(payload)}');
@@ -217,6 +324,14 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
                 Icons.phone_in_talk_outlined,
                 keyboardType: TextInputType.phone),
             const SizedBox(height: 16),
+            _buildSectionTitle('RTN del salón *'),
+            _buildTextField(
+              _rtnController,
+              '14 dígitos',
+              Icons.business_outlined,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
             // La sección de Dirección, Horarios y Servicios se ha eliminado de esta página.
 
             const SizedBox(height: 32),
@@ -286,6 +401,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
       obscureText: isPassword,
       readOnly: readOnly,
       onTap: onTap,
+      maxLength: controller == _rtnController ? 14 : null, // Limitar RTN a 14 dígitos
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
@@ -296,11 +412,17 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        counterText: '', // Ocultar contador de caracteres
       ),
-      validator: (value) =>
-          (isRequired && (value == null || value.isEmpty))
-              ? 'Este campo es requerido'
-              : null,
+      validator: (value) {
+        if (isRequired && (value == null || value.isEmpty)) {
+          return 'Este campo es requerido';
+        }
+        if (controller == _rtnController && value != null && value.length != 14) {
+          return 'El RTN debe tener 14 dígitos';
+        }
+        return null;
+      },
     );
   }
 
