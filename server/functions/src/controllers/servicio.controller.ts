@@ -37,16 +37,32 @@ export const createServicio = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// Obtener todos los servicios
-export const getServicios = async (_req: Request, res: Response): Promise<void> => {
+// Obtener todos los servicios (con filtro opcional por comercio_id)
+export const getServicios = async (req: Request, res: Response): Promise<void> => {
   try {
-    const snapshot = await db.collection("servicios").get();
+    const { comercio_id } = req.query;
+
+    let query = db.collection("servicios");
+
+    // ✅ Filtrar por comercio_id si viene en query params
+    if (comercio_id) {
+      query = query.where("comercio_id", "==", comercio_id) as any;
+      console.log(`🔍 Filtrando servicios por comercio_id: ${comercio_id}`);
+    }
+
+    const snapshot = await query.get();
     const servicios: Servicio[] = snapshot.docs.map(
       (doc) => ({ id: doc.id, ...doc.data() } as Servicio)
     );
+
+    console.log(
+      `📊 Servicios encontrados: ${servicios.length}${comercio_id ? ` para comercio ${comercio_id}` : ""}`
+    );
+
     res.json(servicios);
     return;
   } catch (error: any) {
+    console.error("❌ Error obteniendo servicios:", error);
     res.status(500).json({ error: error.message });
     return;
   }

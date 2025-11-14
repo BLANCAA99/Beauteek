@@ -9,7 +9,6 @@ import { z } from "zod";
    ========================= */
 
 // Perfil base para crear (SIN password). Aplica a clientes y salones.
-// Si rol = 'salon', los campos de negocio son OPCIONALES (puedes exigirlos desde el formulario).
 export const usuarioSchema = z.object({
   uid: z.string().min(1),
   nombre_completo: z.string().min(1),
@@ -18,24 +17,14 @@ export const usuarioSchema = z.object({
   rol: z.enum(["cliente", "salon"]).optional(),
 
   // Perfil general
-  foto_url: z.string().url().optional(),
+  foto_url: z.string().optional(),
   direccion: z.string().optional(),
-  fecha_nacimiento: z
-    .string()
-    .refine((dob) => {
-      // Nota: Si quieres permitir crear sin DOB, déjalo como optional(). Si lo envían, validamos 18+
-      const today = new Date();
-      const birthDate = new Date(dob);
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-      return age >= 18;
-    }, { message: "Debes ser mayor de 18 años para registrarte." })
-    .optional(),
+  fecha_nacimiento: z.string().optional(),
   genero: z.string().optional(),
   estado: z.string().optional(),
+  pais: z.string().optional(),
 
-  // Campos de negocio (para salones) - SOLO información administrativa
+  // Campos de negocio (para salones)
   rtn: z.string().regex(/^\d{14}$/, "RTN debe tener 14 dígitos").optional(),
   razon_social: z.string().min(2).optional(),
   banco_id: z.string().optional(),
@@ -55,7 +44,6 @@ const updateUsuarioSchema = usuarioSchema.partial().omit({ uid: true, email: tru
 
 // 🔹 Crear usuario (perfil) en Firestore SIN password
 // Se usa cuando ya creaste la cuenta en Firebase Auth (email/pass o Google) desde el frontend.
-// Envías uid, email y los demás datos de perfil (y si es salón, sus extras).
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   console.log("[createUser] Body recibido:", req.body);
   try {
@@ -68,14 +56,18 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
     const { uid, ...data } = parsed.data;
 
-    // Evitar overwrite accidental si ya existe
+    // Verificar si ya existe
     const docRef = db.collection("usuarios").doc(uid);
     const existing = await docRef.get();
+    
     if (existing.exists) {
-      res.status(409).json({ error: "El perfil ya existe para este UID." });
+      console.log("[createUser] Usuario ya existe, retornando datos existentes");
+      // Retornar usuario existente (útil para Google Sign In)
+      res.status(200).json({ id: uid, ...existing.data() });
       return;
     }
 
+    // Crear nuevo usuario
     await docRef.set({
       uid,
       ...data,
@@ -136,7 +128,6 @@ export const getUserByUid = async (req: Request, res: Response): Promise<void> =
 };
 
 // 🔹 Actualizar usuario (solo campos permitidos)
-// No permite cambiar uid/email/rol desde este endpoint público.
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   const { uid } = req.params;
 
@@ -172,36 +163,29 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
 /* =========================
    Registro completo de Usuario (Cliente)
-   Crea el usuario en Firebase Auth y el perfil en Firestore desde el backend.
    ========================= */
 
-// 1. Define un esquema más estricto SOLO para el registro de clientes.
 const registerUserSchema = z.object({
   nombre_completo: z.string().min(1, "El nombre completo es requerido."),
   email: z.string().email("El formato del email es inválido."),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
   telefono: z.string().min(8, "El teléfono debe tener al menos 8 dígitos."),
-
-  // Estos campos son obligatorios en el registro completo
   direccion: z.string().min(5, "La dirección es requerida."),
   fecha_nacimiento: z.string().min(1, "La fecha de nacimiento es requerida.").refine((dob) => {
-      const today = new Date();
-      const birthDate = new Date(dob);
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-      return age >= 18;
-    }, { message: "Debes ser mayor de 18 años para registrarte." }),
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age >= 18;
+  }, { message: "Debes ser mayor de 18 años para registrarte." }),
   genero: z.string().min(1, "El género es requerido."),
-
-  // Campos opcionales
+  pais: z.string().optional(),
   estado: z.string().optional(),
 });
 
-
 export const registerUserComplete = async (req: Request, res: Response): Promise<void> => {
   try {
-    // 1. Validar los datos de entrada
     const parsed = registerUserSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Datos de entrada inválidos", details: parsed.error.issues });
@@ -210,31 +194,29 @@ export const registerUserComplete = async (req: Request, res: Response): Promise
 
     const { email, password } = parsed.data;
 
-    // 2. Crear usuario en Firebase Authentication SÓLO con email y password
+    // Crear usuario en Firebase Authentication
     const userRecord = await admin.auth().createUser({
       email: email,
       password: password,
-      // Se han eliminado displayName y phoneNumber de aquí
     });
 
     const newUid = userRecord.uid;
 
-    // 3. Asignar rol de "cliente"
+    // Asignar rol de "cliente"
     await admin.auth().setCustomUserClaims(newUid, { role: "cliente" });
 
-    // 4. Guardar perfil completo en Firestore (sin la contraseña)
+    // Guardar perfil completo en Firestore (sin la contraseña)
     const { password: _password, ...userDataForFirestore } = parsed.data;
     const userPayload = {
       ...userDataForFirestore,
       uid: newUid,
       rol: "cliente",
       fecha_creacion: FieldValue.serverTimestamp(),
-      foto_url: "pendiente", // <-- AÑADE ESTA LÍNEA
+      foto_url: "pendiente",
     };
 
     await db.collection("usuarios").doc(newUid).set(userPayload);
 
-    // 5. Enviar respuesta exitosa
     res.status(201).json({
       message: "Usuario registrado exitosamente.",
       uid: newUid,
@@ -243,7 +225,7 @@ export const registerUserComplete = async (req: Request, res: Response): Promise
     console.error("Error en registerUserComplete:", error);
     res.status(500).json({
       message: "Error interno del servidor.",
-      error: error.message, // Devuelve el mensaje de error real para depuración
+      error: error.message,
     });
   }
 };
@@ -263,10 +245,8 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
 
 /* =========================
    Helpers de salón - DEPRECADOS
-   Estos métodos ya no son necesarios con el nuevo flujo de registro por pasos
    ========================= */
 
-// --- DEPRECADO: Usar registerSalonStep1, Step2, Step3 en comercio.controller ---
 export const setupSalon = async (req: Request, res: Response): Promise<void> => {
   try {
     const { uid, nombre_salon, direccion } = req.body;
@@ -276,7 +256,6 @@ export const setupSalon = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Solo actualizamos información básica, la geo va en comercios
     await db.collection("usuarios").doc(uid).update({
       rol: "salon",
       nombre_completo: nombre_salon,
@@ -306,7 +285,7 @@ const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: num
   return R * c;
 };
 
-// --- Listar salones cercanos - AHORA USA LA COLECCIÓN COMERCIOS ---
+// --- Listar salones cercanos ---
 export const getSalonsNearby = async (req: Request, res: Response): Promise<void> => {
   try {
     const lat = parseFloat(req.query.lat as string);
@@ -318,7 +297,6 @@ export const getSalonsNearby = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Ahora buscamos en la colección comercios que tiene la geolocalización
     const comerciosSnapshot = await db
       .collection("comercios")
       .where("estado", "==", "activo")
@@ -329,9 +307,9 @@ export const getSalonsNearby = async (req: Request, res: Response): Promise<void
       .filter((comercio: any) => {
         if (comercio.geo) {
           const distance = getDistanceInMeters(
-            lat, 
-            lng, 
-            comercio.geo.latitude, 
+            lat,
+            lng,
+            comercio.geo.latitude,
             comercio.geo.longitude
           );
           return distance <= radius;
@@ -345,13 +323,9 @@ export const getSalonsNearby = async (req: Request, res: Response): Promise<void
   }
 };
 
-/* =========================
-   DEPRECADO: registerSalonComplete
-   Usar en su lugar: registerSalonStep1, Step2, Step3 en comercio.controller
-   ========================= */
-
+// DEPRECADO
 export const registerSalonComplete = async (req: Request, res: Response): Promise<void> => {
-  res.status(410).json({ 
-    message: "Este endpoint está deprecado. Usa /api/comercios/register-salon-step1, step2 y step3" 
+  res.status(410).json({
+    message: "Este endpoint está deprecado. Usa /api/comercios/register-salon-step1, step2 y step3"
   });
 };

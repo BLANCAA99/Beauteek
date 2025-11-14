@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Agregar permisos de ubicación -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Beauteek necesita tu ubicación para mostrarte los salones de belleza más cercanos</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Beauteek necesita tu ubicación para mostrarte los salones de belleza más cercanos</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Beauteek necesita tu ubicación para mostrarte los salones de belleza más cercanos</string>
 </dict>
 </plist>

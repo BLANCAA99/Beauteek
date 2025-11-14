@@ -1,12 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.beauteek.client">
     <!-- Permisos necesarios -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+     <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyC8JHl1RNnimX4eDSLqfPhZBONGuJe8Cbs" />
     <application
-        android:label="beauteek"
-        android:name="${applicationName}"
+        android:label="Beauteek"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
@@ -33,7 +36,7 @@
         </activity>
         <!-- Clave de API de Google Maps -->
         <meta-data android:name="com.google.android.geo.API_KEY"
-               android:value="AIzaSyC8JHI1RNnimX4eDSLqfPhZBONGuJe8Cbs"/>
+               android:value="AIzaSyC8JHl1RNnimX4eDSLqfPhZBONGuJe8Cbs"/>
         
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

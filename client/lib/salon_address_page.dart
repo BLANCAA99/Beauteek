@@ -36,11 +36,16 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
   }
 
   Future<void> _openLocationPicker() async {
+    // ✅ CAMBIO: Obtener el userId del usuario actual
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SearchPage(
           mode: 'select',
+          userId: currentUser?.uid, // ✅ AGREGAR userId
+          userCountry: 'Honduras', // ✅ AGREGAR país por defecto
           onLocationSelected: (position, address) {
             setState(() {
               _selectedLocation = position;
@@ -75,7 +80,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
       final payload = {
         'comercioId': widget.comercioId,
         'direccion': _addressController.text.trim(),
-        'geo': {
+        'ubicacion': { 
           'latitude': _selectedLocation!.latitude,
           'longitude': _selectedLocation!.longitude,
         },

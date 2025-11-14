@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,10 +7,34 @@ import 'profile_info.dart';
 import 'inicio.dart';
 import 'salon_registration_steps_page.dart'; 
 import 'api_constants.dart';
+import 'edit_services_page.dart';
+import 'reportes_salon_page.dart';
 
 class ProfileMenuPage extends StatelessWidget {
   final String? uid;
   const ProfileMenuPage({Key? key, this.uid}) : super(key: key);
+
+  // ✅ NUEVO: Obtener rol del usuario
+  Future<String?> _fetchUserRole(String uid) async {
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser == null) return null;
+
+    final idToken = await authUser.getIdToken();
+    final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
+
+    final resp = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (resp.statusCode != 200) return null;
+
+    final raw = json.decode(resp.body) as Map<String, dynamic>;
+    return raw['rol'] as String?;
+  }
 
   // GET /users/:uid  (getUserById)
   Future<Map<String, dynamic>?> _fetchUserHeader(String uid) async {
@@ -19,7 +42,6 @@ class ProfileMenuPage extends StatelessWidget {
     if (authUser == null) return null;
 
     final idToken = await authUser.getIdToken();
-    // CORRECCIÓN: Construir la URL para que coincida con la ruta de la API /users/uid/:uid
     final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
 
     final resp = await http.get(
@@ -45,7 +67,11 @@ class ProfileMenuPage extends StatelessWidget {
     final photoUrl =
         (raw['foto_url'] ?? raw['photoURL'] ?? raw['photo'] ?? '').toString();
 
-    return {'displayName': displayName, 'photoUrl': photoUrl};
+    return {
+      'displayName': displayName, 
+      'photoUrl': photoUrl,
+      'rol': raw['rol'] as String?, // ✅ Incluir rol
+    };
   }
 
   Widget _menuTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
@@ -98,8 +124,7 @@ class ProfileMenuPage extends StatelessWidget {
               child: FutureBuilder<Map<String, dynamic>?>(
                 future: resolvedUid != null ? _fetchUserHeader(resolvedUid) : Future.value(null),
                 builder: (context, snapshot) {
-                  String displayName = 'Usuario'; // Valor por defecto
-                  String subtitle = 'Perfil personal';
+                  String displayName = 'Usuario';
                   String? photoUrl;
 
                   if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
@@ -107,13 +132,11 @@ class ProfileMenuPage extends StatelessWidget {
                     displayName = data['displayName'] ?? 'Usuario';
                     photoUrl = data['photoUrl'];
                   } else if (snapshot.connectionState == ConnectionState.done) {
-                    // Fallback si la API falla o no devuelve datos
                     final authUser = FirebaseAuth.instance.currentUser;
                     displayName = authUser?.displayName ?? 'Usuario';
                     photoUrl = authUser?.photoURL;
                   }
 
-                  // Si después de todo, el nombre está vacío, muestra 'Usuario'.
                   if (displayName.isEmpty) {
                     displayName = 'Usuario';
                   }
@@ -149,50 +172,113 @@ class ProfileMenuPage extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Menú principal
+            // ✅ CAMBIO: Menú dinámico según el rol
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 6))],
-                ),
-                child: Column(
-                  children: [
-                    _menuTile(context, Icons.person_outline, 'Perfil', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileInfoPage(uid: resolvedUid)));
-                    }),
-                    const Divider(height: 1),
-                    _menuTile(context, Icons.favorite_border, 'Favoritos', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Favoritos')));
-                    }),
-                    const Divider(height: 1),
-                    _menuTile(context, Icons.feed_outlined, 'Formularios', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Formularios')));
-                    }),
-                    const Divider(height: 1),
-                    _menuTile(context, Icons.inventory_2_outlined, 'Pedidos de productos', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Pedidos de productos')));
-                    }),
-                    const Divider(height: 1),
-                    _menuTile(context, Icons.settings_outlined, 'Ajustes', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Ajustes')));
-                    }),
-                    const Divider(height: 1),
-                    // --- CAMBIO: Movido aquí ---
-                    _menuTile(context, Icons.store_outlined, 'Registrar mi salón de belleza', () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const SalonRegistrationStepsPage()));
-                    }),
-                  ],
-                ),
+              child: FutureBuilder<String?>(
+                future: resolvedUid != null ? _fetchUserRole(resolvedUid) : Future.value(null),
+                builder: (context, snapshot) {
+                  final rol = snapshot.data ?? 'cliente';
+
+                  return Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 6))],
+                    ),
+                    child: Column(
+                      children: [
+                        // ✅ Perfil: visible para todos
+                        _menuTile(context, Icons.person_outline, 'Perfil', () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileInfoPage(uid: resolvedUid)));
+                        }),
+                        
+                        // ✅ Opciones según el rol
+                        if (rol == 'salon') ...[
+                          const Divider(height: 1),
+                          _menuTile(context, Icons.settings, 'Configurar servicios y horarios', () async {
+                            // ✅ CAMBIO: Obtener comercioId y navegar a edit_services_page
+                            try {
+                              final authUser = FirebaseAuth.instance.currentUser;
+                              if (authUser == null) return;
+
+                              final idToken = await authUser.getIdToken();
+                              final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
+                              final comerciosResponse = await http.get(
+                                comerciosUrl,
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': 'Bearer $idToken',
+                                },
+                              );
+
+                              if (comerciosResponse.statusCode == 200) {
+                                final List<dynamic> comercios = json.decode(comerciosResponse.body);
+                                final miComercio = comercios.firstWhere(
+                                  (c) => c['uid_negocio'] == authUser.uid,
+                                  orElse: () => null,
+                                );
+
+                                if (miComercio != null && context.mounted) {
+                                  final comercioId = miComercio['id'];
+                                  
+                                  // ✅ CAMBIO: Navegar a EditServicesPage pasando comercioId
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EditServicesPage(comercioId: comercioId),
+                                    ),
+                                  );
+                                } else if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('No se encontró tu comercio'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              print('❌ Error: $e');
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }),
+                          const Divider(height: 1),
+                          _menuTile(context, Icons.analytics_outlined, 'Reportes detallados', () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportesSalonPage()));
+                          }),
+                        ] else if (rol == 'cliente') ...[
+                          const Divider(height: 1),
+                          _menuTile(context, Icons.favorite_border, 'Favoritos', () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Favoritos')));
+                          }),
+                          const Divider(height: 1),
+                          _menuTile(context, Icons.rate_review_outlined, 'Mis reseñas', () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Mis reseñas')));
+                          }),
+                          const Divider(height: 1),
+                          _menuTile(context, Icons.store_outlined, 'Registrar mi salón de belleza', () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const SalonRegistrationStepsPage()));
+                          }),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // --- CAMBIO: Movido aquí ---
+            // ✅ Cerrar sesión
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -204,15 +290,13 @@ class ProfileMenuPage extends StatelessWidget {
                 ),
                 child: _menuTile(context, Icons.logout, 'Cerrar sesión', () async {
                   await FirebaseAuth.instance.signOut();
-                  // Navega a la pantalla de login y elimina todas las rutas anteriores.
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()), // Asumiendo que tu login se llama LoginScreen
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
                     (Route<dynamic> route) => false,
                   );
                 }),
               ),
             ),
-            // --- FIN DE LA SECCIÓN ---
 
             const SizedBox(height: 28),
           ],

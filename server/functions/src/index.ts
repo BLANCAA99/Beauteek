@@ -25,6 +25,7 @@ import favoritoRoutes from './routes/favorito.routes';
 import promocionRoutes from './routes/promocion.routes';
 import reseñaRoutes from './routes/reseña.routes';
 import tarjetaRoutes from './routes/tarjeta.routes';
+import citaRoutes from './routes/cita.routes';
 
 const app = express();
 
@@ -42,15 +43,16 @@ app.use((req, res, next) => {
 app.use('/api/users', userRoutes);
 app.use('/comercios', comercioRoutes);
 app.use('/categorias_servicio', categoriasServicioRoutes);
-app.use('/api/tarjetas', tarjetaRoutes); // Agregar esta línea
+app.use('/api/tarjetas', tarjetaRoutes);
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/servicios', servicioRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/favoritos', favoritoRoutes);
 app.use('/api/promociones', promocionRoutes);
 app.use('/api/reseñas', reseñaRoutes);
+app.use('/citas', citaRoutes);
 
-console.log('✅ Rutas registradas: /api/users, /comercios, /categorias_servicio');
+console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/sucursales, /citas');
 
 export const api = onRequest(
   { region: "us-central1" },

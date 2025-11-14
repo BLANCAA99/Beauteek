@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
@@ -172,34 +171,35 @@ class _RegisterScreenState extends State<RegisterScreen>
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 10)); // ✅ CAMBIO: Reducido a 10s
 
       print('📨 [register] Respuesta del backend: ${response.statusCode}');
-      print('📨 [register] Cuerpo de respuesta: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('[register] Usuario guardado correctamente en Firestore');
+        print('[register] Usuario guardado correctamente');
+        if (!mounted) return; // ✅ CAMBIO: Verificar mounted
         setState(() => errorMsg = '');
 
-
         await _showSuccessToast('Registro exitoso');
-        if (!mounted) return;
+        if (!mounted) return; // ✅ CAMBIO: Verificar mounted
         
-        // Simplemente cerrar y volver al login
         Navigator.of(context).pop();
       } else {
-        print('[register] Error al guardar usuario en la base de datos');
+        print('[register] Error al guardar usuario');
+        if (!mounted) return;
         setState(() {
           errorMsg = 'Error al guardar usuario en la base de datos.';
         });
       }
     } on FirebaseAuthException catch (e) {
-      print('[register] FirebaseAuthException: ${e.code} - ${e.message}');
+      print('[register] FirebaseAuthException: ${e.code}');
+      if (!mounted) return; // ✅ CAMBIO: Verificar mounted
       setState(() {
         errorMsg = e.message ?? 'No se pudo registrar. Verifica tus datos.';
       });
     } catch (e) {
-      print('[register] Excepción inesperada: $e');
+      print('[register] Excepción: $e');
+      if (!mounted) return; // ✅ CAMBIO: Verificar mounted
       setState(() {
         errorMsg = 'Error inesperado. Intenta de nuevo.';
       });

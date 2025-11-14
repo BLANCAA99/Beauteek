@@ -167,25 +167,14 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     setState(() => _isLoading = true);
 
     try {
-      // PRUEBA DE CONECTIVIDAD
-      print('🧪 Probando conectividad...');
-      final testUrl = Uri.parse('$apiBaseUrl/comercios');
-      final testResponse = await http.get(testUrl).timeout(const Duration(seconds: 5));
-      print('✅ Conectividad OK - Status: ${testResponse.statusCode}');
-
-      // Obtener el UID del cliente propietario (usuario actual en sesión)
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         throw Exception('Debes iniciar sesión primero');
       }
 
-      print('📍 Usuario actual: ${currentUser.uid}');
-
-      // Obtener el token de autenticación
       final idToken = await currentUser.getIdToken();
-      print('🔑 Token obtenido: ${idToken?.substring(0, 20)}...');
 
-      // Llamar al API para crear el salón (paso 1)
+      // ✅ USAR API EN LUGAR DE FIRESTORE
       final payload = {
         'email': _emailController.text.trim(),
         'password': _passwordController.text.trim(),
@@ -197,19 +186,14 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
       print('📤 Enviando payload: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step1');
-      print('🌐 URL: $url');
-      print('🔍 apiBaseUrl: $apiBaseUrl'); // Debug adicional
-
-      final response = await http
-          .post(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-            body: json.encode(payload),
-          )
-          .timeout(const Duration(seconds: 45));
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode(payload),
+      ).timeout(const Duration(seconds: 30));
 
       print('📥 Status code: ${response.statusCode}');
       print('📥 Response body: ${response.body}');
@@ -219,16 +203,12 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         final String comercioId = responseData['comercioId'];
         final String uidNegocio = responseData['uidNegocio'];
 
-        print('✅ Comercio creado: $comercioId');
-
         if (!mounted) return;
 
-        // Mostrar mensaje de éxito
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Salón creado! Ahora, agrega la dirección.'))
+          const SnackBar(content: Text('✅ Salón creado! Ahora, agrega la dirección.'))
         );
 
-        // Navegar a la siguiente página
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => SalonAddressPage(
@@ -237,32 +217,12 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
             ),
           ),
         );
-
       } else {
-        String msg = 'Error al registrar el salón';
-        try {
-          final data = json.decode(response.body);
-          msg = data['message'] ?? data['error'] ?? data['details']?.toString() ?? msg;
-          print('❌ Error del servidor: $msg');
-        } catch (e) {
-          print('❌ Error parseando respuesta: $e');
-        }
-        throw Exception(msg);
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error'] ?? 'Error desconocido');
       }
-    } on http.ClientException catch (e) {
-      print('🔌 Error de conexión: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error de conexión. Verifica que el servidor esté corriendo.'))
-      );
-    } on FormatException catch (e) {
-      print('📝 Error de formato: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error en el formato de datos.'))
-      );
     } catch (e) {
-      print('❌ Error general: $e');
+      print('[salon] Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'))

@@ -23,7 +23,7 @@ class ProfileInfoPage extends StatelessWidget {
         final idToken = await user.getIdToken();
         final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
 
-        print('[API Call] GET: $url'); // <-- LOG PARA VER LA URL
+        print('[API Call] GET: $url');
 
         final response = await http.get(
           url,
@@ -33,8 +33,8 @@ class ProfileInfoPage extends StatelessWidget {
           },
         ).timeout(const Duration(seconds: 10));
 
-        print('📬 [API Response] StatusCode: ${response.statusCode}'); // <-- LOG DEL STATUS
-        print('📦 [API Response] Body: ${response.body}'); // <-- LOG DEL CUERPO
+        print('📬 [API Response] StatusCode: ${response.statusCode}');
+        print('📦 [API Response] Body: ${response.body}');
 
         if (response.statusCode == 200) {
           final apiData = json.decode(response.body) as Map<String, dynamic>;
@@ -49,17 +49,17 @@ class ProfileInfoPage extends StatelessWidget {
           
           userData['phone'] = apiData['telefono'] ?? '';
           userData['photoURL'] = apiData['foto_url'] ?? '';
-          userData['direccion'] = apiData['direccion'] ?? ''; // <-- CAMPO AÑADIDO
+          userData['direccion'] = apiData['direccion'] ?? '';
           userData['dob'] = apiData['fecha_creacion'] ?? '';
           userData['gender'] = apiData['genero'] ?? '';
           userData['email'] = apiData['email'] ?? user.email ?? '-';
+          userData['rol'] = apiData['rol'] ?? ''; // ✅ AGREGAR ROL
 
           return userData;
         }
       }
     } catch (e) {
-      print('🔥 [API Error] Exception: $e'); // <-- LOG DE EXCEPCIÓN
-      // Si la API falla, se continúa al fallback de Firestore.
+      print('🔥 [API Error] Exception: $e');
     }
 
     // 2. Fallback: Cargar datos desde la colección 'users' en Firestore.
@@ -77,9 +77,10 @@ class ProfileInfoPage extends StatelessWidget {
 
       userData['phone'] = firestoreData['telefono'] ?? '';
       userData['photoURL'] = firestoreData['foto_url'] ?? '';
-      userData['direccion'] = firestoreData['direccion'] ?? ''; // <-- CAMPO AÑADIDO
+      userData['direccion'] = firestoreData['direccion'] ?? '';
       userData['dob'] = firestoreData['fecha_creacion'] ?? '';
       userData['gender'] = firestoreData['genero'] ?? '';
+      userData['rol'] = firestoreData['rol'] ?? ''; // ✅ AGREGAR ROL
     }
 
     // 3. Asegurar que el email de FirebaseAuth se use siempre.
@@ -176,6 +177,7 @@ class ProfileInfoPage extends StatelessWidget {
             final dob       = (data['dob']       ?? data['fechaNacimiento'] ?? '').toString();
             final gender    = (data['gender']    ?? data['genero'] ?? '').toString();
             final avatarUrl = (data['photoURL']  ?? '').toString();
+            final rol       = (data['rol']       ?? 'cliente').toString(); // ✅ OBTENER ROL
 
             return SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 24),
@@ -285,10 +287,13 @@ class ProfileInfoPage extends StatelessWidget {
                           _infoRow('Número de teléfono móvil', phone.isNotEmpty ? phone : '-'),
                           Divider(height: 1, color: Colors.grey.shade200),
                           _infoRow('Email', email.isNotEmpty ? email : '-'),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          _infoRow('Fecha de nacimiento', dob.isNotEmpty ? dob : '-'),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          _infoRow('Género', gender.isNotEmpty ? gender : '-'),
+                          // ✅ CAMBIO: Solo mostrar fecha de nacimiento y género si es cliente
+                          if (rol == 'cliente') ...[
+                            Divider(height: 1, color: Colors.grey.shade200),
+                            _infoRow('Fecha de nacimiento', dob.isNotEmpty ? dob : '-'),
+                            Divider(height: 1, color: Colors.grey.shade200),
+                            _infoRow('Género', gender.isNotEmpty ? gender : '-'),
+                          ],
                         ],
                       ),
                     ),

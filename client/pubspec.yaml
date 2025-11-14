@@ -1,5 +1,6 @@
-name: beauteek
-description: A new Flutter project.
+name: beauteek_client
+description: Beauteek - Beauty Salon Booking App
+
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -14,12 +15,26 @@ dependencies:
   firebase_core: ^2.24.2
   firebase_auth: ^4.15.3
   cloud_firestore: ^4.13.6
-  google_sign_in: ^6.1.6
   http: ^1.1.0
-  google_maps_flutter: ^2.5.0
+  intl: ^0.18.1
+  table_calendar: ^3.0.9
+  
+  # Google Maps y ubicación
+  google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
-  image_picker: ^1.0.4
+  geocoding: ^2.1.1
+  
+  # Cloudinary para subir imágenes
   cloudinary_public: ^0.21.0
+  
+  # Image picker
+  image_picker: ^1.0.4
+  
+  # Google Sign In (AGREGAR ESTA LÍNEA)
+  google_sign_in: ^6.1.6
+  pdf: ^3.10.7 # ✅ CAMBIO: Para generar PDF en lugar de CSV
+  path_provider: ^2.1.1 # ✅ AGREGAR: Para guardar archivos
+  share_plus: ^7.2.1 # ✅ AGREGAR: Para compartir archivos
 
 dev_dependencies:
   flutter_test:
@@ -28,5 +43,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
   assets:
     - assets/images/

@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'api_constants.dart';
+import 'setup_location_page.dart'; // <-- AGREGAR IMPORT
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -110,10 +111,12 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ───────── Login con email/password ─────────
   Future<void> login() async {
+    if (!mounted) return; // ✅ Verificar mounted al inicio
     setState(() => errorMsg = '');
 
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty) {
+      if (!mounted) return;
       setState(() => errorMsg = 'Por favor, ingresa tu correo y contraseña.');
       return;
     }
@@ -126,19 +129,56 @@ class _LoginScreenState extends State<LoginScreen>
       );
       final user = credential.user;
       if (user == null) {
+        if (!mounted) return;
         setState(() => errorMsg = 'No se pudo iniciar sesión. Intenta nuevamente.');
         return;
       }
 
-      // OK
-      await _showToast('¡Bienvenido!');
-        if (!mounted) return;
+      // 2) Obtener datos del usuario desde tu API
+      final idToken = await user.getIdToken();
+      final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 15)); // ✅ CAMBIO: 15s es suficiente
 
-        // 👇 Aquí lo redirigimos a la página de inicio
+      if (response.statusCode == 404) {
+        if (!mounted) return;
+        setState(() => errorMsg = 'Usuario no encontrado en la base de datos');
+        await FirebaseAuth.instance.signOut();
+        return;
+      }
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al obtener usuario: ${response.statusCode}');
+      }
+
+      final userData = json.decode(response.body) as Map<String, dynamic>;
+      final rol = userData['rol'] as String?;
+      final ubicacion = userData['ubicacion'];
+
+      if (!mounted) return; // ✅ Verificar mounted antes del toast
+      await _showToast('¡Bienvenido!');
+      if (!mounted) return; // ✅ Verificar mounted antes de navegar
+
+      // 3) Redirigir según rol y ubicación
+      if (rol == 'cliente' && ubicacion == null) {
+        // Cliente sin ubicación -> SetupLocationPage
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => InicioPage()),
+          MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
+      } else {
+        // Usuario con ubicación o salón -> InicioPage
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const InicioPage()),
+        );
+      }
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       String mensaje = 'Error al iniciar sesión';
       
       switch (e.code) {
@@ -166,6 +206,7 @@ class _LoginScreenState extends State<LoginScreen>
       
       setState(() => errorMsg = mensaje);
     } catch (e) {
+      if (!mounted) return;
       setState(() => errorMsg = 'Error inesperado. Por favor, intenta de nuevo.');
     }
   }
@@ -183,7 +224,6 @@ class _LoginScreenState extends State<LoginScreen>
         accessToken: googleAuth.accessToken,
       );
 
-      // 1) Iniciar sesión en Firebase con Google
       final userCred =
           await FirebaseAuth.instance.signInWithCredential(credential);
       final user = userCred.user;
@@ -192,45 +232,89 @@ class _LoginScreenState extends State<LoginScreen>
         return;
       }
 
-      // 2) Verificar en tu colección usuarios por uid
-      bool existsInDb = false;
+      // Verificar si el usuario ya existe en tu API
+      final idToken = await user.getIdToken();
+      final checkUrl = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+      
+      final checkResponse = await http.get(
+        checkUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-      // 2a) (Opcional) Intentar tu API primero
-      try {
-        final url = Uri.parse(
-          '$apiBaseUrl/api/users/uid/${user.uid}',
-        );
-        final resp = await http.get(url).timeout(const Duration(seconds: 10));
-        if (resp.statusCode == 200) {
-          existsInDb = true;
+      Map<String, dynamic>? userData;
+
+      if (checkResponse.statusCode == 404) {
+        // Usuario NO existe, crear perfil automáticamente
+        print('🆕 Usuario nuevo con Google, creando perfil...');
+
+        // Extraer nombre y apellido del displayName
+        final displayName = user.displayName ?? '';
+        final nameParts = displayName.split(' ');
+        final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
+        final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+        // Crear usuario en el backend
+        final createUrl = Uri.parse('$apiBaseUrl/api/users');
+        final createPayload = {
+          'uid': user.uid,
+          'nombre_completo': displayName.isNotEmpty ? displayName : 'Usuario de Google',
+          'email': user.email ?? '',
+          'telefono': user.phoneNumber ?? '',
+          'rol': 'cliente', // Por defecto es cliente
+          'foto_url': user.photoURL ?? '',
+          'fecha_creacion': DateTime.now().toIso8601String(),
+        };
+
+        print('📤 Creando usuario: ${json.encode(createPayload)}');
+
+        final createResponse = await http.post(
+          createUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: json.encode(createPayload),
+        ).timeout(const Duration(seconds: 10));
+
+        if (createResponse.statusCode == 201 || createResponse.statusCode == 200) {
+          print('✅ Usuario creado exitosamente');
+          userData = json.decode(createResponse.body) as Map<String, dynamic>;
+        } else {
+          throw Exception('Error al crear usuario: ${createResponse.statusCode} - ${createResponse.body}');
         }
-      } catch (_) {}
-
-      // 2b) Fallback Firestore
-      if (!existsInDb) {
-        final snap = await FirebaseFirestore.instance
-            .collection('usuarios')
-            .where('uid', isEqualTo: user.uid)
-            .limit(1)
-            .get();
-        existsInDb = snap.docs.isNotEmpty;
+      } else if (checkResponse.statusCode == 200) {
+        // Usuario ya existe
+        print('✅ Usuario existente encontrado');
+        userData = json.decode(checkResponse.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Error al verificar usuario: ${checkResponse.statusCode}');
       }
 
-      if (!existsInDb) {
-        // Si no existe, podrías crear el doc llamando a tu API de registro
-        // o crearlo directo en Firestore si tus reglas lo permiten.
-        setState(() => errorMsg = 'Tu cuenta de Google no está registrada en Beauteek. Por favor, regístrate primero.');
-        await FirebaseAuth.instance.signOut();
-        return;
-      }
+      // Verificar rol y ubicación
+      final rol = userData?['rol'] as String?;
+      final ubicacion = userData?['ubicacion'];
 
       await _showToast('¡Bienvenido!');
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => InicioPage()),
-      );
+
+      // Redirigir según rol y ubicación
+      if (rol == 'cliente' && ubicacion == null) {
+        // Cliente sin ubicación -> SetupLocationPage
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SetupLocationPage()),
+        );
+      } else {
+        // Usuario con ubicación o salón -> InicioPage
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const InicioPage()),
+        );
+      }
 
     } catch (e) {
+      print('❌ Error en registerWithGoogle: $e');
       setState(() => errorMsg = 'Error al iniciar sesión con Google. Intenta nuevamente.');
     }
   }

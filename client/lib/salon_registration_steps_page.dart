@@ -30,28 +30,28 @@ class SalonRegistrationStepsPage extends StatelessWidget {
               number: '1',
               title: 'Registra tus datos',
               description: 'Registra tus datos y la información bancaria de tu salón.',
-              imagePath: 'assets/images/step1_register.png', // Debes añadir esta imagen
+              imagePath: 'assets/images/Step1.png',
             ),
             const SizedBox(height: 30),
             _buildStep(
               number: '2',
               title: 'Carga tu menú',
               description: 'Carga tu menú de servicios, horarios y logo en Beauteek.',
-              imagePath: 'assets/images/step2_menu.png', // Debes añadir esta imagen
+              imagePath: 'assets/images/Step2.png',
             ),
             const SizedBox(height: 30),
             _buildStep(
               number: '3',
               title: 'Prueba tu sistema',
               description: 'Prueba tu sistema de recepción de citas.',
-              imagePath: 'assets/images/step3_test.png', // Debes añadir esta imagen
+              imagePath: 'assets/images/Step3.png',
             ),
             const SizedBox(height: 30),
             _buildStep(
               number: '4',
               title: '¡Listo!',
               description: 'Empieza a recibir tus primeras reservas.',
-              imagePath: 'assets/images/step4_ready.png', // Debes añadir esta imagen
+              imagePath: 'assets/images/Step4.png',
             ),
             const SizedBox(height: 40),
             Container(
@@ -90,24 +90,84 @@ class SalonRegistrationStepsPage extends StatelessWidget {
   }
 
   Widget _buildStep({required String number, required String title, required String description, required String imagePath}) {
-    return Column(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Aquí puedes usar Image.asset(imagePath) si tienes las imágenes
-        // Por ahora usaré un placeholder.
         Container(
-          height: 180,
-          width: 220,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
+            color: _getStepColor(number),
+            shape: BoxShape.circle,
           ),
-          child: Center(child: Text('Imagen para\n"$title"', textAlign: TextAlign.center)),
+          child: Center(
+            child: Text(
+              number,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 20),
-        Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.grey)),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  constraints: const BoxConstraints(
+                    maxWidth: 250,
+                  ),
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      imagePath, // ✅ CAMBIO: Usar Image.asset() con imagePath
+                      fit: BoxFit.contain, // ✅ Ajustar la imagen dentro del contenedor
+                      errorBuilder: (context, error, stackTrace) {
+                        // ✅ Fallback si la imagen no se encuentra
+                        return Center(
+                          child: Text(
+                            'Imagen para\n"$title"',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(description, textAlign: TextAlign.start, style: const TextStyle(fontSize: 15, color: Colors.grey)),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Color _getStepColor(String number) {
+    switch (number) {
+      case '1':
+        return const Color(0xFFD4C5B9);
+      case '2':
+        return const Color(0xFFE6B89C);
+      case '3':
+        return const Color(0xFFDBA895);
+      case '4':
+        return const Color(0xFFD4A895);
+      default:
+        return Colors.grey;
+    }
   }
 }

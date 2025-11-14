@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // Agregar para kDebugMode
+import 'package:flutter/foundation.dart';
 import 'login_screen.dart';
 import 'inicio.dart';
 import 'firebase_options.dart';
@@ -12,17 +12,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // COMENTADO: Emulador de Auth (ahora usamos producción)
-  // if (kDebugMode) {
-  //   try {
-  //     await FirebaseAuth.instance.useAuthEmulator('10.0.2.2', 9099);
-  //     print('🔧 Auth Emulator configurado: 10.0.2.2:9099');
-  //   } catch (e) {
-  //     print('⚠️ Auth Emulator ya está configurado o hubo un error: $e');
-  //   }
-  // }
-  
-  print('🔥 Usando Firebase Auth en PRODUCCIÓN');
+  print('Usando Firebase Auth en PRODUCCIÓN');
   
   runApp(const MyApp());
 }
@@ -39,37 +29,12 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFEA963A)),
         fontFamily: 'Montserrat',
       ),
-      home: const AuthWrapper(),
+      home: const SplashScreen(), // ✅ Cambiado aquí
     );
   }
 }
 
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // Mientras espera, muestra un loader
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        // Si hay un usuario (sesión activa), muestra InicioPage
-        if (snapshot.hasData) {
-          return InicioPage();
-        }
-        // Si no, muestra la pantalla de login
-        return const LoginScreen();
-      },
-    );
-  }
-}
-
-// SplashScreen muestra el fondo, icono y título, luego navega al login
+// ✅ SplashScreen PRIMERO, luego AuthWrapper
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -85,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 6), // animación de 6 segundos
+      duration: const Duration(seconds: 3),
       vsync: this,
     );
     _scaleAnimation = TweenSequence([
@@ -101,10 +66,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    Future.delayed(const Duration(seconds: 6), () { // espera 6 segundos antes de ir al login
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+    // ✅ Espera 3 segundos y luego va a AuthWrapper
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
+        );
+      }
     });
   }
 
@@ -137,7 +105,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: Colors.white,
-                          width: 16, // borde de 16px
+                          width: 16,
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -170,6 +138,31 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           ),
         ),
       ],
+    );
+  }
+}
+
+// ✅ AuthWrapper DESPUÉS del splash
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        if (snapshot.hasData) {
+          return const InicioPage();
+        }
+        
+        return const LoginScreen();
+      },
     );
   }
 }
