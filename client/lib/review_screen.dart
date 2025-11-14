@@ -52,17 +52,39 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
       final idToken = await user.getIdToken();
 
+      // ✅ Primero obtener el uid_negocio del comercio
+      final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
+      final comercioResponse = await http.get(
+        comercioUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (comercioResponse.statusCode != 200) {
+        throw Exception('No se pudo obtener información del comercio');
+      }
+
+      final comercioData = json.decode(comercioResponse.body);
+      final uidNegocio = comercioData['uid_negocio'];
+
+      if (uidNegocio == null) {
+        throw Exception('No se encontró el UID del negocio');
+      }
+
       // ✅ CAMBIO: Usar API en lugar de Firestore
       final payload = {
         'cita_id': widget.citaId,
         'comercio_id': widget.comercioId,
         'servicio_id': widget.servicioId,
-        'usuario_id': user.uid,
+        'usuario_cliente_id': user.uid,
+        'usuario_salon_id': uidNegocio,
         'calificacion': _rating,
         'comentario': _commentController.text.trim(),
       };
 
-      final url = Uri.parse('$apiBaseUrl/resenas');
+      final url = Uri.parse('$apiBaseUrl/api/resenas');
       print('📤 Enviando reseña: ${json.encode(payload)}');
 
       final response = await http.post(

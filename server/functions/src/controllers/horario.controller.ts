@@ -9,6 +9,7 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const horarioSchema = z.object({
   usuario_id: z.string().min(1),
+  comercio_id: z.string().min(1),
   dia_semana: z.coerce.number().int().min(0).max(6), // 0=Dom ... 6=Sáb
   hora_inicio: z.string().regex(HHMM, "Formato HH:mm (00-23:00-59)"),
   hora_fin: z.string().regex(HHMM, "Formato HH:mm (00-23:00-59)"),

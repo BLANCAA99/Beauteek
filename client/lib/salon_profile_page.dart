@@ -21,6 +21,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
   bool _isLoading = true;
   Map<String, dynamic>? _comercioData;
   List<Map<String, dynamic>> _servicios = [];
+  List<Map<String, dynamic>> _resenas = [];
 
   @override
   void initState() {
@@ -75,14 +76,68 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               .toList();
         }
 
+        // ✅ NUEVO: Cargar reseñas del comercio
+        final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=${widget.comercioId}');
+        
+        print('🔍 Cargando reseñas: $resenasUrl');
+        
+        final resenasResponse = await http.get(
+          resenasUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        );
+
+        List<Map<String, dynamic>> resenas = [];
+        if (resenasResponse.statusCode == 200) {
+          final List<dynamic> resenasData = json.decode(resenasResponse.body);
+          
+          // Obtener nombre de cada usuario que dejó reseña
+          for (var resena in resenasData) {
+            final usuarioId = resena['usuario_cliente_id'];
+            String nombreUsuario = 'Usuario';
+            String? fotoUsuario;
+            
+            if (usuarioId != null) {
+              try {
+                final usuarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$usuarioId');
+                final usuarioResponse = await http.get(
+                  usuarioUrl,
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer $idToken',
+                  },
+                );
+                
+                if (usuarioResponse.statusCode == 200) {
+                  final usuarioData = json.decode(usuarioResponse.body);
+                  nombreUsuario = usuarioData['nombre_completo'] ?? 'Usuario';
+                  fotoUsuario = usuarioData['foto_url'];
+                }
+              } catch (e) {
+                print('⚠️ Error obteniendo usuario: $e');
+              }
+            }
+            
+            resenas.add({
+              ...resena as Map<String, dynamic>,
+              'nombre_usuario': nombreUsuario,
+              'foto_usuario': fotoUsuario,
+            });
+          }
+        }
+
         setState(() {
           _comercioData = comercioData;
           _servicios = servicios;
+          _resenas = resenas;
           _isLoading = false;
         });
         
         print('✅ Comercio cargado: ${comercioData['nombre']}');
         print('✅ Servicios cargados: ${servicios.length}');
+        print('✅ Reseñas cargadas: ${resenas.length}');
       }
     } catch (e) {
       print('❌ Error: $e');
@@ -117,6 +172,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               children: [
                 _buildInfo(),
                 _buildServicios(),
+                _buildResenas(),
                 SizedBox(height: 32),
               ],
             ),
@@ -256,6 +312,180 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             ),
           );
         }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildResenas() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Text(
+                'Reseñas',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Color(0xFFEA963A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_resenas.length}',
+                  style: TextStyle(
+                    color: Color(0xFFEA963A),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_resenas.isEmpty)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.rate_review_outlined,
+                    size: 64,
+                    color: Colors.grey.shade300,
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'No hay reseñas aún',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Sé el primero en dejar una reseña',
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ..._resenas.map((resena) {
+            return Container(
+              margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Avatar con foto o inicial
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: resena['foto_usuario'] == null || (resena['foto_usuario'] as String).isEmpty
+                              ? LinearGradient(
+                                  colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          image: resena['foto_usuario'] != null && (resena['foto_usuario'] as String).isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(resena['foto_usuario']),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: resena['foto_usuario'] == null || (resena['foto_usuario'] as String).isEmpty
+                            ? Center(
+                                child: Text(
+                                  (resena['nombre_usuario'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                      SizedBox(width: 12),
+                      // Nombre y estrellas
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              resena['nombre_usuario'] ?? 'Usuario',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Row(
+                              children: List.generate(5, (index) {
+                                final calificacion = (resena['calificacion'] as num?)?.toInt() ?? 0;
+                                return Icon(
+                                  index < calificacion ? Icons.star : Icons.star_border,
+                                  color: Color(0xFFFFB800),
+                                  size: 18,
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (resena['comentario'] != null && (resena['comentario'] as String).isNotEmpty) ...[
+                    SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        resena['comentario'],
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
       ],
     );
   }

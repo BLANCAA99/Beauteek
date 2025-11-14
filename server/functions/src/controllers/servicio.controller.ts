@@ -7,9 +7,10 @@ import { FieldValue } from "firebase-admin/firestore";
 // Esquema: coerciona strings -> number
 const servicioSchema = z.object({
   usuario_id: z.string().min(1),
+  comercio_id: z.string().min(1),
   categoria_id: z.string().min(1),
   nombre: z.string().min(1),
-  descripcion: z.string().optional(),
+  descripcion: z.string().optional().nullable(),
   duracion_min: z.coerce.number().int().min(1),
   precio: z.coerce.number().min(0),
   moneda: z.string().min(1),

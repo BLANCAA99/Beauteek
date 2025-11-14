@@ -110,6 +110,8 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
   Future<void> _descargarReportePDF() async {
     try {
+      setState(() => _isLoading = true);
+
       final pdf = pw.Document();
 
       // Crear el PDF
@@ -271,33 +273,45 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
         ),
       );
 
-      // Guardar archivo
-      final directory = await getApplicationDocumentsDirectory();
-      final path = '${directory.path}/reporte_clientes_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      // Guardar y compartir
+      final bytes = await pdf.save();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      
+      // Crear archivo temporal
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/reporte_clientes_$timestamp.pdf';
       final file = File(path);
-      await file.writeAsBytes(await pdf.save());
+      await file.writeAsBytes(bytes);
+
+      setState(() => _isLoading = false);
 
       // Compartir archivo
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Reporte de Clientes - Total: $_totalClientes',
+      final result = await Share.shareXFiles(
+        [XFile(path, mimeType: 'application/pdf')],
+        subject: 'Reporte de Clientes - $_nombreSalon',
+        text: 'Reporte de Clientes\nTotal: $_totalClientes clientes únicos',
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Reporte PDF descargado exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result.status == ShareResultStatus.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Reporte compartido exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
-      print('❌ Error descargando reporte: $e');
+      print('❌ Error generando reporte: $e');
+      setState(() => _isLoading = false);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error al generar el reporte: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

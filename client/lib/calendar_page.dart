@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
-import 'package:flutter/src/widgets/basic.dart' as basic;
 import 'payment_screen.dart';
 import 'review_screen.dart';
-import 'package:intl/intl.dart'; // <-- AGREGAR ESTA IMPORTACIÓN
-import 'package:intl/date_symbol_data_local.dart'; // <-- AGREGAR ESTA IMPORTACIÓN
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 class CalendarPage extends StatefulWidget {
   final String mode;
@@ -65,14 +63,34 @@ class _CalendarPageState extends State<CalendarPage> {
 
       _userId = user.uid;
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get();
+      // ✅ Obtener rol del usuario desde la API
+      try {
+        final idToken = await user.getIdToken();
+        final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+        final userResponse = await http.get(
+          userUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        );
 
-      setState(() {
-        _userRole = userDoc.data()?['rol'] as String? ?? 'cliente';
-      });
+        if (userResponse.statusCode == 200) {
+          final userData = json.decode(userResponse.body);
+          setState(() {
+            _userRole = userData['rol'] as String? ?? 'cliente';
+          });
+        } else {
+          setState(() {
+            _userRole = 'cliente';
+          });
+        }
+      } catch (e) {
+        print('⚠️ Error obteniendo rol del usuario: $e');
+        setState(() {
+          _userRole = 'cliente';
+        });
+      }
 
       if (widget.mode == 'booking') {
         _generarHorasDisponibles();
@@ -97,62 +115,49 @@ class _CalendarPageState extends State<CalendarPage> {
     try {
       print('🔍 Buscando citas para usuario: $_userId (rol: $_userRole)');
 
-      Query query = FirebaseFirestore.instance.collection('citas');
-
-      // ✅ CAMBIO: Solo filtrar por usuario_cliente_id o por comercio_id
-      if (_userRole == 'cliente') {
-        query = query.where('usuario_cliente_id', isEqualTo: _userId);
-      } else if (_userRole == 'salon') {
-        // Para salones, buscar por comercio donde uid_negocio == _userId
-        final comerciosSnapshot = await FirebaseFirestore.instance
-            .collection('comercios')
-            .where('uid_negocio', isEqualTo: _userId)
-            .get();
-        
-        if (comerciosSnapshot.docs.isEmpty) {
-          print('ℹ️ No hay comercios para este salón');
-          setState(() {
-            _citas = [];
-          });
-          return;
-        }
-        
-        final comercioIds = comerciosSnapshot.docs.map((doc) => doc.id).toList();
-        print('🏢 Comercios encontrados: $comercioIds');
-        
-        // Firestore limita 'in' a 10 elementos
-        if (comercioIds.length > 10) {
-          print('⚠️ Más de 10 comercios, limitando a los primeros 10');
-          query = query.where('comercio_id', whereIn: comercioIds.take(10).toList());
-        } else {
-          query = query.where('comercio_id', whereIn: comercioIds);
-        }
-      }
-
-      final snapshot = await query.get();
-
-      print('📋 Documentos encontrados: ${snapshot.docs.length}');
-
-      if (snapshot.docs.isEmpty) {
-        print('ℹ️ No hay citas para este usuario');
-        setState(() {
-          _citas = [];
-        });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('❌ No hay usuario autenticado');
+        setState(() => _citas = []);
         return;
       }
 
-      final user = FirebaseAuth.instance.currentUser;
-      final idToken = user != null ? await user.getIdToken() : null;
+      final idToken = await user.getIdToken();
 
-      final citasTemp = await Future.wait(snapshot.docs.map((doc) async {
-        final data = doc.data() as Map<String, dynamic>;
-        
-        print('📄 Procesando cita: ${doc.id}');
+      // ✅ Usar API en lugar de Firestore
+      final url = Uri.parse('$apiBaseUrl/citas/usuario/$_userId');
+      print('📡 Llamando a API: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      print('📥 Status: ${response.statusCode}');
+
+      if (response.statusCode == 404) {
+        print('ℹ️ No hay citas para este usuario');
+        setState(() => _citas = []);
+        return;
+      }
+
+      if (response.statusCode != 200) {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
+      }
+
+      final List<dynamic> citasData = json.decode(response.body);
+      print('📋 Citas recibidas: ${citasData.length}');
+
+      final citasTemp = await Future.wait(citasData.map((data) async {
+        print('📄 Procesando cita: ${data['id']}');
         
         // Obtener nombre de la otra persona según el rol
         String nombreOtraPersona = 'Desconocido';
         
-        if (_userRole == 'cliente' && data['comercio_id'] != null && idToken != null) {
+        if (_userRole == 'cliente' && data['comercio_id'] != null) {
           try {
             final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${data['comercio_id']}');
             final comercioResponse = await http.get(
@@ -170,7 +175,7 @@ class _CalendarPageState extends State<CalendarPage> {
           } catch (e) {
             print('⚠️ Error obteniendo comercio: $e');
           }
-        } else if (_userRole == 'salon' && data['usuario_cliente_id'] != null && idToken != null) {
+        } else if (_userRole == 'salon' && data['usuario_cliente_id'] != null) {
           try {
             final clienteUrl = Uri.parse('$apiBaseUrl/api/users/uid/${data['usuario_cliente_id']}');
             final clienteResponse = await http.get(
@@ -199,8 +204,11 @@ class _CalendarPageState extends State<CalendarPage> {
               fechaStr += ':00';
             }
             fechaHora = DateTime.parse(fechaStr);
-          } else if (data['fecha_hora'] is Timestamp) {
-            fechaHora = (data['fecha_hora'] as Timestamp).toDate();
+          } else if (data['fecha_hora'] is Map && data['fecha_hora']['_seconds'] != null) {
+            // Timestamp de Firestore serializado
+            fechaHora = DateTime.fromMillisecondsSinceEpoch(
+              data['fecha_hora']['_seconds'] * 1000,
+            );
           } else {
             fechaHora = DateTime.now();
           }
@@ -210,7 +218,7 @@ class _CalendarPageState extends State<CalendarPage> {
         }
 
         return {
-          'id': doc.id,
+          'id': data['id'],
           'fecha_hora': fechaHora,
           'nombre_otra_persona': nombreOtraPersona,
           'servicio_nombre': data['servicio_nombre'] ?? 'Servicio',
@@ -1061,8 +1069,8 @@ class _CalendarPageState extends State<CalendarPage> {
   void _showCitaDetails(Map<String, dynamic> cita) {
     final fechaHora = cita['fecha_hora'] as DateTime;
     final isPast = fechaHora.isBefore(DateTime.now());
-    final canReview = isPast && _userRole == 'cliente' && cita['estado'] == 'finalizada';
-    final canFinalize = _userRole == 'salon' && cita['estado'] != 'finalizada' && cita['estado'] != 'cancelada';
+    final canReview = isPast && _userRole == 'cliente' && cita['estado'] == 'completada';
+    final canFinalize = _userRole == 'salon' && cita['estado'] != 'completada' && cita['estado'] != 'cancelada';
 
     showModalBottomSheet(
       context: context,
@@ -1205,14 +1213,14 @@ class _CalendarPageState extends State<CalendarPage> {
       
       print('🔄 Actualizando estado de cita: ${cita['id']}');
       
-      final response = await http.patch(
+      final response = await http.put(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
         body: json.encode({
-          'estado': 'finalizada',
+          'estado': 'completada',
         }),
       );
 
@@ -1313,23 +1321,12 @@ class _CalendarPageState extends State<CalendarPage> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  Color _getStatusColor(String? estado) {
-    switch (estado) {
-      case 'confirmada':
-        return Colors.green;
-      case 'pendiente':
-        return Colors.orange;
-      case 'cancelada':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   String _getStatusText(String? estado) {
     switch (estado) {
       case 'confirmada':
         return 'Confirmada';
+      case 'completada':
+        return 'Completada';
       case 'pendiente':
         return 'Pendiente';
       case 'cancelada':

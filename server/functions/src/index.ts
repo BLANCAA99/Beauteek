@@ -49,7 +49,7 @@ app.use('/api/servicios', servicioRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/favoritos', favoritoRoutes);
 app.use('/api/promociones', promocionRoutes);
-app.use('/api/reseñas', reseñaRoutes);
+app.use('/api/resenas', reseñaRoutes);
 app.use('/citas', citaRoutes);
 
 console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/sucursales, /citas');

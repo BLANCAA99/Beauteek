@@ -424,9 +424,9 @@ class _InicioPageState extends State<InicioPage> {
 
       final idToken = await user.getIdToken();
 
-      // ✅ CAMBIO: Obtener citas del usuario desde la API
-      final citasUrl = Uri.parse('$apiBaseUrl/citas?usuario_cliente_id=$_uidUsuario&estado=finalizada');
-      print('🔍 Verificando citas finalizadas: $citasUrl');
+      // ✅ Obtener todas las citas del usuario desde la API
+      final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
+      print('🔍 Verificando citas completadas para reseña: $citasUrl');
       
       final citasResponse = await http.get(
         citasUrl,
@@ -436,6 +436,11 @@ class _InicioPageState extends State<InicioPage> {
         },
       );
 
+      if (citasResponse.statusCode == 404) {
+        print('ℹ️ No hay citas para este usuario');
+        return;
+      }
+
       if (citasResponse.statusCode != 200) {
         print('⚠️ Error obteniendo citas: ${citasResponse.statusCode}');
         return;
@@ -443,19 +448,28 @@ class _InicioPageState extends State<InicioPage> {
 
       final List<dynamic> citasData = json.decode(citasResponse.body);
       
-      if (citasData.isEmpty) {
-        print('ℹ️ No hay citas finalizadas');
+      // Filtrar solo citas completadas
+      final citasCompletadas = citasData.where((cita) => 
+        cita['estado'] == 'completada'
+      ).toList();
+      
+      if (citasCompletadas.isEmpty) {
+        print('ℹ️ No hay citas completadas');
         return;
       }
 
-      // ✅ CAMBIO: Verificar cada cita si tiene reseña usando la API
-      for (var cita in citasData) {
-        final citaId = cita['id'] ?? cita['_id'];
+      print('📋 Encontradas ${citasCompletadas.length} citas completadas');
+
+      // Verificar cada cita si tiene reseña usando la API
+      for (var cita in citasCompletadas) {
+        final citaId = cita['id'];
         
         if (citaId == null) continue;
 
         // Verificar si existe reseña para esta cita
-        final resenasUrl = Uri.parse('$apiBaseUrl/resenas?cita_id=$citaId');
+        final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?cita_id=$citaId');
+        print('🔍 Verificando reseña para cita $citaId: $resenasUrl');
+        
         final resenasResponse = await http.get(
           resenasUrl,
           headers: {
@@ -467,10 +481,13 @@ class _InicioPageState extends State<InicioPage> {
         if (resenasResponse.statusCode == 200) {
           final List<dynamic> resenasData = json.decode(resenasResponse.body);
           
+          print('📊 Reseñas encontradas para cita $citaId: ${resenasData.length}');
+          
           // Si no tiene reseña, mostrar modal
           if (resenasData.isEmpty) {
             if (!mounted) return;
             
+            print('✨ Mostrando modal de reseña para cita $citaId');
             await Future.delayed(const Duration(milliseconds: 500));
             
             _mostrarModalResena({
@@ -482,6 +499,8 @@ class _InicioPageState extends State<InicioPage> {
             
             break; // Solo mostrar un modal a la vez
           }
+        } else {
+          print('⚠️ Error verificando reseñas: ${resenasResponse.statusCode}');
         }
       }
     } catch (e) {
@@ -531,7 +550,7 @@ class _InicioPageState extends State<InicioPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.check_circle,
+                Icons.celebration,
                 color: Color(0xFFEA963A),
                 size: 32,
               ),
@@ -539,8 +558,8 @@ class _InicioPageState extends State<InicioPage> {
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                '¡Cita Finalizada!',
-                style: TextStyle(fontSize: 20),
+                '¡Gracias por tu visita!',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -550,10 +569,10 @@ class _InicioPageState extends State<InicioPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Tu cita ha sido finalizada por el salón.',
+              'Esperamos que hayas disfrutado tu experiencia.',
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -599,15 +618,23 @@ class _InicioPageState extends State<InicioPage> {
             ),
             const SizedBox(height: 16),
             const Text(
-              '¿Te gustaría dejar una reseña sobre tu experiencia?',
-              style: TextStyle(fontSize: 14),
+              '¿Te gustaría compartir tu opinión sobre el servicio recibido?',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tu reseña nos ayuda a mejorar y ayuda a otros clientes a tomar decisiones.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Más tarde'),
+            child: const Text(
+              'Ahora no',
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -617,20 +644,24 @@ class _InicioPageState extends State<InicioPage> {
                 MaterialPageRoute(
                   builder: (_) => ReviewScreen(
                     citaId: cita['id'],
-                    comercioId: cita['comercio_id'], // ✅ CAMBIO: Solo comercioId
+                    comercioId: cita['comercio_id'],
                     salonName: salonName,
                     servicioId: cita['servicio_id'],
                   ),
                 ),
-              );
+              ).then((_) {
+                // Después de dejar la reseña, recargar para no mostrar de nuevo
+                _verificarCitasFinalizadas();
+              });
             },
-            icon: const Icon(Icons.rate_review, color: Colors.white),
+            icon: const Icon(Icons.star, color: Colors.white),
             label: const Text(
               'Dejar reseña',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEA963A),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
