@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'inicio.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'api_constants.dart';
 import 'setup_location_page.dart'; // <-- AGREGAR IMPORT

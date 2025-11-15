@@ -97,7 +97,7 @@ class _InicioPageState extends State<InicioPage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 8),
         onTimeout: () {
           print('⏱️ Timeout obteniendo usuario');
           throw Exception('Timeout al obtener datos del usuario');
@@ -203,7 +203,7 @@ class _InicioPageState extends State<InicioPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 15)); // ✅ CAMBIO: Timeout más largo
+      ).timeout(const Duration(seconds: 8));
 
       print('📥 Response status: ${response.statusCode}');
       print('📥 Response body: ${response.body}');
@@ -219,12 +219,73 @@ class _InicioPageState extends State<InicioPage> {
           print('   📦 Servicios: ${saloneData[0]['servicios']?.length ?? 0}');
         }
         
+        // ✅ Obtener foto del propietario y calificación promedio para cada salón
+        final List<Map<String, dynamic>> salonesConFoto = [];
+        for (var salon in saloneData) {
+          final salonMap = salon as Map<String, dynamic>;
+          final uidPropietario = salonMap['uid_negocio'] as String?;
+          final comercioId = salonMap['id'] as String?;
+          
+          // Obtener foto del salon
+          if (uidPropietario != null) {
+            try {
+              final propietarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
+              final propietarioResponse = await http.get(
+                propietarioUrl,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $idToken',
+                },
+              ).timeout(const Duration(seconds: 3));
+              
+              if (propietarioResponse.statusCode == 200) {
+                final propietarioData = json.decode(propietarioResponse.body);
+                final fotoSalon = propietarioData['foto_url'] as String?;
+                
+                if (fotoSalon != null && fotoSalon.isNotEmpty) {
+                  salonMap['foto_url'] = fotoSalon;
+                }
+              }
+            } catch (e) {
+              print('⚠️ Error obteniendo foto del salón ${salonMap['nombre']}: $e');
+            }
+          }
+          
+          // Obtener calificación promedio de reseñas
+          if (comercioId != null) {
+            try {
+              final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+              final resenasResponse = await http.get(
+                resenasUrl,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $idToken',
+                },
+              ).timeout(const Duration(seconds: 3));
+              
+              if (resenasResponse.statusCode == 200) {
+                final List<dynamic> resenasData = json.decode(resenasResponse.body);
+                
+                if (resenasData.isNotEmpty) {
+                  double sumaCalificaciones = 0;
+                  for (var resena in resenasData) {
+                    sumaCalificaciones += (resena['calificacion'] as num?)?.toDouble() ?? 0;
+                  }
+                  salonMap['calificacion'] = sumaCalificaciones / resenasData.length;
+                }
+              }
+            } catch (e) {
+              print('⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
+            }
+          }
+          
+          salonesConFoto.add(salonMap);
+        }
+        
         if (!mounted) return; // ✅ CAMBIO: Verificar mounted
         
         setState(() {
-          _salonesDestacados = List<Map<String, dynamic>>.from(
-            saloneData.map((s) => s as Map<String, dynamic>)
-          );
+          _salonesDestacados = salonesConFoto;
           _salonesFiltrados = _salonesDestacados;
           _isLoading = false;
         });
@@ -331,7 +392,7 @@ class _InicioPageState extends State<InicioPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 6));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
@@ -434,7 +495,7 @@ class _InicioPageState extends State<InicioPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (citasResponse.statusCode == 404) {
         print('ℹ️ No hay citas para este usuario');
@@ -460,8 +521,8 @@ class _InicioPageState extends State<InicioPage> {
 
       print('📋 Encontradas ${citasCompletadas.length} citas completadas');
 
-      // Verificar cada cita si tiene reseña usando la API
-      for (var cita in citasCompletadas) {
+      // ✅ Solo verificar la primera cita completada (la más reciente)
+      for (var cita in citasCompletadas.take(1)) {
         final citaId = cita['id'];
         
         if (citaId == null) continue;
@@ -476,7 +537,7 @@ class _InicioPageState extends State<InicioPage> {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
           },
-        );
+        ).timeout(const Duration(seconds: 4));
 
         if (resenasResponse.statusCode == 200) {
           final List<dynamic> resenasData = json.decode(resenasResponse.body);
@@ -488,7 +549,7 @@ class _InicioPageState extends State<InicioPage> {
             if (!mounted) return;
             
             print('✨ Mostrando modal de reseña para cita $citaId');
-            await Future.delayed(const Duration(milliseconds: 500));
+            await Future.delayed(const Duration(milliseconds: 200));
             
             _mostrarModalResena({
               'id': citaId,
@@ -523,7 +584,7 @@ class _InicioPageState extends State<InicioPage> {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
           },
-        );
+        ).timeout(const Duration(seconds: 3));
         
         if (comercioResponse.statusCode == 200) {
           final comercioData = json.decode(comercioResponse.body);
@@ -531,7 +592,7 @@ class _InicioPageState extends State<InicioPage> {
         }
       }
     } catch (e) {
-      print('Error obteniendo nombre del salón: $e');
+      print('⚠️ No se pudo cargar nombre del salón (usando genérico): $e');
     }
 
     if (!mounted) return;

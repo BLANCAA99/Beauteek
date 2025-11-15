@@ -22,11 +22,14 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
   Map<String, dynamic>? _comercioData;
   List<Map<String, dynamic>> _servicios = [];
   List<Map<String, dynamic>> _resenas = [];
+  bool _isFavorite = false;
+  String? _favoritoId;
 
   @override
   void initState() {
     super.initState();
     _cargarDatosComercio();
+    _verificarFavorito();
   }
 
   Future<void> _cargarDatosComercio() async {
@@ -51,6 +54,35 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       if (comercioResponse.statusCode == 200) {
         final comercioData = json.decode(comercioResponse.body);
+        
+        // ✅ Obtener foto del propietario del salón
+        String? fotoSalon;
+        final uidPropietario = comercioData['uid_negocio'] as String?;
+        
+        if (uidPropietario != null) {
+          try {
+            final propietarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
+            final propietarioResponse = await http.get(
+              propietarioUrl,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+            );
+            
+            if (propietarioResponse.statusCode == 200) {
+              final propietarioData = json.decode(propietarioResponse.body);
+              fotoSalon = propietarioData['foto_url'] as String?;
+            }
+          } catch (e) {
+            print('⚠️ Error obteniendo foto del propietario: $e');
+          }
+        }
+        
+        // Si se obtuvo foto del propietario, reemplazar en comercioData
+        if (fotoSalon != null && fotoSalon.isNotEmpty) {
+          comercioData['foto_url'] = fotoSalon;
+        }
         
         // ✅ CAMBIO: Usar /api/servicios con query param comercio_id
         final serviciosUrl = Uri.parse('$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
@@ -90,8 +122,19 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         );
 
         List<Map<String, dynamic>> resenas = [];
+        double calificacionPromedio = 0.0;
+        
         if (resenasResponse.statusCode == 200) {
           final List<dynamic> resenasData = json.decode(resenasResponse.body);
+          
+          // Calcular calificación promedio
+          if (resenasData.isNotEmpty) {
+            double sumaCalificaciones = 0;
+            for (var resena in resenasData) {
+              sumaCalificaciones += (resena['calificacion'] as num?)?.toDouble() ?? 0;
+            }
+            calificacionPromedio = sumaCalificaciones / resenasData.length;
+          }
           
           // Obtener nombre de cada usuario que dejó reseña
           for (var resena in resenasData) {
@@ -127,6 +170,11 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             });
           }
         }
+        
+        // Actualizar calificación del comercio con el promedio calculado
+        if (calificacionPromedio > 0) {
+          comercioData['calificacion'] = calificacionPromedio;
+        }
 
         setState(() {
           _comercioData = comercioData;
@@ -142,6 +190,128 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     } catch (e) {
       print('❌ Error: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _verificarFavorito() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final idToken = await user.getIdToken();
+      
+      final favoritosUrl = Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
+      
+      final response = await http.get(
+        favoritosUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> favoritos = json.decode(response.body);
+        
+        // Buscar si este comercio específico está en favoritos
+        final favoritoExistente = favoritos.firstWhere(
+          (fav) => fav['salon_id'] == widget.comercioId,
+          orElse: () => null,
+        );
+        
+        if (favoritoExistente != null) {
+          setState(() {
+            _isFavorite = true;
+            _favoritoId = favoritoExistente['id'];
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Error verificando favorito: $e');
+    }
+  }
+
+  Future<void> _toggleFavorito() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final idToken = await user.getIdToken();
+      
+      if (_isFavorite && _favoritoId != null) {
+        // Eliminar favorito
+        final url = Uri.parse('$apiBaseUrl/api/favoritos/$_favoritoId');
+        
+        final response = await http.delete(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          setState(() {
+            _isFavorite = false;
+            _favoritoId = null;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Eliminado de favoritos'),
+                backgroundColor: Colors.grey,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } else {
+        // Agregar favorito
+        final url = Uri.parse('$apiBaseUrl/api/favoritos');
+        
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: json.encode({
+            'usuario_cliente_id': user.uid,
+            'salon_id': widget.comercioId,
+          }),
+        );
+
+        if (response.statusCode == 201) {
+          final responseData = json.decode(response.body);
+          
+          setState(() {
+            _isFavorite = true;
+            _favoritoId = responseData['id'];
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Agregado a favoritos ❤️'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al actualizar favoritos'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -189,6 +359,16 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     return SliverAppBar(
       expandedHeight: 300,
       pinned: true,
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isFavorite ? Icons.favorite : Icons.favorite_border,
+            color: _isFavorite ? Colors.red : Colors.white,
+            size: 28,
+          ),
+          onPressed: _toggleFavorito,
+        ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         background: fotoUrl != null && fotoUrl.isNotEmpty
             ? Image.network(fotoUrl, fit: BoxFit.cover)

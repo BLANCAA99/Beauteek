@@ -29,7 +29,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final _nameController = TextEditingController();
   
   bool _isProcessing = false;
-  double get comision => widget.monto * 0.10;
+  double get comision => widget.monto * 0.05;
   double get total => widget.monto + comision;
 
   @override
@@ -85,7 +85,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   child: Column(
                     children: [
                       _buildPriceRow('Valor del servicio', widget.monto),
-                      _buildPriceRow('Comisión de la app (10%)', comision),
+                      _buildPriceRow('Comisión de la app (5%)', comision),
                       Divider(color: Color(0xFF637588).withOpacity(0.3)),
                       _buildPriceRow('Total a pagar', total, isBold: true),
                     ],
@@ -275,7 +275,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ),
                         )
                       : Text(
-                          'Pagar \$${total.toStringAsFixed(2)}',
+                          'Pagar L${total.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -306,7 +306,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
           ),
           Text(
-            '\$${amount.toStringAsFixed(2)}',
+            'L${amount.toStringAsFixed(2)}',
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               fontSize: isBold ? 16 : 14,

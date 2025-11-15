@@ -9,6 +9,8 @@ import 'salon_registration_steps_page.dart';
 import 'api_constants.dart';
 import 'edit_services_page.dart';
 import 'reportes_salon_page.dart';
+import 'mis_resenas_page.dart';
+import 'favoritos_page.dart';
 
 class ProfileMenuPage extends StatelessWidget {
   final String? uid;
@@ -258,11 +260,11 @@ class ProfileMenuPage extends StatelessWidget {
                         ] else if (rol == 'cliente') ...[
                           const Divider(height: 1),
                           _menuTile(context, Icons.favorite_border, 'Favoritos', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Favoritos')));
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritosPage()));
                           }),
                           const Divider(height: 1),
                           _menuTile(context, Icons.rate_review_outlined, 'Mis reseñas', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Mis reseñas')));
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MisResenasPage()));
                           }),
                           const Divider(height: 1),
                           _menuTile(context, Icons.store_outlined, 'Registrar mi salón de belleza', () {
