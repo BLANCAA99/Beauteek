@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'api_constants.dart';
 import 'salon_profile_page.dart';
+import 'theme/app_theme.dart';
 
 class SearchPage extends StatefulWidget {
   final String mode;
@@ -44,8 +45,9 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    print('🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
-    
+    print(
+        '🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
+
     if (widget.mode == 'search') {
       // ✅ Cargar salones cercanos automáticamente
       _cargarSalonesCercanos();
@@ -93,12 +95,12 @@ class _SearchPageState extends State<SearchPage> {
         return;
       }
 
-      print('🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
+      print(
+          '🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
 
       // ✅ Usar apiBaseUrl de api_constants.dart
       final url = Uri.parse(
-        '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10'
-      );
+          '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10');
 
       print('📍 URL completa: $url');
 
@@ -123,8 +125,7 @@ class _SearchPageState extends State<SearchPage> {
 
         setState(() {
           _resultados = List<Map<String, dynamic>>.from(
-            saloneData.map((s) => s as Map<String, dynamic>)
-          );
+              saloneData.map((s) => s as Map<String, dynamic>));
           _isLoading = false;
         });
 
@@ -228,13 +229,19 @@ class _SearchPageState extends State<SearchPage> {
 
     for (int i = 0; i < _resultados.length; i++) {
       final salon = _resultados[i];
-      
+
       // ✅ CAMBIO: Leer ubicacion del comercio (no geo de sucursal)
       final ubicacion = salon['ubicacion'] as Map<String, dynamic>?;
 
       if (ubicacion != null) {
-        final lat = (ubicacion['lat'] ?? ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
-        final lng = (ubicacion['lng'] ?? ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
+        final lat = (ubicacion['lat'] ??
+                ubicacion['_latitude'] ??
+                ubicacion['latitude'])
+            ?.toDouble();
+        final lng = (ubicacion['lng'] ??
+                ubicacion['_longitude'] ??
+                ubicacion['longitude'])
+            ?.toDouble();
 
         if (lat != null && lng != null) {
           _markers.add(
@@ -243,7 +250,8 @@ class _SearchPageState extends State<SearchPage> {
               position: LatLng(lat, lng),
               infoWindow: InfoWindow(
                 title: salon['nombre'],
-                snippet: '${(salon['distancia'] as double).toStringAsFixed(1)} km',
+                snippet:
+                    '${(salon['distancia'] as double).toStringAsFixed(1)} km',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -255,7 +263,8 @@ class _SearchPageState extends State<SearchPage> {
                   );
                 },
               ),
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueOrange),
             ),
           );
         }
@@ -295,20 +304,17 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.darkBackground,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF111418)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Salones cercanos',
-          style: TextStyle(
-            color: Color(0xFF111418),
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTheme.heading3,
         ),
         actions: [
           if (_resultados.isNotEmpty && _userLat != null)
@@ -317,7 +323,7 @@ class _SearchPageState extends State<SearchPage> {
               child: IconButton(
                 icon: Icon(
                   _showMap ? Icons.list : Icons.map,
-                  color: const Color(0xFFEA963A),
+                  color: AppTheme.primaryOrange,
                   size: 28,
                 ),
                 onPressed: _toggleMapa,
@@ -327,7 +333,7 @@ class _SearchPageState extends State<SearchPage> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange),
             )
           : _showMap && _userLat != null
               ? Column(
@@ -350,15 +356,12 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      color: Colors.white,
+                      color: AppTheme.cardBackground,
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _toggleMapa,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA963A),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                          style: AppTheme.primaryButtonStyle(),
                           icon: const Icon(Icons.list),
                           label: Text(
                             '${_resultados.length} Salones',
@@ -380,38 +383,33 @@ class _SearchPageState extends State<SearchPage> {
                         children: [
                           Icon(
                             Icons.store_outlined,
-                            color: const Color(0xFF637588),
+                            color: AppTheme.textSecondary,
                             size: 64,
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'No hay salones cercanos',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Color(0xFF111418),
-                            ),
+                            style: AppTheme.bodyLarge,
                           ),
                         ],
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       itemCount: _resultados.length,
                       itemBuilder: (context, index) {
                         final salon = _resultados[index];
                         final distancia = salon['distancia'] as double?;
 
-                        return Card(
+                        return Container(
                           margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
+                          decoration: AppTheme.elevatedCardDecoration(),
                           child: InkWell(
                             onTap: () {
                               print('🔍 Navegando a salon: ${salon['nombre']}');
                               print('   comercioId: ${salon['id']}');
-                              
+
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -421,7 +419,7 @@ class _SearchPageState extends State<SearchPage> {
                                 ),
                               );
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Row(
@@ -434,14 +432,16 @@ class _SearchPageState extends State<SearchPage> {
                                             width: 80,
                                             height: 80,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) {
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
                                               return Container(
                                                 width: 80,
                                                 height: 80,
-                                                color: Colors.grey.shade200,
-                                                child: Icon(
+                                                color: AppTheme.primaryOrange
+                                                    .withOpacity(0.2),
+                                                child: const Icon(
                                                   Icons.store,
-                                                  color: Colors.grey.shade400,
+                                                  color: AppTheme.primaryOrange,
                                                   size: 32,
                                                 ),
                                               );
@@ -450,10 +450,11 @@ class _SearchPageState extends State<SearchPage> {
                                         : Container(
                                             width: 80,
                                             height: 80,
-                                            color: Colors.grey.shade200,
-                                            child: Icon(
+                                            color: AppTheme.primaryOrange
+                                                .withOpacity(0.2),
+                                            child: const Icon(
                                               Icons.store,
-                                              color: Colors.grey.shade400,
+                                              color: AppTheme.primaryOrange,
                                               size: 32,
                                             ),
                                           ),
@@ -461,36 +462,36 @@ class _SearchPageState extends State<SearchPage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Expanded(
                                               child: Text(
                                                 salon['nombre']!,
-                                                style: const TextStyle(
-                                                  fontSize: 16,
+                                                style:
+                                                    AppTheme.bodyLarge.copyWith(
                                                   fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF111418),
                                                 ),
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            if (distancia != null && distancia != double.infinity) ...[
+                                            if (distancia != null &&
+                                                distancia !=
+                                                    double.infinity) ...[
                                               Text(
                                                 _formatearDistancia(distancia),
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Color(0xFF637588),
-                                                ),
+                                                style: AppTheme.caption,
                                               ),
                                               const SizedBox(width: 4),
                                               const Icon(
                                                 Icons.location_on,
-                                                color: Color(0xFFEA963A),
+                                                color: AppTheme.primaryOrange,
                                                 size: 16,
                                               ),
                                             ],
@@ -564,12 +565,13 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   Future<void> _requestLocationPermissions() async {
     try {
       final permission = await Geolocator.checkPermission();
-      
+
       if (permission == LocationPermission.denied) {
         await Geolocator.requestPermission();
       } else if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          _showSnackBar('Abre Configuración > Aplicaciones > Beauteek > Permisos > Ubicación');
+          _showSnackBar(
+              'Abre Configuración > Aplicaciones > Beauteek > Permisos > Ubicación');
         }
       }
     } catch (e) {
@@ -583,12 +585,13 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
 
     try {
       LocationPermission permission = await Geolocator.checkPermission();
-      
-      if (permission == LocationPermission.denied || 
+
+      if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         print('⚠️ Permiso de ubicación denegado');
         if (mounted) {
-          _showSnackBar('Permiso de ubicación denegado. Usando ubicación por defecto.');
+          _showSnackBar(
+              'Permiso de ubicación denegado. Usando ubicación por defecto.');
         }
         if (mounted) {
           setState(() => _isLoadingLocation = false);
@@ -602,7 +605,8 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
       ).timeout(
         const Duration(seconds: 12),
         onTimeout: () {
-          print('⏱️ Timeout obteniendo ubicación, usando coordenadas por defecto');
+          print(
+              '⏱️ Timeout obteniendo ubicación, usando coordenadas por defecto');
           return Position(
             latitude: 14.0723,
             longitude: -87.1921,
@@ -718,7 +722,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
           ),
-
           Positioned(
             top: 0,
             left: 0,
@@ -739,7 +742,8 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Color(0xFF111418)),
+                      icon: const Icon(Icons.arrow_back,
+                          color: Color(0xFF111418)),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
@@ -770,7 +774,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
               ),
             ),
           ),
-
           Positioned(
             right: 16,
             bottom: 120,
@@ -792,7 +795,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                     ),
             ),
           ),
-
           Positioned(
             bottom: 0,
             left: 0,
@@ -857,7 +859,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

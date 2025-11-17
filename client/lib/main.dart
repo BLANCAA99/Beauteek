@@ -101,12 +101,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   Transform.scale(
                     scale: _scaleAnimation.value,
                     child: Container(
-                      padding: const EdgeInsets.all(0),
+                      width: 120, 
+                      height: 120,
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 16,
-                        ),
+                        color: Colors.white, // ⬅️ fondo blanco dentro del marco
+                         borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.15),
@@ -114,15 +113,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             spreadRadius: 2,
                           ),
                         ],
-                        borderRadius: BorderRadius.circular(32),
-                        color: Colors.transparent,
                       ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Padding(
+                       padding: const EdgeInsets.all(12),
+                      child: FittedBox(
+                        fit: BoxFit.cover,
                       child: Image.asset(
                         'assets/images/Beauteek.png',
-                        width: 120,
-                        height: 120,
                       ),
+                     ),
                     ),
+                   ),
                   ),
                   const SizedBox(height: 24),
                   Transform.scale(

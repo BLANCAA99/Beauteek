@@ -10,6 +10,7 @@ import 'calendar_page.dart';
 import 'salon_profile_page.dart';
 import 'estadisticas_salon_page.dart';
 import 'review_screen.dart';
+import 'theme/app_theme.dart';
 
 class InicioPage extends StatefulWidget {
   const InicioPage({Key? key}) : super(key: key);
@@ -58,7 +59,7 @@ class _InicioPageState extends State<InicioPage> {
 
   Future<void> _cargarDatosIniciales() async {
     await _obtenerDatosUsuario();
-    
+
     if (_rolUsuario == 'cliente') {
       await _cargarSalonesDestacados();
       await _verificarCitasFinalizadas(); // ✅ NUEVO
@@ -89,7 +90,7 @@ class _InicioPageState extends State<InicioPage> {
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
       print('🔍 Obteniendo usuario: $url');
-      
+
       final response = await http.get(
         url,
         headers: {
@@ -108,31 +109,32 @@ class _InicioPageState extends State<InicioPage> {
 
       if (response.statusCode == 200) {
         final userData = json.decode(response.body) as Map<String, dynamic>;
-        
+
         print('👤 Datos del usuario obtenidos');
         print('👔 Rol detectado: ${userData['rol']}');
-        
+
         if (!mounted) return;
-        
+
         setState(() {
           _uidUsuario = uid;
           _rolUsuario = userData['rol'];
         });
-        
+
         if (_rolUsuario == 'cliente') {
           final ubicacion = userData['ubicacion'];
           double? lat, lng;
-          
+
           if (ubicacion is Map) {
             lat = (ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
-            lng = (ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
+            lng =
+                (ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
           } else if (ubicacion is List && ubicacion.length >= 2) {
             lat = (ubicacion[0] as num?)?.toDouble();
             lng = (ubicacion[1] as num?)?.toDouble();
           }
-          
+
           if (!mounted) return;
-          
+
           if (lat == null || lng == null) {
             print('⚠️ Cliente sin ubicación válida');
             setState(() {
@@ -189,14 +191,14 @@ class _InicioPageState extends State<InicioPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       final url = Uri.parse(
-        '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10'
-      );
-      
-      print('🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
+          '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10');
+
+      print(
+          '🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
       print('📍 URL completa: $url');
-      
+
       final response = await http.get(
         url,
         headers: {
@@ -210,26 +212,27 @@ class _InicioPageState extends State<InicioPage> {
 
       if (response.statusCode == 200) {
         final List<dynamic> saloneData = json.decode(response.body);
-        
+
         print('📊 Salones encontrados: ${saloneData.length}');
-        
+
         if (saloneData.isNotEmpty) {
           print('📋 Ejemplo de salón: ${saloneData[0]}');
           print('   📍 Ubicación: ${saloneData[0]['ubicacion']}');
           print('   📦 Servicios: ${saloneData[0]['servicios']?.length ?? 0}');
         }
-        
+
         // ✅ Obtener foto del propietario y calificación promedio para cada salón
         final List<Map<String, dynamic>> salonesConFoto = [];
         for (var salon in saloneData) {
           final salonMap = salon as Map<String, dynamic>;
           final uidPropietario = salonMap['uid_negocio'] as String?;
           final comercioId = salonMap['id'] as String?;
-          
+
           // Obtener foto del salon
           if (uidPropietario != null) {
             try {
-              final propietarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
+              final propietarioUrl =
+                  Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
               final propietarioResponse = await http.get(
                 propietarioUrl,
                 headers: {
@@ -237,24 +240,26 @@ class _InicioPageState extends State<InicioPage> {
                   'Authorization': 'Bearer $idToken',
                 },
               ).timeout(const Duration(seconds: 3));
-              
+
               if (propietarioResponse.statusCode == 200) {
                 final propietarioData = json.decode(propietarioResponse.body);
                 final fotoSalon = propietarioData['foto_url'] as String?;
-                
+
                 if (fotoSalon != null && fotoSalon.isNotEmpty) {
                   salonMap['foto_url'] = fotoSalon;
                 }
               }
             } catch (e) {
-              print('⚠️ Error obteniendo foto del salón ${salonMap['nombre']}: $e');
+              print(
+                  '⚠️ Error obteniendo foto del salón ${salonMap['nombre']}: $e');
             }
           }
-          
+
           // Obtener calificación promedio de reseñas
           if (comercioId != null) {
             try {
-              final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+              final resenasUrl =
+                  Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
               final resenasResponse = await http.get(
                 resenasUrl,
                 headers: {
@@ -262,28 +267,32 @@ class _InicioPageState extends State<InicioPage> {
                   'Authorization': 'Bearer $idToken',
                 },
               ).timeout(const Duration(seconds: 3));
-              
+
               if (resenasResponse.statusCode == 200) {
-                final List<dynamic> resenasData = json.decode(resenasResponse.body);
-                
+                final List<dynamic> resenasData =
+                    json.decode(resenasResponse.body);
+
                 if (resenasData.isNotEmpty) {
                   double sumaCalificaciones = 0;
                   for (var resena in resenasData) {
-                    sumaCalificaciones += (resena['calificacion'] as num?)?.toDouble() ?? 0;
+                    sumaCalificaciones +=
+                        (resena['calificacion'] as num?)?.toDouble() ?? 0;
                   }
-                  salonMap['calificacion'] = sumaCalificaciones / resenasData.length;
+                  salonMap['calificacion'] =
+                      sumaCalificaciones / resenasData.length;
                 }
               }
             } catch (e) {
-              print('⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
+              print(
+                  '⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
             }
           }
-          
+
           salonesConFoto.add(salonMap);
         }
-        
+
         if (!mounted) return; // ✅ CAMBIO: Verificar mounted
-        
+
         setState(() {
           _salonesDestacados = salonesConFoto;
           _salonesFiltrados = _salonesDestacados;
@@ -310,6 +319,7 @@ class _InicioPageState extends State<InicioPage> {
       });
     }
   }
+
   // ✅ CAMBIO: Función para normalizar texto (quitar tildes y convertir a minúsculas)
   String _normalizarTexto(String texto) {
     return texto
@@ -326,43 +336,45 @@ class _InicioPageState extends State<InicioPage> {
   void _filtrarPorCategoria(String categoria) {
     _searchController.clear();
     _textoBusqueda = '';
-    
+
     setState(() {
       _categoriaSeleccionada = categoria;
       _isBuscando = false;
-      
+
       if (categoria == 'Todos') {
         _salonesFiltrados = _salonesDestacados;
         _categoriaSeleccionada = null;
       } else {
         // ✅ CAMBIO: Normalizar la categoría para búsqueda
         final categoriaNormalizada = _normalizarTexto(categoria);
-        
+
         _salonesFiltrados = _salonesDestacados.where((salon) {
           final servicios = salon['servicios'] as List<dynamic>?;
-          
+
           if (servicios != null) {
             return servicios.any((servicio) {
               // ✅ CAMBIO: Normalizar ambos lados de la comparación
               final categoriaId = servicio['categoria_id'] as String?;
               if (categoriaId == null) return false;
-              
+
               final categoriaIdNormalizada = _normalizarTexto(categoriaId);
               return categoriaIdNormalizada == categoriaNormalizada;
             });
           }
           return false;
         }).toList();
-        
-        print('🔍 Filtrados por $categoria (normalizado: $categoriaNormalizada): ${_salonesFiltrados.length} salones');
-        
+
+        print(
+            '🔍 Filtrados por $categoria (normalizado: $categoriaNormalizada): ${_salonesFiltrados.length} salones');
+
         if (_salonesFiltrados.isEmpty) {
           print('⚠️ No se encontraron salones con categoría: $categoria');
           print('📊 Salones disponibles y sus servicios:');
           for (var salon in _salonesDestacados.take(3)) {
             final servicios = salon['servicios'] as List<dynamic>?;
             if (servicios != null) {
-              print('  - ${salon['nombre']}: ${servicios.map((s) => '${s['categoria_id']} (normalizado: ${_normalizarTexto(s['categoria_id'] ?? '')})').toList()}');
+              print(
+                  '  - ${salon['nombre']}: ${servicios.map((s) => '${s['categoria_id']} (normalizado: ${_normalizarTexto(s['categoria_id'] ?? '')})').toList()}');
             } else {
               print('  - ${salon['nombre']}: sin servicios');
             }
@@ -380,12 +392,12 @@ class _InicioPageState extends State<InicioPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       // Buscar comercios del usuario
       final url = Uri.parse('$apiBaseUrl/comercios');
-      
+
       print('🏢 Buscando comercios del salón: $_uidUsuario');
-      
+
       final response = await http.get(
         url,
         headers: {
@@ -399,7 +411,7 @@ class _InicioPageState extends State<InicioPage> {
 
       if (response.statusCode == 200) {
         final List<dynamic> comercios = json.decode(response.body);
-        
+
         // Buscar el comercio que pertenece a este usuario
         final miComercio = comercios.firstWhere(
           (c) => c['uid_negocio'] == _uidUsuario,
@@ -430,7 +442,7 @@ class _InicioPageState extends State<InicioPage> {
   // ✅ NUEVO: Obtener saludo dinámico según la hora
   String _obtenerSaludo() {
     final hora = DateTime.now().hour;
-    
+
     if (hora >= 0 && hora < 12) {
       return 'Buenos días';
     } else if (hora >= 12 && hora < 19) {
@@ -443,30 +455,50 @@ class _InicioPageState extends State<InicioPage> {
   // ✅ NUEVO: Formatear fecha y hora
   String _obtenerFechaHoraActual() {
     final now = DateTime.now();
-    final dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    final meses = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    final dias = [
+      'Domingo',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado'
     ];
-    
+    final meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre'
+    ];
+
     final dia = dias[now.weekday % 7];
     final mes = meses[now.month - 1];
     final hora = now.hour.toString().padLeft(2, '0');
     final minuto = now.minute.toString().padLeft(2, '0');
-    
+
     return '$dia, ${now.day} de $mes • $hora:$minuto';
   }
 
-  double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
+  double _calcularDistancia(
+      double lat1, double lon1, double lat2, double lon2) {
     const double radioTierra = 6371;
     final dLat = _gradosARadianes(lat2 - lat1);
     final dLon = _gradosARadianes(lon2 - lon1);
-    
-    final a = 
-      sin(dLat / 2) * sin(dLat / 2) +
-      cos(_gradosARadianes(lat1)) * cos(_gradosARadianes(lat2)) *
-      sin(dLon / 2) * sin(dLon / 2);
-    
+
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_gradosARadianes(lat1)) *
+            cos(_gradosARadianes(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+
     final c = 2 * asin(sqrt(a));
     return radioTierra * c;
   }
@@ -488,7 +520,7 @@ class _InicioPageState extends State<InicioPage> {
       // ✅ Obtener todas las citas del usuario desde la API
       final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
       print('🔍 Verificando citas completadas para reseña: $citasUrl');
-      
+
       final citasResponse = await http.get(
         citasUrl,
         headers: {
@@ -508,12 +540,11 @@ class _InicioPageState extends State<InicioPage> {
       }
 
       final List<dynamic> citasData = json.decode(citasResponse.body);
-      
+
       // Filtrar solo citas completadas
-      final citasCompletadas = citasData.where((cita) => 
-        cita['estado'] == 'completada'
-      ).toList();
-      
+      final citasCompletadas =
+          citasData.where((cita) => cita['estado'] == 'completada').toList();
+
       if (citasCompletadas.isEmpty) {
         print('ℹ️ No hay citas completadas');
         return;
@@ -524,13 +555,13 @@ class _InicioPageState extends State<InicioPage> {
       // ✅ Solo verificar la primera cita completada (la más reciente)
       for (var cita in citasCompletadas.take(1)) {
         final citaId = cita['id'];
-        
+
         if (citaId == null) continue;
 
         // Verificar si existe reseña para esta cita
         final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?cita_id=$citaId');
         print('🔍 Verificando reseña para cita $citaId: $resenasUrl');
-        
+
         final resenasResponse = await http.get(
           resenasUrl,
           headers: {
@@ -541,23 +572,24 @@ class _InicioPageState extends State<InicioPage> {
 
         if (resenasResponse.statusCode == 200) {
           final List<dynamic> resenasData = json.decode(resenasResponse.body);
-          
-          print('📊 Reseñas encontradas para cita $citaId: ${resenasData.length}');
-          
+
+          print(
+              '📊 Reseñas encontradas para cita $citaId: ${resenasData.length}');
+
           // Si no tiene reseña, mostrar modal
           if (resenasData.isEmpty) {
             if (!mounted) return;
-            
+
             print('✨ Mostrando modal de reseña para cita $citaId');
             await Future.delayed(const Duration(milliseconds: 200));
-            
+
             _mostrarModalResena({
               'id': citaId,
               'comercio_id': cita['comercio_id'],
               'servicio_id': cita['servicio_id'],
               'servicio_nombre': cita['servicio_nombre'],
             });
-            
+
             break; // Solo mostrar un modal a la vez
           }
         } else {
@@ -572,12 +604,13 @@ class _InicioPageState extends State<InicioPage> {
   // ✅ NUEVO: Modal para dejar reseña
   void _mostrarModalResena(Map<String, dynamic> cita) async {
     String salonName = 'Salón de belleza';
-    
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && cita['comercio_id'] != null) {
         final idToken = await user.getIdToken();
-        final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${cita['comercio_id']}');
+        final comercioUrl =
+            Uri.parse('$apiBaseUrl/comercios/${cita['comercio_id']}');
         final comercioResponse = await http.get(
           comercioUrl,
           headers: {
@@ -585,7 +618,7 @@ class _InicioPageState extends State<InicioPage> {
             'Authorization': 'Bearer $idToken',
           },
         ).timeout(const Duration(seconds: 3));
-        
+
         if (comercioResponse.statusCode == 200) {
           final comercioData = json.decode(comercioResponse.body);
           salonName = comercioData['nombre'] ?? salonName;
@@ -661,7 +694,8 @@ class _InicioPageState extends State<InicioPage> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.design_services, size: 16, color: Colors.grey),
+                      const Icon(Icons.design_services,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -718,7 +752,8 @@ class _InicioPageState extends State<InicioPage> {
             icon: const Icon(Icons.star, color: Colors.white),
             label: const Text(
               'Dejar reseña',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEA963A),
@@ -731,6 +766,30 @@ class _InicioPageState extends State<InicioPage> {
         ],
       ),
     );
+  }
+
+  // Obtener icono para cada categoría
+  IconData _getCategoryIcon(String categoria) {
+    switch (categoria) {
+      case 'Coloración':
+        return Icons.palette_outlined;
+      case 'Corte':
+        return Icons.content_cut_outlined;
+      case 'Depilación':
+        return Icons.spa_outlined;
+      case 'Facial':
+        return Icons.face_outlined;
+      case 'Maquillaje':
+        return Icons.brush_outlined;
+      case 'Masajes':
+        return Icons.back_hand_outlined;
+      case 'Tratamientos':
+        return Icons.health_and_safety_outlined;
+      case 'Uñas':
+        return Icons.touch_app_outlined;
+      default:
+        return Icons.category_outlined;
+    }
   }
 
   // ✅ NUEVO: Buscar salones usando las APIs
@@ -763,10 +822,11 @@ class _InicioPageState extends State<InicioPage> {
         if (servicios != null) {
           return servicios.any((servicio) {
             final nombreServicio = _normalizarTexto(servicio['nombre'] ?? '');
-            final categoriaId = _normalizarTexto(servicio['categoria_id'] ?? '');
-            
+            final categoriaId =
+                _normalizarTexto(servicio['categoria_id'] ?? '');
+
             return nombreServicio.contains(textoNormalizado) ||
-                   categoriaId.contains(textoNormalizado);
+                categoriaId.contains(textoNormalizado);
           });
         }
 
@@ -779,73 +839,157 @@ class _InicioPageState extends State<InicioPage> {
 
   @override
   Widget build(BuildContext context) {
+    final nombreUsuario =
+        FirebaseAuth.instance.currentUser?.displayName ?? 'Usuario';
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.darkBackground,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // TODO: usar este botón después
+        },
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: AppTheme.primaryGradient,
+          ),
+          child: const Icon(
+            Icons.smart_toy_outlined,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
         child: Column(
           children: [
-            // AppBar
+            // HEADER tipo "Hola, Sofía" + campana
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'Beauteek',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 22,
-                          color: Color(0xFF111418),
-                        ),
+                  GestureDetector(
+                    onTap: () {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => ProfileMenuPage(uid: uid)),
+                      );
+                    },
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: AppTheme.primaryGradient,
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 28,
                       ),
                     ),
                   ),
-                  Icon(Icons.menu, size: 28),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hola, $nombreUsuario',
+                          style: AppTheme.heading3.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Encuentra salones cerca de ti',
+                          style: AppTheme.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          // TODO: abrir notificaciones
+                        },
+                        icon: const Icon(
+                          Icons.notifications_none_outlined,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppTheme.primaryOrange,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
                 ],
               ),
             ),
 
-            // ✅ Search Bar - SOLO visible para clientes
+            // Search Bar - SOLO visible para clientes
             if (_rolUsuario == 'cliente')
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Color(0xFFF0F2F4),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _isBuscando ? Color(0xFFEA963A) : Color(0xFFE0E0E0),
-                      width: _isBuscando ? 2 : 1,
-                    ),
+                    color: const Color(0xFF2A2A2C),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.search,
-                        color: _isBuscando ? Color(0xFFEA963A) : Color(0xFF637588),
+                        color: AppTheme.textSecondary,
+                        size: 22,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           onChanged: _buscarSalones,
+                          style: AppTheme.bodyMedium,
                           decoration: InputDecoration(
-                            hintText: 'Buscar salones o servicios',
-                            hintStyle: TextStyle(color: Color(0xFF637588)),
+                            hintText: 'Buscar salones, uñas, peinados...',
+                            hintStyle: AppTheme.bodyMedium.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          style: TextStyle(
-                            color: Color(0xFF111418),
-                            fontSize: 15,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ),
                       if (_textoBusqueda.isNotEmpty)
                         IconButton(
-                          icon: Icon(Icons.clear, color: Color(0xFF637588), size: 20),
+                          icon: const Icon(
+                            Icons.clear,
+                            color: AppTheme.textSecondary,
+                            size: 18,
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             _buscarSalones('');
@@ -856,18 +1000,19 @@ class _InicioPageState extends State<InicioPage> {
                 ),
               ),
 
-            // ✅ Pantalla personalizada para salones
+            // Pantalla personalizada para salones
             if (_rolUsuario == 'salon')
               Expanded(
                 child: _isLoading
-                    ? Center(child: CircularProgressIndicator(color: Color(0xFFEA963A)))
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: AppTheme.primaryOrange))
                     : SingleChildScrollView(
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(height: 20),
-                            
+                            const SizedBox(height: 8),
                             // Logo del salón
                             Center(
                               child: Container(
@@ -876,11 +1021,7 @@ class _InicioPageState extends State<InicioPage> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   gradient: _logoSalon == null
-                                      ? LinearGradient(
-                                          colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        )
+                                      ? AppTheme.primaryGradient
                                       : null,
                                   image: _logoSalon != null
                                       ? DecorationImage(
@@ -890,76 +1031,67 @@ class _InicioPageState extends State<InicioPage> {
                                       : null,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Color(0xFFEA963A).withOpacity(0.3),
+                                      color: AppTheme.primaryOrange
+                                          .withOpacity(0.3),
                                       blurRadius: 20,
-                                      offset: Offset(0, 10),
+                                      offset: const Offset(0, 10),
                                     ),
                                   ],
                                 ),
                                 child: _logoSalon == null
-                                    ? Icon(Icons.store, size: 60, color: Colors.white)
+                                    ? const Icon(Icons.store,
+                                        size: 60, color: Colors.white)
                                     : null,
                               ),
                             ),
-                            
-                            SizedBox(height: 32),
-                            
+                            const SizedBox(height: 24),
                             // Saludo dinámico
                             Center(
                               child: Column(
                                 children: [
                                   Text(
                                     '${_obtenerSaludo()},',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      color: Color(0xFF637588),
-                                      fontWeight: FontWeight.w500,
+                                    style: AppTheme.heading3.copyWith(
+                                      color: AppTheme.textSecondary,
                                     ),
                                   ),
-                                  SizedBox(height: 8),
+                                  const SizedBox(height: 8),
                                   Text(
                                     _nombreSalon ?? 'Mi Salón',
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF111418),
+                                    style: AppTheme.heading1.copyWith(
+                                      fontSize: 30,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
                               ),
                             ),
-                            
-                            SizedBox(height: 24),
-                            
+                            const SizedBox(height: 24),
                             // Fecha y hora actual
                             Center(
                               child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF0F2F4),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Color(0xFFE0E0E0)),
-                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                                decoration:
+                                    AppTheme.cardDecoration(borderRadius: 20),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.calendar_today, color: Color(0xFFEA963A), size: 20),
-                                    SizedBox(width: 12),
+                                    const Icon(Icons.calendar_today,
+                                        color: AppTheme.primaryOrange,
+                                        size: 18),
+                                    const SizedBox(width: 12),
                                     Text(
                                       _obtenerFechaHoraActual(),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Color(0xFF637588),
-                                        fontWeight: FontWeight.w500,
+                                      style: AppTheme.bodyLarge.copyWith(
+                                        color: AppTheme.textSecondary,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                            
-                            SizedBox(height: 48),
+                            const SizedBox(height: 40),
                           ],
                         ),
                       ),
@@ -980,34 +1112,33 @@ class _InicioPageState extends State<InicioPage> {
                                 child: Text(
                                   _isBuscando
                                       ? 'Resultados para "$_textoBusqueda"'
-                                      : (_categoriaSeleccionada == null 
+                                      : (_categoriaSeleccionada == null
                                           ? 'Salones destacados cerca de ti'
                                           : 'Salones de $_categoriaSeleccionada'),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: Color(0xFF111418),
-                                  ),
+                                  style: AppTheme.heading2,
                                 ),
                               ),
                               if (_categoriaSeleccionada != null)
                                 GestureDetector(
                                   onTap: () => _filtrarPorCategoria('Todos'),
                                   child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: Color(0xFFEA963A).withOpacity(0.1),
+                                      color: AppTheme.primaryOrange
+                                          .withOpacity(0.15),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.clear, size: 16, color: Color(0xFFEA963A)),
-                                        SizedBox(width: 4),
+                                        const Icon(Icons.clear,
+                                            size: 16,
+                                            color: AppTheme.primaryOrange),
+                                        const SizedBox(width: 4),
                                         Text(
                                           'Limpiar',
-                                          style: TextStyle(
-                                            color: Color(0xFFEA963A),
-                                            fontSize: 12,
+                                          style: AppTheme.caption.copyWith(
+                                            color: AppTheme.primaryOrange,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -1022,57 +1153,51 @@ class _InicioPageState extends State<InicioPage> {
                         // Lista de salones destacados
                         if (_isLoading)
                           const SizedBox(
-                            height: 200,
+                            height: 240,
                             child: Center(
-                              child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+                              child: CircularProgressIndicator(
+                                  color: AppTheme.primaryOrange),
                             ),
                           )
                         else if (_salonesFiltrados.isEmpty)
                           Container(
                             height: 200,
-                            margin: EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFF8F9FA),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Color(0xFFE0E0E0)),
-                            ),
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration:
+                                AppTheme.cardDecoration(borderRadius: 20),
                             child: Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.store_outlined, size: 48, color: Color(0xFF637588)),
-                                  SizedBox(height: 8),
+                                  const Icon(Icons.store_outlined,
+                                      size: 48, color: AppTheme.textSecondary),
+                                  const SizedBox(height: 8),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24),
                                     child: Text(
                                       _isBuscando
                                           ? 'No encontramos salones con "$_textoBusqueda"'
-                                          : (_categoriaSeleccionada == null 
+                                          : (_categoriaSeleccionada == null
                                               ? 'No hay salones cerca'
                                               : 'No hay salones con servicios de $_categoriaSeleccionada'),
                                       textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF637588),
-                                        fontSize: 16,
+                                      style: AppTheme.bodyLarge.copyWith(
+                                        color: AppTheme.textSecondary,
                                       ),
                                     ),
                                   ),
-                                  if (_categoriaSeleccionada != null || _isBuscando) ...[
-                                    SizedBox(height: 12),
+                                  if (_categoriaSeleccionada != null ||
+                                      _isBuscando) ...[
+                                    const SizedBox(height: 12),
                                     ElevatedButton(
                                       onPressed: () {
                                         _searchController.clear();
                                         _filtrarPorCategoria('Todos');
                                       },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Color(0xFFEA963A),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                      ),
-                                      child: Text(
+                                      style: AppTheme.primaryButtonStyle(),
+                                      child: const Text(
                                         'Ver todos los salones',
-                                        style: TextStyle(color: Colors.white),
                                       ),
                                     ),
                                   ],
@@ -1082,21 +1207,22 @@ class _InicioPageState extends State<InicioPage> {
                           )
                         else
                           SizedBox(
-                            height: 220,
+                            height: 240,
                             child: ListView.builder(
                               scrollDirection: Axis.horizontal,
-                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: _salonesFiltrados.length,
                               itemBuilder: (context, i) {
                                 final salon = _salonesFiltrados[i];
                                 final distancia = salon['distancia'] as double;
-                                
+
                                 return Padding(
-                                  padding: const EdgeInsets.only(right: 12),
+                                  padding: const EdgeInsets.only(right: 14),
                                   child: GestureDetector(
                                     onTap: () {
                                       final comercioId = salon['id'];
-                                      
+
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -1107,55 +1233,60 @@ class _InicioPageState extends State<InicioPage> {
                                       );
                                     },
                                     child: Container(
-                                      width: 180,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.08),
-                                            blurRadius: 12,
-                                            offset: Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
+                                      width: 220,
+                                      decoration:
+                                          AppTheme.elevatedCardDecoration(
+                                              borderRadius: 20),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           ClipRRect(
-                                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                            borderRadius:
+                                                const BorderRadius.vertical(
+                                                    top: Radius.circular(20)),
                                             child: SizedBox(
-                                              width: 180,
-                                              height: 130,
-                                              child: salon['foto_url'] != null && salon['foto_url']!.isNotEmpty
+                                              width: 220,
+                                              height: 140,
+                                              child: salon['foto_url'] !=
+                                                          null &&
+                                                      salon['foto_url']!
+                                                          .isNotEmpty
                                                   ? Image.network(
                                                       salon['foto_url']!,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) =>
+                                                      errorBuilder: (context,
+                                                              error,
+                                                              stackTrace) =>
                                                           Container(
-                                                            decoration: BoxDecoration(
-                                                              gradient: LinearGradient(
-                                                                colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                                                                begin: Alignment.topLeft,
-                                                                end: Alignment.bottomRight,
-                                                              ),
-                                                            ),
-                                                            child: Icon(
-                                                              Icons.store,
-                                                              size: 48,
-                                                              color: Colors.white,
-                                                            ),
-                                                          ),
-                                                    )
-                                                  : Container(
-                                                      decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                                                          begin: Alignment.topLeft,
-                                                          end: Alignment.bottomRight,
+                                                        decoration:
+                                                            const BoxDecoration(
+                                                          gradient: LinearGradient(
+                                                              colors: [
+                                                                AppTheme
+                                                                    .primaryOrange,
+                                                                Color(
+                                                                    0xFFFF6B35)
+                                                              ],
+                                                              begin: Alignment
+                                                                  .topLeft,
+                                                              end: Alignment
+                                                                  .bottomRight),
+                                                        ),
+                                                        child: const Icon(
+                                                          Icons.store,
+                                                          size: 48,
+                                                          color: Colors.white,
                                                         ),
                                                       ),
-                                                      child: Icon(
+                                                    )
+                                                  : Container(
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                        gradient: AppTheme
+                                                            .primaryGradient,
+                                                      ),
+                                                      child: const Icon(
                                                         Icons.store,
                                                         size: 48,
                                                         color: Colors.white,
@@ -1166,40 +1297,44 @@ class _InicioPageState extends State<InicioPage> {
                                           Padding(
                                             padding: const EdgeInsets.all(12),
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   salon['nombre']!,
-                                                  style: const TextStyle(
+                                                  style: AppTheme.bodyLarge
+                                                      .copyWith(
                                                     fontWeight: FontWeight.bold,
-                                                    fontSize: 15,
-                                                    color: Color(0xFF111418),
                                                   ),
                                                   maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Row(
                                                   children: [
-                                                    Icon(Icons.star, size: 14, color: Color(0xFFFFB800)),
-                                                    SizedBox(width: 4),
+                                                    const Icon(Icons.star,
+                                                        size: 14,
+                                                        color:
+                                                            Color(0xFFFFB800)),
+                                                    const SizedBox(width: 4),
                                                     Text(
                                                       "${salon['calificacion'] ?? 4.5}",
-                                                      style: const TextStyle(
-                                                        color: Color(0xFF637588),
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w500,
+                                                      style: AppTheme.caption
+                                                          .copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w500,
                                                       ),
                                                     ),
-                                                    SizedBox(width: 8),
-                                                    Icon(Icons.place, size: 14, color: Color(0xFF637588)),
-                                                    SizedBox(width: 4),
+                                                    const SizedBox(width: 8),
+                                                    const Icon(Icons.place,
+                                                        size: 14,
+                                                        color: AppTheme
+                                                            .textSecondary),
+                                                    const SizedBox(width: 4),
                                                     Text(
                                                       "${distancia.toStringAsFixed(1)} km",
-                                                      style: const TextStyle(
-                                                        color: Color(0xFF637588),
-                                                        fontSize: 12,
-                                                      ),
+                                                      style: AppTheme.caption,
                                                     ),
                                                   ],
                                                 ),
@@ -1215,18 +1350,14 @@ class _InicioPageState extends State<InicioPage> {
                             ),
                           ),
 
-                        SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
                         // Categorías - SIEMPRE se muestran
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                           child: Text(
-                            'Servicios',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 22,
-                              color: Color(0xFF111418),
-                            ),
+                            'Explora por categoría',
+                            style: AppTheme.heading2,
                           ),
                         ),
 
@@ -1234,61 +1365,86 @@ class _InicioPageState extends State<InicioPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: GridView.builder(
                             shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
-                              childAspectRatio: 2.5, // ✅ Rectángulos horizontales
+                              childAspectRatio: 2.0,
                             ),
                             itemCount: categorias.length,
                             itemBuilder: (context, index) {
                               final categoria = categorias[index];
-                              final isSelected = _categoriaSeleccionada == categoria['nombre'];
-                              
+                              final isSelected =
+                                  _categoriaSeleccionada == categoria['nombre'];
+
                               return GestureDetector(
                                 onTap: () {
-                                  _filtrarPorCategoria(categoria['nombre'] as String);
-                                  
-                                  Scrollable.ensureVisible(
-                                    context,
-                                    duration: Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
+                                  _filtrarPorCategoria(
+                                      categoria['nombre'] as String);
                                 },
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Color(categoria['color'] as int),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: isSelected 
-                                        ? Border.all(color: Color(0xFFEA963A), width: 2)
-                                        : null,
-                                    boxShadow: isSelected ? [
-                                      BoxShadow(
-                                        color: Color(0xFFEA963A).withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ] : null,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      categoria['nombre'] as String,
-                                      style: TextStyle(
-                                        color: Colors.black87,
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                        fontSize: 15,
-                                      ),
-                                      textAlign: TextAlign.center,
+                                    color: isSelected
+                                        ? AppTheme.primaryOrange
+                                        : AppTheme.cardBackground,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? AppTheme.primaryOrange
+                                          : AppTheme.dividerColor,
+                                      width: 1,
                                     ),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? Colors.white.withOpacity(0.2)
+                                              : AppTheme.primaryOrange
+                                                  .withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          _getCategoryIcon(
+                                              categoria['nombre'] as String),
+                                          color: isSelected
+                                              ? Colors.white
+                                              : AppTheme.primaryOrange,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          categoria['nombre'] as String,
+                                          style: AppTheme.bodyMedium.copyWith(
+                                            fontSize: 12,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppTheme.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
                             },
                           ),
                         ),
-                        
-                        SizedBox(height: 32),
+
+                        const SizedBox(height: 80),
                       ],
                     ],
                   ),
@@ -1300,40 +1456,32 @@ class _InicioPageState extends State<InicioPage> {
 
       // Bottom Navigation Bar
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Color(0xFFF0F2F4),
+        decoration: const BoxDecoration(
+          color: AppTheme.cardBackground,
           border: Border(
-            top: BorderSide(color: Color(0xFFF0F2F4)),
+            top: BorderSide(color: AppTheme.dividerColor),
           ),
         ),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _NavItem(
+              const _NavItem(
                 icon: Icons.home,
                 label: 'Inicio',
                 selected: true,
               ),
-              if (_rolUsuario == 'salon')
-                GestureDetector(
-                  onTap: () {
+              GestureDetector(
+                onTap: () {
+                  if (_rolUsuario == 'salon') {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => const EstadisticasSalonPage(),
                       ),
                     );
-                  },
-                  child: const _NavItem(
-                    icon: Icons.bar_chart_rounded,
-                    label: 'Estadísticas',
-                  ),
-                )
-              else
-                GestureDetector(
-                  onTap: () {
+                  } else {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -1344,12 +1492,24 @@ class _InicioPageState extends State<InicioPage> {
                         ),
                       ),
                     );
-                  },
-                  child: const _NavItem(
-                    icon: Icons.search,
-                    label: 'Buscar',
-                  ),
+                  }
+                },
+                child: _NavItem(
+                  icon: _rolUsuario == 'salon'
+                      ? Icons.bar_chart_rounded
+                      : Icons.search,
+                  label: _rolUsuario == 'salon' ? 'Estadísticas' : 'Buscar',
                 ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  // TODO: navegar a pantalla de promociones
+                },
+                child: const _NavItem(
+                  icon: Icons.local_offer_outlined,
+                  label: 'Promociones',
+                ),
+              ),
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -1391,16 +1551,24 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
-  const _NavItem({required this.icon, required this.label, this.selected = false});
+  const _NavItem(
+      {required this.icon, required this.label, this.selected = false});
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Color(0xFF111418) : Color(0xFF637588);
+    final color = selected ? AppTheme.primaryOrange : AppTheme.textSecondary;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 28),
-        Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTheme.caption.copyWith(
+            color: color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
       ],
     );
   }

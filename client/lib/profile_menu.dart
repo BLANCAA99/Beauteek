@@ -5,12 +5,13 @@ import 'dart:convert';
 import 'login_screen.dart';
 import 'profile_info.dart';
 import 'inicio.dart';
-import 'salon_registration_steps_page.dart'; 
+import 'salon_registration_steps_page.dart';
 import 'api_constants.dart';
 import 'edit_services_page.dart';
 import 'reportes_salon_page.dart';
 import 'mis_resenas_page.dart';
 import 'favoritos_page.dart';
+import 'theme/app_theme.dart';
 
 class ProfileMenuPage extends StatelessWidget {
   final String? uid;
@@ -61,7 +62,7 @@ class ProfileMenuPage extends StatelessWidget {
         (raw['nombre_completo'] ?? raw['fullName'] ?? '').toString().trim();
 
     final first = (raw['firstName'] ?? raw['nombre'] ?? '').toString();
-    final last  = (raw['lastName']  ?? raw['apellido'] ?? '').toString();
+    final last = (raw['lastName'] ?? raw['apellido'] ?? '').toString();
 
     final displayName =
         nombreCompleto.isNotEmpty ? nombreCompleto : ('$first $last').trim();
@@ -70,13 +71,14 @@ class ProfileMenuPage extends StatelessWidget {
         (raw['foto_url'] ?? raw['photoURL'] ?? raw['photo'] ?? '').toString();
 
     return {
-      'displayName': displayName, 
+      'displayName': displayName,
       'photoUrl': photoUrl,
       'rol': raw['rol'] as String?, // ✅ Incluir rol
     };
   }
 
-  Widget _menuTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
+  Widget _menuTile(
+      BuildContext context, IconData icon, String title, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -88,16 +90,18 @@ class ProfileMenuPage extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF6F5),
+                color: AppTheme.primaryOrange.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.black87, size: 20),
+              child: Icon(icon, color: AppTheme.primaryOrange, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text(title,
+                  style:
+                      AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.w600)),
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
+            const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
           ],
         ),
       ),
@@ -109,12 +113,12 @@ class ProfileMenuPage extends StatelessWidget {
     final resolvedUid = uid ?? FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F8),
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.darkBackground,
         elevation: 0,
-        leading: const BackButton(color: Colors.black87),
-        iconTheme: const IconThemeData(color: Colors.black87),
+        leading: const BackButton(color: AppTheme.textPrimary),
+        iconTheme: const IconThemeData(color: AppTheme.textPrimary),
         title: const Text(''),
       ),
       body: SingleChildScrollView(
@@ -124,12 +128,15 @@ class ProfileMenuPage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: FutureBuilder<Map<String, dynamic>?>(
-                future: resolvedUid != null ? _fetchUserHeader(resolvedUid) : Future.value(null),
+                future: resolvedUid != null
+                    ? _fetchUserHeader(resolvedUid)
+                    : Future.value(null),
                 builder: (context, snapshot) {
                   String displayName = 'Usuario';
                   String? photoUrl;
 
-                  if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      snapshot.hasData) {
                     final data = snapshot.data!;
                     displayName = data['displayName'] ?? 'Usuario';
                     photoUrl = data['photoUrl'];
@@ -152,19 +159,27 @@ class ProfileMenuPage extends StatelessWidget {
                           children: [
                             Text(
                               displayName,
-                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.black87),
+                              style: AppTheme.heading1.copyWith(fontSize: 28),
                             ),
                             const SizedBox(height: 4),
-                            const Text('Perfil personal', style: TextStyle(fontSize: 15, color: Colors.grey)),
+                            Text('Perfil personal',
+                                style: AppTheme.bodyMedium
+                                    .copyWith(color: AppTheme.textSecondary)),
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: Colors.grey.shade300,
-                        backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : null,
-                        child: (photoUrl == null || photoUrl.isEmpty) ? const Icon(Icons.person, color: Colors.white) : null,
+                        backgroundColor: AppTheme.cardBackground,
+                        backgroundImage:
+                            (photoUrl != null && photoUrl.isNotEmpty)
+                                ? NetworkImage(photoUrl)
+                                : null,
+                        child: (photoUrl == null || photoUrl.isEmpty)
+                            ? const Icon(Icons.person,
+                                color: AppTheme.textSecondary)
+                            : null,
                       ),
                     ],
                   );
@@ -178,35 +193,40 @@ class ProfileMenuPage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FutureBuilder<String?>(
-                future: resolvedUid != null ? _fetchUserRole(resolvedUid) : Future.value(null),
+                future: resolvedUid != null
+                    ? _fetchUserRole(resolvedUid)
+                    : Future.value(null),
                 builder: (context, snapshot) {
                   final rol = snapshot.data ?? 'cliente';
 
                   return Container(
                     width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 6))],
-                    ),
+                    decoration: AppTheme.elevatedCardDecoration(),
                     child: Column(
                       children: [
                         // ✅ Perfil: visible para todos
                         _menuTile(context, Icons.person_outline, 'Perfil', () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileInfoPage(uid: resolvedUid)));
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      ProfileInfoPage(uid: resolvedUid)));
                         }),
-                        
+
                         // ✅ Opciones según el rol
                         if (rol == 'salon') ...[
                           const Divider(height: 1),
-                          _menuTile(context, Icons.settings, 'Configurar servicios y horarios', () async {
+                          _menuTile(context, Icons.settings,
+                              'Configurar servicios y horarios', () async {
                             // ✅ CAMBIO: Obtener comercioId y navegar a edit_services_page
                             try {
-                              final authUser = FirebaseAuth.instance.currentUser;
+                              final authUser =
+                                  FirebaseAuth.instance.currentUser;
                               if (authUser == null) return;
 
                               final idToken = await authUser.getIdToken();
-                              final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
+                              final comerciosUrl =
+                                  Uri.parse('$apiBaseUrl/comercios');
                               final comerciosResponse = await http.get(
                                 comerciosUrl,
                                 headers: {
@@ -216,7 +236,8 @@ class ProfileMenuPage extends StatelessWidget {
                               );
 
                               if (comerciosResponse.statusCode == 200) {
-                                final List<dynamic> comercios = json.decode(comerciosResponse.body);
+                                final List<dynamic> comercios =
+                                    json.decode(comerciosResponse.body);
                                 final miComercio = comercios.firstWhere(
                                   (c) => c['uid_negocio'] == authUser.uid,
                                   orElse: () => null,
@@ -224,18 +245,20 @@ class ProfileMenuPage extends StatelessWidget {
 
                                 if (miComercio != null && context.mounted) {
                                   final comercioId = miComercio['id'];
-                                  
+
                                   // ✅ CAMBIO: Navegar a EditServicesPage pasando comercioId
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => EditServicesPage(comercioId: comercioId),
+                                      builder: (_) => EditServicesPage(
+                                          comercioId: comercioId),
                                     ),
                                   );
                                 } else if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('No se encontró tu comercio'),
+                                      content:
+                                          Text('No se encontró tu comercio'),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
@@ -254,21 +277,38 @@ class ProfileMenuPage extends StatelessWidget {
                             }
                           }),
                           const Divider(height: 1),
-                          _menuTile(context, Icons.analytics_outlined, 'Reportes detallados', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportesSalonPage()));
+                          _menuTile(context, Icons.analytics_outlined,
+                              'Reportes detallados', () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ReportesSalonPage()));
                           }),
                         ] else if (rol == 'cliente') ...[
                           const Divider(height: 1),
-                          _menuTile(context, Icons.favorite_border, 'Favoritos', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritosPage()));
+                          _menuTile(context, Icons.favorite_border, 'Favoritos',
+                              () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const FavoritosPage()));
                           }),
                           const Divider(height: 1),
-                          _menuTile(context, Icons.rate_review_outlined, 'Mis reseñas', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MisResenasPage()));
+                          _menuTile(context, Icons.rate_review_outlined,
+                              'Mis reseñas', () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const MisResenasPage()));
                           }),
                           const Divider(height: 1),
-                          _menuTile(context, Icons.store_outlined, 'Registrar mi salón de belleza', () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const SalonRegistrationStepsPage()));
+                          _menuTile(context, Icons.store_outlined,
+                              'Registrar mi salón de belleza', () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const SalonRegistrationStepsPage()));
                           }),
                         ],
                       ],
@@ -285,15 +325,13 @@ class ProfileMenuPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 6))],
-                ),
-                child: _menuTile(context, Icons.logout, 'Cerrar sesión', () async {
+                decoration: AppTheme.elevatedCardDecoration(),
+                child:
+                    _menuTile(context, Icons.logout, 'Cerrar sesión', () async {
                   await FirebaseAuth.instance.signOut();
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const LoginScreen()),
                     (Route<dynamic> route) => false,
                   );
                 }),
@@ -314,35 +352,56 @@ class ProfileMenuPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             GestureDetector(
-              onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => InicioPage())),
+              onTap: () => Navigator.pushReplacement(
+                  context, MaterialPageRoute(builder: (_) => InicioPage())),
               child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.home, color: Color(0xFF111418), size: 24),
                   SizedBox(height: 4),
-                  Text('Inicio', style: TextStyle(color: Color(0xFF111418), fontSize: 12, fontWeight: FontWeight.w500)),
+                  Text('Inicio',
+                      style: TextStyle(
+                          color: Color(0xFF111418),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
             GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Buscar'))),
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _PlaceholderPage(title: 'Buscar'))),
               child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.search, color: Color(0xFF637588), size: 24),
                   SizedBox(height: 4),
-                  Text('Buscar', style: TextStyle(color: Color(0xFF637588), fontSize: 12, fontWeight: FontWeight.w500)),
+                  Text('Buscar',
+                      style: TextStyle(
+                          color: Color(0xFF637588),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
             GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _PlaceholderPage(title: 'Favoritos'))),
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          const _PlaceholderPage(title: 'Favoritos'))),
               child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.favorite_border, color: Color(0xFF637588), size: 24),
+                  Icon(Icons.favorite_border,
+                      color: Color(0xFF637588), size: 24),
                   SizedBox(height: 4),
-                  Text('Favoritos', style: TextStyle(color: Color(0xFF637588), fontSize: 12, fontWeight: FontWeight.w500)),
+                  Text('Favoritos',
+                      style: TextStyle(
+                          color: Color(0xFF637588),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -351,7 +410,11 @@ class ProfileMenuPage extends StatelessWidget {
               children: [
                 Icon(Icons.person_outline, color: Color(0xFF111418), size: 24),
                 SizedBox(height: 4),
-                Text('Perfil', style: TextStyle(color: Color(0xFF111418), fontSize: 12, fontWeight: FontWeight.w500)),
+                Text('Perfil',
+                    style: TextStyle(
+                        color: Color(0xFF111418),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
               ],
             ),
           ],
@@ -367,7 +430,11 @@ class _PlaceholderPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), backgroundColor: Colors.white, iconTheme: const IconThemeData(color: Colors.black87), elevation: 0),
+      appBar: AppBar(
+          title: Text(title),
+          backgroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.black87),
+          elevation: 0),
       body: Center(child: Text('$title - placeholder')),
     );
   }
