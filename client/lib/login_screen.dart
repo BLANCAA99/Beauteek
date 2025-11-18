@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen>
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  String _loadingMessage = 'Iniciando sesión...';
 
   // ───────── Toast animado (verde) ─────────
   late AnimationController _toastController;
@@ -117,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() {
       errorMsg = '';
       _isLoading = true;
+      _loadingMessage = 'Verificando credenciales...';
     });
 
     if (emailController.text.trim().isEmpty ||
@@ -180,11 +182,18 @@ class _LoginScreenState extends State<LoginScreen>
       final rol = userData['rol'] as String?;
       final ubicacion = userData['ubicacion'];
 
-      // 3) Mostrar toast y navegar
+      // 3) Mostrar mensaje de éxito y transición suave
       if (!mounted) return;
-      await _showToast('¡Bienvenido!');
 
-      setState(() => _isLoading = false);
+      setState(() {
+        _loadingMessage = 'Credenciales correctas, iniciando sesión...';
+      });
+
+      // Pequeña pausa para que se vea el mensaje
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // (Opcional) también mostramos el toast
+      await _showToast('¡Bienvenido!');
 
       if (!mounted) return;
 
@@ -691,9 +700,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ),
-
         const SizedBox(height: 24),
-
         // Botón Iniciar Sesión
         SizedBox(
           width: double.infinity,
@@ -704,29 +711,17 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             onPressed: _isLoading ? null : login,
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Iniciar Sesión',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+            child: const Text(
+              'Iniciar Sesión',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ),
         ),
-
         const SizedBox(height: 32),
-
         // Divider con texto
         Row(
           children: [
@@ -900,17 +895,18 @@ class _LoginScreenState extends State<LoginScreen>
           if (_isLoading)
             Container(
               color: Colors.black.withOpacity(0.4),
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    const CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
-                      'Iniciando sesión...',
-                      style: TextStyle(
+                      _loadingMessage,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
