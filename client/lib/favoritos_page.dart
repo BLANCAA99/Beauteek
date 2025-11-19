@@ -16,6 +16,12 @@ class _FavoritosPageState extends State<FavoritosPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _favoritos = [];
 
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _cardColor = Color(0xFF24170F);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7AEA5);
+
   @override
   void initState() {
     super.initState();
@@ -28,12 +34,13 @@ class _FavoritosPageState extends State<FavoritosPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       // Obtener favoritos del usuario
-      final favoritosUrl = Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
-      
+      final favoritosUrl =
+          Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
+
       print('🔍 Cargando favoritos: $favoritosUrl');
-      
+
       final favoritosResponse = await http.get(
         favoritosUrl,
         headers: {
@@ -43,17 +50,19 @@ class _FavoritosPageState extends State<FavoritosPage> {
       );
 
       if (favoritosResponse.statusCode == 200) {
-        final List<dynamic> favoritosData = json.decode(favoritosResponse.body);
-        
+        final List<dynamic> favoritosData =
+            json.decode(favoritosResponse.body);
+
         // Obtener datos del comercio para cada favorito
         final List<Map<String, dynamic>> favoritosConDatos = [];
         for (var favorito in favoritosData) {
           final favoritoMap = favorito as Map<String, dynamic>;
           final comercioId = favoritoMap['salon_id'];
-          
+
           if (comercioId != null) {
             try {
-              final comercioUrl = Uri.parse('$apiBaseUrl/comercios/$comercioId');
+              final comercioUrl =
+                  Uri.parse('$apiBaseUrl/comercios/$comercioId');
               final comercioResponse = await http.get(
                 comercioUrl,
                 headers: {
@@ -61,17 +70,20 @@ class _FavoritosPageState extends State<FavoritosPage> {
                   'Authorization': 'Bearer $idToken',
                 },
               );
-              
+
               if (comercioResponse.statusCode == 200) {
-                final comercioData = json.decode(comercioResponse.body);
-                
+                final comercioData =
+                    json.decode(comercioResponse.body);
+
                 // Obtener foto del propietario
-                final uidPropietario = comercioData['uid_negocio'] as String?;
+                final uidPropietario =
+                    comercioData['uid_negocio'] as String?;
                 String? fotoSalon;
-                
+
                 if (uidPropietario != null) {
                   try {
-                    final propietarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
+                    final propietarioUrl = Uri.parse(
+                        '$apiBaseUrl/api/users/uid/$uidPropietario');
                     final propietarioResponse = await http.get(
                       propietarioUrl,
                       headers: {
@@ -79,16 +91,18 @@ class _FavoritosPageState extends State<FavoritosPage> {
                         'Authorization': 'Bearer $idToken',
                       },
                     );
-                    
+
                     if (propietarioResponse.statusCode == 200) {
-                      final propietarioData = json.decode(propietarioResponse.body);
-                      fotoSalon = propietarioData['foto_url'] as String?;
+                      final propietarioData =
+                          json.decode(propietarioResponse.body);
+                      fotoSalon =
+                          propietarioData['foto_url'] as String?;
                     }
                   } catch (e) {
                     print('⚠️ Error obteniendo foto: $e');
                   }
                 }
-                
+
                 favoritosConDatos.add({
                   'favorito_id': favoritoMap['id'],
                   'comercio_id': comercioId,
@@ -103,12 +117,12 @@ class _FavoritosPageState extends State<FavoritosPage> {
             }
           }
         }
-        
+
         setState(() {
           _favoritos = favoritosConDatos;
           _isLoading = false;
         });
-        
+
         print('✅ ${_favoritos.length} favoritos cargados');
       } else {
         setState(() {
@@ -131,9 +145,9 @@ class _FavoritosPageState extends State<FavoritosPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       final url = Uri.parse('$apiBaseUrl/api/favoritos/$favoritoId');
-      
+
       final response = await http.delete(
         url,
         headers: {
@@ -146,7 +160,7 @@ class _FavoritosPageState extends State<FavoritosPage> {
         setState(() {
           _favoritos.removeAt(index);
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -165,175 +179,283 @@ class _FavoritosPageState extends State<FavoritosPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black87),
+        leading: const BackButton(color: _textPrimary),
         title: const Text(
           'Favoritos',
           style: TextStyle(
-            color: Colors.black87,
+            color: _textPrimary,
             fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 8.0),
+            child: Icon(Icons.more_vert, color: _textPrimary),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+              child: CircularProgressIndicator(color: _primaryOrange),
             )
           : _favoritos.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.favorite_border,
-                        size: 80,
-                        color: Colors.grey.shade300,
+              ? _buildEmptyState()
+              : Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    _buildSearchBar(),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: _favoritos.length,
+                        itemBuilder: (context, index) {
+                          final favorito = _favoritos[index];
+                          return _buildFavoritoCard(favorito, index);
+                        },
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No tienes favoritos aún',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Marca tus salones favoritos con ❤️',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _favoritos.length,
-                  itemBuilder: (context, index) {
-                    final favorito = _favoritos[index];
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SalonProfilePage(
-                              comercioId: favorito['comercio_id'],
-                            ),
-                          ),
-                        ).then((_) => _cargarFavoritos());
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            // Foto del salón
-                            ClipRRect(
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                bottomLeft: Radius.circular(16),
-                              ),
-                              child: Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  gradient: favorito['foto_url'] == null || (favorito['foto_url'] as String).isEmpty
-                                      ? const LinearGradient(
-                                          colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        )
-                                      : null,
-                                  image: favorito['foto_url'] != null && (favorito['foto_url'] as String).isNotEmpty
-                                      ? DecorationImage(
-                                          image: NetworkImage(favorito['foto_url']),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: favorito['foto_url'] == null || (favorito['foto_url'] as String).isEmpty
-                                    ? const Icon(Icons.store, color: Colors.white, size: 40)
-                                    : null,
-                              ),
-                            ),
-                            // Info del salón
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      favorito['nombre'] ?? 'Salón',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.star, size: 16, color: Color(0xFFFFB800)),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${favorito['calificacion'] ?? 4.5}',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (favorito['direccion'] != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        favorito['direccion'],
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // Botón eliminar
-                            IconButton(
-                              icon: const Icon(Icons.favorite, color: Colors.red),
-                              onPressed: () {
-                                _eliminarFavorito(favorito['favorito_id'], index);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
+    );
+  }
+
+  // Barra de búsqueda (solo visual, sin lógica extra)
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        readOnly: true,
+        decoration: InputDecoration(
+          hintText: 'Buscar en favoritos...',
+          hintStyle: const TextStyle(color: _textSecondary),
+          prefixIcon: const Icon(Icons.search, color: _textSecondary),
+          filled: true,
+          fillColor: const Color(0xFF26180F),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Card de favorito estilo mockup
+  Widget _buildFavoritoCard(Map<String, dynamic> favorito, int index) {
+    final String nombre = favorito['nombre'] ?? 'Salón';
+    final String direccion = (favorito['direccion'] ?? '') as String;
+    final calificacion = favorito['calificacion'] ?? 4.5;
+
+    // De la dirección tomamos algo corto tipo “Polanco, CDMX”
+    String ubicacion = direccion;
+    if (direccion.contains(',')) {
+      final parts = direccion.split(',');
+      if (parts.length >= 2) {
+        ubicacion = '${parts[0].trim()}, ${parts[1].trim()}';
+      }
+    }
+
+    final fotoUrl = favorito['foto_url'] as String?;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SalonProfilePage(
+              comercioId: favorito['comercio_id'],
+            ),
+          ),
+        ).then((_) => _cargarFavoritos());
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Foto
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF332015),
+                    gradient: (fotoUrl == null || fotoUrl.isEmpty)
+                        ? const LinearGradient(
+                            colors: [Color(0xFFEA963A), Color(0xFFFFB46B)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                  ),
+                  child: (fotoUrl != null && fotoUrl.isNotEmpty)
+                      ? Image.network(
+                          fotoUrl,
+                          fit: BoxFit.cover,
+                        )
+                      : const Icon(Icons.store,
+                          color: Colors.white, size: 32),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      style: const TextStyle(
+                        color: _textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.star,
+                            size: 16, color: Color(0xFFFFB800)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$calificacion',
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '•',
+                          style: TextStyle(
+                            color: _textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            ubicacion,
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Botón corazón
+              IconButton(
+                icon: const Icon(
+                  Icons.favorite,
+                  // Si quieres que se vea contorno usa Icons.favorite_border
+                  color: _primaryOrange,
+                ),
+                onPressed: () {
+                  _eliminarFavorito(favorito['favorito_id'], index);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Estado vacío tipo mockup
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Círculo con corazón
+          Container(
+            width: 120,
+            height: 120,
+            decoration: const BoxDecoration(
+              color: Color(0xFF28190F),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.favorite_border,
+                size: 56,
+                color: _primaryOrange,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Text(
+            'Guarda tus salones preferidos',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Toca el ícono del corazón en cualquier salón para verlo aquí más tarde.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // volver a explorar salones
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryOrange,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+              child: const Text(
+                'Explorar Salones',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

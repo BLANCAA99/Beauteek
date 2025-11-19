@@ -19,7 +19,14 @@ class SalonRegistrationFormPage extends StatefulWidget {
 class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _tarjetaVerificada = false; // Agregar flag
+  bool _tarjetaVerificada = false;
+
+  // 🎨 Colores de tema
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _fieldColor = Color(0xFF242424);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7AEA5);
 
   // Controladores para el formulario
   final _salonNameController = TextEditingController();
@@ -35,7 +42,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     _verificarTarjeta();
   }
 
-  // Verificar si estamos en modo emulador
   Future<void> _checkEmulatorMode() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
@@ -44,7 +50,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     }
   }
 
-  // Verificar si el usuario tiene tarjeta registrada
   Future<void> _verificarTarjeta() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
@@ -62,21 +67,22 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
       if (snapshot.docs.isEmpty) {
         if (!mounted) return;
-        
-        // Esperar un frame para que el widget esté completamente construido
+
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           await showDialog(
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               title: const Column(
                 children: [
-                  Icon(Icons.credit_card, color: Color(0xFFEA963A), size: 48),
+                  Icon(Icons.credit_card, color: _primaryOrange, size: 48),
                   SizedBox(height: 16),
                   Text(
                     'Método de pago requerido',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -90,9 +96,10 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
                 TextButton(
                   onPressed: () {
                     Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // Volver a inicio
+                    Navigator.of(context).pop();
                   },
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                  child: const Text('Cancelar',
+                      style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -102,13 +109,16 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA963A),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: _primaryOrange,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text(
                     'Agregar tarjeta',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -134,15 +144,15 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _salonPhoneController.dispose();
-    _rtnController.dispose(); // Agregado
+    _rtnController.dispose();
     super.dispose();
   }
 
   Future<void> _submitForm() async {
-    // Verificar tarjeta antes de continuar
     if (!_tarjetaVerificada) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Primero debes agregar un método de pago')),
+        const SnackBar(
+            content: Text('⚠️ Primero debes agregar un método de pago')),
       );
       return;
     }
@@ -151,15 +161,16 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
     if ((_passwordController.text.trim()).length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres.')),
+        const SnackBar(
+            content: Text('La contraseña debe tener al menos 6 caracteres.')),
       );
       return;
     }
 
-    // Validar RTN
     if (_rtnController.text.trim().length != 14) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El RTN debe tener exactamente 14 dígitos.')),
+        const SnackBar(
+            content: Text('El RTN debe tener exactamente 14 dígitos.')),
       );
       return;
     }
@@ -174,7 +185,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
       final idToken = await currentUser.getIdToken();
 
-      // ✅ USAR API EN LUGAR DE FIRESTORE
       final payload = {
         'email': _emailController.text.trim(),
         'password': _passwordController.text.trim(),
@@ -205,9 +215,9 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Salón creado! Ahora, agrega la dirección.'))
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('✅ Salón creado! Ahora, agrega la dirección.')));
 
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -225,8 +235,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
       print('[salon] Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}'))
-      );
+          SnackBar(content: Text('Error: ${e.toString()}')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -235,55 +244,90 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        leading: const BackButton(color: _textPrimary),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           children: [
+            const SizedBox(height: 8),
             const Text(
               '¡Registra tu salón\nahora mismo!',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+                color: _textPrimary,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            // Banda promo estilo píldora
             Container(
-              padding: const EdgeInsets.all(12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFFCEAE8),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                  color: _primaryOrange.withOpacity(0.7),
+                  width: 1.8,
+                ),
               ),
-              child: const Text(
-                '0% de comisión durante los primeros 30 días',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w500),
+              child: const Center(
+                child: Text(
+                  '0% de comisión durante los primeros 30 días',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: _primaryOrange,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
+
             _buildSectionTitle('Nombre del salón *'),
-            _buildTextField(_salonNameController, 'Ej: Salón La Belleza',
-                Icons.store_outlined),
-            const SizedBox(height: 16),
+            _buildTextField(
+              _salonNameController,
+              'Ej: Salón La Belleza',
+              Icons.store_outlined,
+            ),
+            const SizedBox(height: 18),
+
             _buildSectionTitle('Email de la cuenta del salón *'),
-            _buildTextField(_emailController, 'ejemplo@email.com',
-                Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 16),
+            _buildTextField(
+              _emailController,
+              'ejemplo@email.com',
+              Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 18),
+
             _buildSectionTitle('Contraseña para la cuenta del salón *'),
-            _buildTextField(_passwordController, 'Mínimo 6 caracteres',
-                Icons.lock_outline,
-                isPassword: true),
-            const SizedBox(height: 16),
+            _buildTextField(
+              _passwordController,
+              'Mínimo 6 caracteres',
+              Icons.lock_outline,
+              isPassword: true,
+            ),
+            const SizedBox(height: 18),
+
             _buildSectionTitle('Teléfono del salón *'),
-            _buildTextField(_salonPhoneController, '+504...',
-                Icons.phone_in_talk_outlined,
-                keyboardType: TextInputType.phone),
-            const SizedBox(height: 16),
+            _buildTextField(
+              _salonPhoneController,
+              '+504...',
+              Icons.phone_in_talk_outlined,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 18),
+
             _buildSectionTitle('RTN del salón *'),
             _buildTextField(
               _rtnController,
@@ -291,37 +335,46 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
               Icons.business_outlined,
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 16),
-            // La sección de Dirección, Horarios y Servicios se ha eliminado de esta página.
 
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : _submitForm,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF5B1A8),
+                backgroundColor: _primaryOrange,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(18)),
+                elevation: 4,
               ),
               child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Siguiente: Añadir Dirección', // Texto del botón actualizado
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
+                  : const Text(
+                      'Siguiente: Añadir Dirección',
                       style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold)),
+                        fontSize: 18,
+                        color: _textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
             ),
             const SizedBox(height: 24),
+
             Center(
               child: RichText(
                 text: const TextSpan(
-                  style: TextStyle(color: Colors.black87, fontSize: 14),
+                  style: TextStyle(fontSize: 14, color: _textSecondary),
                   children: [
                     TextSpan(text: '¿Eres estilista independiente? '),
                     TextSpan(
                       text: 'Regístrate aquí.',
                       style: TextStyle(
-                          color: Color(0xFFF5B1A8), fontWeight: FontWeight.bold),
+                        color: _primaryOrange,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -337,8 +390,14 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: _textPrimary,
+        ),
+      ),
     );
   }
 
@@ -361,31 +420,46 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
       obscureText: isPassword,
       readOnly: readOnly,
       onTap: onTap,
-      maxLength: controller == _rtnController ? 14 : null, // Limitar RTN a 14 dígitos
+      maxLength: controller == _rtnController ? 14 : null,
+      style: const TextStyle(color: _textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
-        suffixIcon: hasSuffix ? const Icon(Icons.search, color: Colors.grey) : null,
+        hintStyle: TextStyle(color: Colors.grey.shade500),
+        prefixIcon: icon != null
+            ? Icon(icon, color: Colors.grey.shade300)
+            : null,
+        suffixIcon: hasSuffix
+            ? Icon(Icons.search, color: Colors.grey.shade300)
+            : null,
         filled: true,
-        fillColor: enabled ? Colors.grey.shade100 : Colors.grey.shade200,
+        fillColor: _fieldColor,
+        counterText: '',
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.grey.shade700, width: 0.5),
         ),
-        counterText: '', // Ocultar contador de caracteres
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.grey.shade700, width: 0.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: _primaryOrange, width: 1.2),
+        ),
       ),
       validator: (value) {
         if (isRequired && (value == null || value.isEmpty)) {
           return 'Este campo es requerido';
         }
-        if (controller == _rtnController && value != null && value.length != 14) {
+        if (controller == _rtnController &&
+            value != null &&
+            value.length != 14) {
           return 'El RTN debe tener 14 dígitos';
         }
         return null;
       },
     );
   }
-
-  // Las funciones _buildHorarioRow y _buildServicioRow se han eliminado.
-  // Se moverán a la página de registro de horarios/servicios.
 }

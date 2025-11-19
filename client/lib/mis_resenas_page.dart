@@ -16,24 +16,33 @@ class _MisResenasPageState extends State<MisResenasPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _misResenas = [];
 
+  // 🎨 Colores de tema oscuro tipo mockup
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _cardColor = Color(0xFF24170F);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7AEA5);
+
   @override
   void initState() {
     super.initState();
     _cargarMisResenas();
   }
 
+  // 🔹 LÓGICA ORIGINAL (NO TOCADA)
   Future<void> _cargarMisResenas() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       // Obtener reseñas del usuario
-      final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?usuario_cliente_id=${user.uid}');
-      
+      final resenasUrl = Uri.parse(
+          '$apiBaseUrl/api/resenas?usuario_cliente_id=${user.uid}');
+
       print('🔍 Cargando mis reseñas: $resenasUrl');
-      
+
       final resenasResponse = await http.get(
         resenasUrl,
         headers: {
@@ -43,21 +52,23 @@ class _MisResenasPageState extends State<MisResenasPage> {
       );
 
       if (resenasResponse.statusCode == 200) {
-        final List<dynamic> resenasData = json.decode(resenasResponse.body);
-        
+        final List<dynamic> resenasData =
+            json.decode(resenasResponse.body);
+
         // Obtener nombre del salón para cada reseña
         final List<Map<String, dynamic>> resenasConSalon = [];
         for (var resena in resenasData) {
           final resenaMap = resena as Map<String, dynamic>;
           final usuarioSalonId = resenaMap['usuario_salon_id'];
-          
+
           String nombreSalon = 'Salón';
           String? fotoSalon;
-          
+
           // Obtener nombre del usuario salón
           if (usuarioSalonId != null) {
             try {
-              final usuarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$usuarioSalonId');
+              final usuarioUrl =
+                  Uri.parse('$apiBaseUrl/api/users/uid/$usuarioSalonId');
               final usuarioResponse = await http.get(
                 usuarioUrl,
                 headers: {
@@ -65,29 +76,31 @@ class _MisResenasPageState extends State<MisResenasPage> {
                   'Authorization': 'Bearer $idToken',
                 },
               );
-              
+
               if (usuarioResponse.statusCode == 200) {
-                final usuarioData = json.decode(usuarioResponse.body);
-                nombreSalon = usuarioData['nombre_completo'] ?? nombreSalon;
+                final usuarioData =
+                    json.decode(usuarioResponse.body);
+                nombreSalon =
+                    usuarioData['nombre_completo'] ?? nombreSalon;
                 fotoSalon = usuarioData['foto_url'];
               }
             } catch (e) {
               print('⚠️ Error obteniendo usuario salón: $e');
             }
           }
-          
+
           resenasConSalon.add({
             ...resenaMap,
             'nombre_salon': nombreSalon,
             'foto_salon': fotoSalon,
           });
         }
-        
+
         setState(() {
           _misResenas = resenasConSalon;
           _isLoading = false;
         });
-        
+
         print('✅ ${_misResenas.length} reseñas cargadas');
       } else {
         setState(() {
@@ -107,171 +120,203 @@ class _MisResenasPageState extends State<MisResenasPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black87),
+        leading: const BackButton(color: _textPrimary),
+        centerTitle: true,
         title: const Text(
-          'Mis reseñas',
+          'Mis Reseñas',
           style: TextStyle(
-            color: Colors.black87,
+            color: _textPrimary,
             fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+              child: CircularProgressIndicator(color: _primaryOrange),
             )
           : _misResenas.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.rate_review_outlined,
-                        size: 80,
-                        color: Colors.grey.shade300,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No has dejado reseñas aún',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Visita un salón y comparte tu experiencia',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
+              ? _buildEmptyState()
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: _misResenas.length,
                   itemBuilder: (context, index) {
                     final resena = _misResenas[index];
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        if (resena['comercio_id'] != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SalonProfilePage(
-                                comercioId: resena['comercio_id'],
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                // Foto del salón
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    gradient: resena['foto_salon'] == null || (resena['foto_salon'] as String).isEmpty
-                                        ? const LinearGradient(
-                                            colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          )
-                                        : null,
-                                    image: resena['foto_salon'] != null && (resena['foto_salon'] as String).isNotEmpty
-                                        ? DecorationImage(
-                                            image: NetworkImage(resena['foto_salon']),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null,
-                                  ),
-                                  child: resena['foto_salon'] == null || (resena['foto_salon'] as String).isEmpty
-                                      ? const Icon(Icons.store, color: Colors.white, size: 28)
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                // Nombre y estrellas
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        resena['nombre_salon'] ?? 'Salón',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: List.generate(5, (starIndex) {
-                                          final calificacion = (resena['calificacion'] as num?)?.toInt() ?? 0;
-                                          return Icon(
-                                            starIndex < calificacion ? Icons.star : Icons.star_border,
-                                            color: const Color(0xFFFFB800),
-                                            size: 20,
-                                          );
-                                        }),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right, color: Colors.grey),
-                              ],
-                            ),
-                            if (resena['comentario'] != null && (resena['comentario'] as String).isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  resena['comentario'],
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
-                                    fontSize: 14,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
+                    return _buildResenaCard(resena);
                   },
                 ),
+    );
+  }
+
+  // 🔸 Card de reseña con estilo del mockup
+  Widget _buildResenaCard(Map<String, dynamic> resena) {
+    final String nombreSalon = resena['nombre_salon'] ?? 'Salón';
+    final String servicioNombre =
+        resena['servicio_nombre'] ?? 'Servicio'; // si existe
+    final int calificacion =
+        (resena['calificacion'] as num?)?.toInt() ?? 0;
+    final String comentario =
+        (resena['comentario'] ?? '').toString().trim();
+
+    // Tomar alguna fecha en texto si viene
+    final String fechaTexto =
+        (resena['fecha'] ?? resena['fecha_creacion'] ?? '')
+            .toString()
+            .trim();
+
+    return GestureDetector(
+      onTap: () {
+        if (resena['comercio_id'] != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SalonProfilePage(
+                comercioId: resena['comercio_id'],
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 18),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Título + menú
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nombreSalon,
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Servicio: $servicioNombre',
+                          style: const TextStyle(
+                            color: _textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {},
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: _textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Estrellas
+              Row(
+                children: List.generate(5, (index) {
+                  final bool filled = index < calificacion;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4.0),
+                    child: Icon(
+                      filled ? Icons.star : Icons.star_border,
+                      color: _primaryOrange,
+                      size: 22,
+                    ),
+                  );
+                }),
+              ),
+
+              if (comentario.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  comentario,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 15,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+
+              if (fechaTexto.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  fechaTexto,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Estado vacío adaptado al tema oscuro
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.rate_review_outlined,
+              size: 80,
+              color: _textSecondary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No has dejado reseñas aún',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Visita un salón y comparte tu experiencia para verla aquí.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

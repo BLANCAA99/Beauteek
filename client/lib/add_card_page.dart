@@ -14,6 +14,14 @@ class AddCardPage extends StatefulWidget {
 }
 
 class _AddCardPageState extends State<AddCardPage> {
+  // 🎨 Tema Beauteek
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _cardColor = Color(0xFF24170F);
+  static const Color _fieldColor = Color(0xFF2D2117);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7AEA5);
+
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -60,7 +68,6 @@ class _AddCardPageState extends State<AddCardPage> {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
-        // Si no hay usuario autenticado, redirigir a login
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/login');
         return;
@@ -80,14 +87,16 @@ class _AddCardPageState extends State<AddCardPage> {
       print('📤 Enviando tarjeta: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/api/tarjetas');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
@@ -95,49 +104,110 @@ class _AddCardPageState extends State<AddCardPage> {
       if (response.statusCode == 201) {
         if (!mounted) return;
 
+        // 🔔 Modal personalizado al estilo "restablecer contraseña"
         await showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Column(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 64),
-                SizedBox(height: 16),
-                Text('¡Método de pago verificado!', style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: const Text(
-              'Tu tarjeta ha sido verificada exitosamente.\n\nAhora puedes continuar con el registro de tu salón.',
-              textAlign: TextAlign.center,
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Cerrar dialog
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const SalonRegistrationFormPage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA963A),
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text(
-                  'Continuar con el registro',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          builder: (context) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.fromLTRB(24, 28, 24, 24), // interior
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4EC),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 70,
+                        height: 70,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE6F6EC),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Color(0xFF2E9248),
+                          size: 40,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        '¡Método de pago\nverificado!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F130C),
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Tu tarjeta ha sido verificada exitosamente.\n\nAhora puedes continuar con el registro de tu salón.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: Color(0xFF6D6257),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(); // cerrar modal
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const SalonRegistrationFormPage(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryOrange,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Continuar con el registro',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       } else {
         String msg = 'Error al validar tarjeta';
         try {
           final data = json.decode(response.body);
           msg = data['message'] ?? data['error'] ?? msg;
-        } catch (e) {}
+        } catch (_) {}
         throw Exception(msg);
       }
     } catch (e) {
@@ -154,60 +224,134 @@ class _AddCardPageState extends State<AddCardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        leading: const BackButton(color: _textPrimary),
         title: const Text(
-          'Método de pago',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          'Métodos de Pago',
+          style: TextStyle(
+            color: _textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
         ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            const Text(
-              'Agrega tu tarjeta',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+            // Mis tarjetas (espacio para las que ya tenga)
             const SizedBox(height: 8),
             const Text(
-              'Para verificar tu método de pago y activar tu suscripción',
-              style: TextStyle(color: Colors.grey),
+              'Mis Tarjetas',
+              style: TextStyle(
+                color: _textPrimary,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.credit_card_outlined,
+                    color: _textSecondary,
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Aquí verás tus tarjetas guardadas cuando agregues una.',
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            const Text(
+              'Agregar Tarjeta',
+              style: TextStyle(
+                color: _textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Ingresa los datos de tu tarjeta para verificar tu método de pago.',
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // Tipo de tarjeta
             Row(
               children: [
                 Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Débito'),
-                    value: 'debito',
-                    groupValue: _tipoTarjeta,
-                    onChanged: (value) => setState(() => _tipoTarjeta = value!),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      unselectedWidgetColor: _textSecondary,
+                    ),
+                    child: RadioListTile<String>(
+                      title: const Text(
+                        'Débito',
+                        style: TextStyle(color: _textPrimary),
+                      ),
+                      value: 'debito',
+                      activeColor: _primaryOrange,
+                      groupValue: _tipoTarjeta,
+                      onChanged: (value) =>
+                          setState(() => _tipoTarjeta = value!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Crédito'),
-                    value: 'credito',
-                    groupValue: _tipoTarjeta,
-                    onChanged: (value) => setState(() => _tipoTarjeta = value!),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      unselectedWidgetColor: _textSecondary,
+                    ),
+                    child: RadioListTile<String>(
+                      title: const Text(
+                        'Crédito',
+                        style: TextStyle(color: _textPrimary),
+                      ),
+                      value: 'credito',
+                      activeColor: _primaryOrange,
+                      groupValue: _tipoTarjeta,
+                      onChanged: (value) =>
+                          setState(() => _tipoTarjeta = value!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
             // Número de tarjeta
             _buildTextField(
               controller: _numeroTarjetaController,
-              label: 'Número de tarjeta *',
-              hint: '1234 5678 9012 3456',
+              label: 'Número de la tarjeta *',
+              hint: '0000 0000 0000 0000',
               icon: Icons.credit_card,
               keyboardType: TextInputType.number,
               maxLength: 19,
@@ -221,8 +365,8 @@ class _AddCardPageState extends State<AddCardPage> {
             // Nombre del titular
             _buildTextField(
               controller: _nombreTitularController,
-              label: 'Nombre del titular *',
-              hint: 'Como aparece en la tarjeta',
+              label: 'Nombre en la tarjeta *',
+              hint: 'Nombre Apellido',
               icon: Icons.person_outline,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
@@ -236,8 +380,8 @@ class _AddCardPageState extends State<AddCardPage> {
                 Expanded(
                   child: _buildTextField(
                     controller: _fechaExpiracionController,
-                    label: 'Vencimiento *',
-                    hint: 'MM/YY',
+                    label: 'Fecha de Vencimiento *',
+                    hint: 'MM/AA',
                     icon: Icons.calendar_today,
                     keyboardType: TextInputType.number,
                     maxLength: 5,
@@ -256,7 +400,9 @@ class _AddCardPageState extends State<AddCardPage> {
                     icon: Icons.lock_outline,
                     keyboardType: TextInputType.number,
                     maxLength: 3,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                   ),
                 ),
               ],
@@ -264,25 +410,42 @@ class _AddCardPageState extends State<AddCardPage> {
             const SizedBox(height: 16),
 
             // Banco
-            const Text('Banco *', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Banco *',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _bancoSeleccionado,
+              dropdownColor: _cardColor,
               decoration: InputDecoration(
                 hintText: 'Selecciona tu banco',
-                prefixIcon: const Icon(Icons.account_balance, color: Colors.grey),
+                hintStyle:
+                    const TextStyle(color: _textSecondary, fontSize: 14),
+                prefixIcon:
+                    const Icon(Icons.account_balance, color: _textSecondary),
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: _fieldColor,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
               ),
               items: _bancosHonduras.map((banco) {
-                return DropdownMenuItem(value: banco, child: Text(banco));
+                return DropdownMenuItem(
+                  value: banco,
+                  child: Text(
+                    banco,
+                    style: const TextStyle(color: _textPrimary),
+                  ),
+                );
               }).toList(),
               onChanged: (value) => setState(() => _bancoSeleccionado = value),
-              validator: (value) => value == null ? 'Selecciona un banco' : null,
+              validator: (value) =>
+                  value == null ? 'Selecciona un banco' : null,
             ),
             const SizedBox(height: 24),
 
@@ -290,18 +453,20 @@ class _AddCardPageState extends State<AddCardPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                color: const Color(0xFF132217),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
-                children: [
-                  Icon(Icons.security, color: Colors.blue.shade700),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                children: const [
+                  Icon(Icons.verified_user, color: Color(0xFF36C26B)),
+                  SizedBox(width: 10),
+                  Expanded(
                     child: Text(
-                      'Tu información está protegida y encriptada.',
-                      style: TextStyle(fontSize: 12),
+                      'Tu información de pago está segura y encriptada.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -309,24 +474,37 @@ class _AddCardPageState extends State<AddCardPage> {
             ),
             const SizedBox(height: 32),
 
-            // Botón
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submitCard,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA963A),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                      'Verificar tarjeta',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+            // Botón principal
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitCard,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryOrange,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  elevation: 4,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.4,
+                        ),
+                      )
+                    : const Text(
+                        'Guardar Tarjeta',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ],
         ),
@@ -334,6 +512,7 @@ class _AddCardPageState extends State<AddCardPage> {
     );
   }
 
+  // 🔹 TextField estilizado
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -346,20 +525,30 @@ class _AddCardPageState extends State<AddCardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+          ),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           maxLength: maxLength,
           inputFormatters: inputFormatters,
+          style: const TextStyle(color: _textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+            hintStyle:
+                const TextStyle(color: _textSecondary, fontSize: 14),
+            prefixIcon:
+                icon != null ? Icon(icon, color: _textSecondary) : null,
             filled: true,
-            fillColor: Colors.grey.shade100,
+            fillColor: _fieldColor,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
             ),
             counterText: '',

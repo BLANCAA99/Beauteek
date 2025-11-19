@@ -22,15 +22,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _addressController;
   late TextEditingController _photoUrlController;
   late TextEditingController _dobController; // Fecha de Nacimiento
-  String? _selectedGender;                   // Género
+  String? _selectedGender; // Género
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
 
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;   // Guardar
-  bool _isFetching = false;  // Carga inicial
+  bool _isLoading = false; // Guardar
+  bool _isFetching = false; // Carga inicial
+
+  // 🎨 Colores de la pantalla tipo Beauteek
+  static const Color _backgroundColor = Color(0xFF120D07);
+  static const Color _cardColor = Color(0xFF25201A);
+  static const Color _fieldColor = Color(0xFF25201A);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB3ACA5);
 
   @override
   void initState() {
@@ -38,18 +46,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     // Prefill rápido con lo que venga en userData (si llega algo)
     final firstName = widget.userData['firstName'] ?? '';
-    final lastName  = widget.userData['lastName']  ?? '';
+    final lastName = widget.userData['lastName'] ?? '';
     final nombreCompleto = '$firstName $lastName'.trim();
     final finalName = nombreCompleto.isNotEmpty
         ? nombreCompleto
         : (widget.userData['nombre_completo'] ?? '');
 
-    _nameController     = TextEditingController(text: finalName);
-    _phoneController    = TextEditingController(text: widget.userData['phone'] ?? widget.userData['telefono'] ?? '');
-    _addressController  = TextEditingController(text: widget.userData['direccion'] ?? '');
-    _photoUrlController = TextEditingController(text: widget.userData['photoURL'] ?? widget.userData['foto_url'] ?? '');
-    _dobController      = TextEditingController(text: widget.userData['fecha_nacimiento'] ?? '');
-    _selectedGender     = widget.userData['genero'];
+    _nameController = TextEditingController(text: finalName);
+    _phoneController = TextEditingController(
+        text: widget.userData['phone'] ?? widget.userData['telefono'] ?? '');
+    _addressController =
+        TextEditingController(text: widget.userData['direccion'] ?? '');
+    _photoUrlController = TextEditingController(
+        text: widget.userData['photoURL'] ?? widget.userData['foto_url'] ?? '');
+    _dobController =
+        TextEditingController(text: widget.userData['fecha_nacimiento'] ?? '');
+    _selectedGender = widget.userData['genero'];
     _cargarUsuarioDeApi();
   }
 
@@ -70,7 +82,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isFetching = true);
 
     try {
-      final idToken = await user.getIdToken(); // quítalo si tu API no valida token
+      final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
 
       final resp = await http.get(
@@ -82,35 +94,35 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
 
       if (resp.statusCode == 200) {
-        // Tu controlador responde plano: { id, ...campos }
         final Map<String, dynamic> data = json.decode(resp.body);
 
-        // Extrae y rellena si hay valores
         final nombre = (data['nombre_completo'] ?? '').toString();
-        final tel    = (data['telefono'] ?? '').toString();
-        final dir    = (data['direccion'] ?? '').toString();
-        final foto   = (data['foto_url'] ?? '').toString();
-        final dob    = (data['fecha_nacimiento'] ?? '').toString();
+        final tel = (data['telefono'] ?? '').toString();
+        final dir = (data['direccion'] ?? '').toString();
+        final foto = (data['foto_url'] ?? '').toString();
+        final dob = (data['fecha_nacimiento'] ?? '').toString();
         final genero = (data['genero'] ?? '').toString();
 
         if (nombre.isNotEmpty) _nameController.text = nombre;
-        if (tel.isNotEmpty)    _phoneController.text = tel;
-        if (dir.isNotEmpty)    _addressController.text = dir;
-        if (foto.isNotEmpty)   _photoUrlController.text = foto;
-        if (dob.isNotEmpty)    _dobController.text = dob;
+        if (tel.isNotEmpty) _phoneController.text = tel;
+        if (dir.isNotEmpty) _addressController.text = dir;
+        if (foto.isNotEmpty) _photoUrlController.text = foto;
+        if (dob.isNotEmpty) _dobController.text = dob;
 
         if (genero.isNotEmpty) {
-          const opciones = ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'];
+          const opciones = [
+            'Masculino',
+            'Femenino',
+            'Otro',
+            'Prefiero no decirlo'
+          ];
           _selectedGender = opciones.contains(genero) ? genero : null;
         }
 
         if (mounted) setState(() {});
-      } else {
-        // Puedes loguear/avisar si quieres
-        // print('GET perfil falló: ${resp.statusCode} - ${resp.body}');
       }
-    } catch (e) {
-      // print('Error cargando usuario: $e');
+    } catch (_) {
+      // Silencioso
     } finally {
       if (mounted) setState(() => _isFetching = false);
     }
@@ -118,15 +130,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   // --- Subir imagen a Cloudinary ---
   Future<void> _pickAndUploadImage() async {
-    final XFile? selectedImage = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? selectedImage =
+        await _picker.pickImage(source: ImageSource.gallery);
     if (selectedImage == null) return;
 
     setState(() => _isUploading = true);
 
-    final cloudinary = CloudinaryPublic('dskg1hw9n', 'Imagenes_Beauteek', cache: false);
+    final cloudinary = CloudinaryPublic('dskg1hw9n', 'Imagenes_Beauteek',
+        cache: false);
     try {
       final response = await cloudinary.uploadFile(
-        CloudinaryFile.fromFile(selectedImage.path, resourceType: CloudinaryResourceType.Image),
+        CloudinaryFile.fromFile(selectedImage.path,
+            resourceType: CloudinaryResourceType.Image),
       );
 
       setState(() {
@@ -174,7 +189,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         'genero': _selectedGender,
       };
 
-      profileData.removeWhere((k, v) => v == null || (v is String && v.isEmpty));
+      profileData
+          .removeWhere((k, v) => v == null || (v is String && v.isEmpty));
 
       final response = await http.put(
         url,
@@ -192,10 +208,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         if (mounted) Navigator.of(context).pop(true);
       } else {
         final errorData = json.decode(response.body);
-        final errorMessage = (errorData is Map && errorData['message'] != null)
-            ? errorData['message'].toString()
-            : 'Error al actualizar el perfil.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+        final errorMessage =
+            (errorData is Map && errorData['message'] != null)
+                ? errorData['message'].toString()
+                : 'Error al actualizar el perfil.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,152 +224,323 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  // ---------- UI ----------
+
+  InputDecoration _fieldDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(
+        color: _textSecondary,
+        fontSize: 14,
+      ),
+      filled: true,
+      fillColor: _fieldColor,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.black.withOpacity(0.25)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _primaryOrange, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        title: const Text('Editar Perfil'),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        titleTextStyle: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.bold),
+        backgroundColor: _backgroundColor,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: _textPrimary),
+        title: const Text(
+          'Editar Perfil',
+          style: TextStyle(
+            color: _textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            if (_isFetching)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: LinearProgressIndicator(),
-              ),
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: _imageFile != null
-                        ? FileImage(File(_imageFile!.path))
-                        : (_photoUrlController.text.isNotEmpty
-                            ? NetworkImage(_photoUrlController.text)
-                            : null) as ImageProvider?,
-                    child: _imageFile == null && _photoUrlController.text.isEmpty
-                        ? Icon(Icons.person, size: 60, color: Colors.grey.shade400)
-                        : null,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
+            children: [
+              if (_isFetching)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: LinearProgressIndicator(
+                    color: _primaryOrange,
+                    backgroundColor: Colors.transparent,
                   ),
-                  if (_isUploading) const CircularProgressIndicator(),
-                  if (!_isUploading)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: _pickAndUploadImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
+                ),
+
+              // Avatar + Cambiar foto
+              const SizedBox(height: 8),
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 64,
+                          backgroundColor: Colors.white10,
+                          backgroundImage: _imageFile != null
+                              ? FileImage(File(_imageFile!.path))
+                              : (_photoUrlController.text.isNotEmpty
+                                      ? NetworkImage(
+                                          _photoUrlController.text)
+                                      : null)
+                                  as ImageProvider<Object>?,
+                          child: _imageFile == null &&
+                                  _photoUrlController.text.isEmpty
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: _textSecondary,
+                                )
+                              : null,
+                        ),
+                        if (_isUploading)
+                          const Positioned.fill(
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: _primaryOrange,
+                              ),
+                            ),
                           ),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                        if (!_isUploading)
+                          Positioned(
+                            bottom: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: _pickAndUploadImage,
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: const BoxDecoration(
+                                  color: _primaryOrange,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _pickAndUploadImage,
+                      child: const Text(
+                        'Cambiar foto',
+                        style: TextStyle(
+                          color: _primaryOrange,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // Nombre
+              const Text(
+                'Nombre',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _nameController,
+                style: const TextStyle(color: _textPrimary),
+                decoration: _fieldDecoration('Nombre'),
+                validator: (value) =>
+                    (value == null || value.trim().isEmpty)
+                        ? 'Por favor, ingresa tu nombre'
+                        : null,
+              ),
+              const SizedBox(height: 18),
+
+              // Teléfono
+              const Text(
+                'Teléfono',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _phoneController,
+                style: const TextStyle(color: _textPrimary),
+                decoration: _fieldDecoration('Teléfono'),
+                keyboardType: TextInputType.phone,
+                validator: (value) =>
+                    (value == null || value.trim().isEmpty)
+                        ? 'Por favor, ingresa tu teléfono'
+                        : null,
+              ),
+              const SizedBox(height: 18),
+
+              // Dirección
+              const Text(
+                'Dirección',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _addressController,
+                style: const TextStyle(color: _textPrimary),
+                decoration: _fieldDecoration('Dirección'),
+                validator: (value) =>
+                    (value == null || value.trim().isEmpty)
+                        ? 'Por favor, ingresa tu dirección'
+                        : null,
+              ),
+              const SizedBox(height: 18),
+
+              // Fecha de nacimiento
+              const Text(
+                'Fecha de nacimiento',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _dobController,
+                style: const TextStyle(color: _textPrimary),
+                decoration: _fieldDecoration('Fecha de nacimiento')
+                    .copyWith(
+                      suffixIcon: const Icon(Icons.calendar_today,
+                          color: _textSecondary),
+                    ),
+                readOnly: true,
+                onTap: () async {
+                  DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(1920),
+                    lastDate: DateTime.now(),
+                  );
+                  if (pickedDate != null) {
+                    setState(() {
+                      _dobController.text =
+                          pickedDate.toIso8601String().substring(0, 10);
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
+
+              // Género
+              const Text(
+                'Género',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: _selectedGender,
+                dropdownColor: _fieldColor,
+                iconEnabledColor: _textSecondary,
+                style: const TextStyle(color: _textPrimary, fontSize: 14),
+                decoration: _fieldDecoration('Género'),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'Masculino', child: Text('Masculino')),
+                  DropdownMenuItem(
+                      value: 'Femenino', child: Text('Femenino')),
+                  DropdownMenuItem(value: 'Otro', child: Text('Otro')),
+                  DropdownMenuItem(
+                      value: 'Prefiero no decirlo',
+                      child: Text('Prefiero no decirlo')),
                 ],
+                onChanged: (value) =>
+                    setState(() => _selectedGender = value),
               ),
-            ),
-            const SizedBox(height: 24),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nombre Completo',
-                border: OutlineInputBorder(),
+
+              const SizedBox(height: 32),
+
+              // Botón Guardar Cambios
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primaryOrange.withOpacity(0.4),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryOrange,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Guardar Cambios',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
               ),
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Por favor, ingresa tu nombre'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: 'Número de teléfono',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.phone,
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Por favor, ingresa tu teléfono'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: 'Dirección',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) => (value == null || value.trim().isEmpty)
-                  ? 'Por favor, ingresa tu dirección'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            // Fecha de Nacimiento
-            TextFormField(
-              controller: _dobController,
-              decoration: const InputDecoration(
-                labelText: 'Fecha de Nacimiento (YYYY-MM-DD)',
-                border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              readOnly: true,
-              onTap: () async {
-                DateTime? pickedDate = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(1920),
-                  lastDate: DateTime.now(),
-                );
-                if (pickedDate != null) {
-                  setState(() {
-                    _dobController.text = pickedDate.toIso8601String().substring(0, 10);
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            // Género
-            DropdownButtonFormField<String>(
-              value: _selectedGender,
-              decoration: const InputDecoration(
-                labelText: 'Género',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Masculino', child: Text('Masculino')),
-                DropdownMenuItem(value: 'Femenino', child: Text('Femenino')),
-                DropdownMenuItem(value: 'Otro', child: Text('Otro')),
-                DropdownMenuItem(value: 'Prefiero no decirlo', child: Text('Prefiero no decirlo')),
-              ],
-              onChanged: (value) => setState(() => _selectedGender = value),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(color: Colors.white),
-                    )
-                  : const Text('Guardar Cambios'),
-            ),
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );

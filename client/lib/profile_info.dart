@@ -10,6 +10,14 @@ class ProfileInfoPage extends StatelessWidget {
   final String? uid;
   const ProfileInfoPage({Key? key, this.uid}) : super(key: key);
 
+  // Colores de tema oscuro Beauteek
+  static const Color _backgroundColor = Color(0xFF050505);
+  static const Color _cardColor = Color(0xFF141414);
+  static const Color _rowColor = Color(0xFF1E1E1E);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB3ACA5);
+
   Future<Map<String, dynamic>> _loadUserData() async {
     final resolvedUid = uid ?? FirebaseAuth.instance.currentUser?.uid;
     if (resolvedUid == null) throw Exception('Usuario no autenticado');
@@ -25,28 +33,34 @@ class ProfileInfoPage extends StatelessWidget {
 
         print('[API Call] GET: $url');
 
-        final response = await http.get(
+        final response = await http
+            .get(
           url,
           headers: {
             'Authorization': 'Bearer $idToken',
             'Content-Type': 'application/json',
           },
-        ).timeout(const Duration(seconds: 10));
+        )
+            .timeout(const Duration(seconds: 10));
 
         print('📬 [API Response] StatusCode: ${response.statusCode}');
         print('📦 [API Response] Body: ${response.body}');
 
         if (response.statusCode == 200) {
-          final apiData = json.decode(response.body) as Map<String, dynamic>;
-          
+          final apiData =
+              json.decode(response.body) as Map<String, dynamic>;
+
           // Mapear campos de la API a los que usa la UI
-          final nombreCompleto = (apiData['nombre_completo'] ?? '') as String;
+          final nombreCompleto =
+              (apiData['nombre_completo'] ?? '') as String;
           if (nombreCompleto.isNotEmpty) {
             final parts = nombreCompleto.split(' ');
             userData['firstName'] = parts.first;
-            userData['lastName'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+            userData['lastName'] = parts.length > 1
+                ? parts.sublist(1).join(' ')
+                : '';
           }
-          
+
           userData['phone'] = apiData['telefono'] ?? '';
           userData['photoURL'] = apiData['foto_url'] ?? '';
           userData['direccion'] = apiData['direccion'] ?? '';
@@ -63,16 +77,22 @@ class ProfileInfoPage extends StatelessWidget {
     }
 
     // 2. Fallback: Cargar datos desde la colección 'users' en Firestore.
-    final doc = await FirebaseFirestore.instance.collection('users').doc(resolvedUid).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(resolvedUid)
+        .get();
 
     if (doc.exists && doc.data() != null) {
       final firestoreData = doc.data()!;
-      
-      final nombreCompleto = (firestoreData['nombre_completo'] ?? '') as String;
+
+      final nombreCompleto =
+          (firestoreData['nombre_completo'] ?? '') as String;
       if (nombreCompleto.isNotEmpty) {
         final parts = nombreCompleto.split(' ');
         userData['firstName'] = parts.first;
-        userData['lastName'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+        userData['lastName'] = parts.length > 1
+            ? parts.sublist(1).join(' ')
+            : '';
       }
 
       userData['phone'] = firestoreData['telefono'] ?? '';
@@ -87,47 +107,94 @@ class ProfileInfoPage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     userData['email'] = user?.email ?? userData['email'] ?? '-';
 
-    if ((userData['firstName'] == null || (userData['firstName'] as String).isEmpty) && user?.displayName != null) {
-        final parts = user!.displayName!.split(' ');
-        userData['firstName'] = parts.first;
-        userData['lastName'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    if ((userData['firstName'] == null ||
+            (userData['firstName'] as String).isEmpty) &&
+        user?.displayName != null) {
+      final parts = user!.displayName!.split(' ');
+      userData['firstName'] = parts.first;
+      userData['lastName'] =
+          parts.length > 1 ? parts.sublist(1).join(' ') : '';
     }
 
     return userData;
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 20),
-      child: Column(
+  // Fila de info con icono, label gris y valor blanco
+  Widget _infoRow(
+      {required IconData icon,
+      required String label,
+      required String value,
+      bool isLast = false}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _rowColor,
+        borderRadius: isLast
+            ? const BorderRadius.vertical(bottom: Radius.circular(24))
+            : BorderRadius.zero,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
-          const SizedBox(height: 8),
-          Text(value.isNotEmpty ? value : '-', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+          Icon(icon, color: _textSecondary, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value.isNotEmpty ? value : '-',
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _addressTile(BuildContext context, IconData icon, String title, String subtitle, VoidCallback onTap) {
+  // (Sigue existiendo aunque por ahora no se use, para no tocar nada de lógica)
+  Widget _addressTile(BuildContext context, IconData icon, String title,
+      String subtitle, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        padding:
+            const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 4))
+          ],
         ),
         child: Row(
           children: [
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10)),
               child: Icon(icon, color: Colors.black54),
             ),
             const SizedBox(width: 12),
@@ -135,9 +202,12 @@ class ProfileInfoPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
+                  Text(subtitle,
+                      style: TextStyle(color: Colors.grey.shade600)),
                 ],
               ),
             ),
@@ -150,185 +220,209 @@ class ProfileInfoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF6A4AE0);
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F9),
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black87),
+        leading: const BackButton(color: _textPrimary),
+        title: const Text(
+          'Mi perfil',
+          style: TextStyle(
+            color: _textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
-      body: SizedBox.expand( 
+      body: SizedBox.expand(
         child: FutureBuilder<Map<String, dynamic>>(
           future: _loadUserData(),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: _primaryOrange,
+                ),
+              );
             }
             if (snapshot.hasError) {
-              return const Center(child: Text('Error al cargar datos'));
+              return const Center(
+                child: Text(
+                  'Error al cargar datos',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              );
             }
 
             final data = snapshot.data ?? {};
-            final firstName = (data['firstName'] ?? data['nombre'] ?? '').toString();
-            final lastName  = (data['lastName']  ?? data['apellido'] ?? '').toString();
-            final phone     = (data['phone']     ?? data['phoneNumber'] ?? data['telefono'] ?? '').toString();
-            final email     = (data['email']     ?? '').toString();
-            final dob       = (data['dob']       ?? data['fechaNacimiento'] ?? '').toString();
-            final gender    = (data['gender']    ?? data['genero'] ?? '').toString();
-            final avatarUrl = (data['photoURL']  ?? '').toString();
-            final rol       = (data['rol']       ?? 'cliente').toString(); // ✅ OBTENER ROL
+            final firstName =
+                (data['firstName'] ?? data['nombre'] ?? '').toString();
+            final lastName =
+                (data['lastName'] ?? data['apellido'] ?? '').toString();
+            final phone = (data['phone'] ??
+                    data['phoneNumber'] ??
+                    data['telefono'] ??
+                    '')
+                .toString();
+            final email = (data['email'] ?? '').toString();
+            final dob =
+                (data['dob'] ?? data['fechaNacimiento'] ?? '').toString();
+            final gender =
+                (data['gender'] ?? data['genero'] ?? '').toString();
+            final avatarUrl = (data['photoURL'] ?? '').toString();
+            final rol = (data['rol'] ?? 'cliente').toString();
+
+            final fullName =
+                '${firstName.trim()} ${lastName.trim()}'.trim();
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Page title
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 8),
-                    child: Text('Mi perfil', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                  ),
-
-                  // Top white card with avatar and big name
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 6))],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                        child: Column(
-                          children: [
-                            // Edit button aligned top-right (visually placed above avatar)
-                            Row(
-                              children: [
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () {
-                                    // Navega a la página de edición y pasa los datos actuales
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => EditProfilePage(userData: data),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('Editar', style: TextStyle(fontWeight: FontWeight.w600)),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: accentColor,
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(40, 20),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            // Avatar with small edit icon
-                            Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                CircleAvatar(
-                                  radius: 56,
-                                  backgroundColor: Colors.grey.shade200,
-                                  backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) as ImageProvider : null,
-                                  child: avatarUrl.isEmpty ? const Icon(Icons.person, size: 56, color: Colors.white) : null,
-                                ),
-                                Positioned(
-                                  right: MediaQuery.of(context).size.width * 0.5 - 56 + 12,
-                                  bottom: 8,
-                                  child: GestureDetector(
-                                    onTap: () {},
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
-                                      ),
-                                      padding: const EdgeInsets.all(6),
-                                      child: const Icon(Icons.edit, size: 18, color: Colors.black54),
-                                    ),
-                                  ),
+                  // Tarjeta superior: avatar + nombre + Editar
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: _cardColor,
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 32,
+                          backgroundColor: Colors.grey.shade800,
+                          backgroundImage: avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
+                              : null,
+                          child: avatarUrl.isEmpty
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: _textSecondary,
                                 )
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              '${firstName.trim()} ${lastName.trim()}'.trim(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                            ),
-                          ],
+                              : null,
                         ),
-                      ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            fullName.isNotEmpty ? fullName : 'Usuario',
+                            style: const TextStyle(
+                              color: _textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    EditProfilePage(userData: data),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Editar',
+                            style: TextStyle(
+                              color: _primaryOrange,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
                   const SizedBox(height: 18),
 
-                  // Info card (white, subtle separators)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))],
-                      ),
-                      child: Column(
-                        children: [
-                          _infoRow('Nombre', firstName.isNotEmpty ? firstName : '-'),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          _infoRow('Apellido', lastName.isNotEmpty ? lastName : '-'),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          _infoRow('Número de teléfono móvil', phone.isNotEmpty ? phone : '-'),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          _infoRow('Email', email.isNotEmpty ? email : '-'),
-                          // ✅ CAMBIO: Solo mostrar fecha de nacimiento y género si es cliente
-                          if (rol == 'cliente') ...[
-                            Divider(height: 1, color: Colors.grey.shade200),
-                            _infoRow('Fecha de nacimiento', dob.isNotEmpty ? dob : '-'),
-                            Divider(height: 1, color: Colors.grey.shade200),
-                            _infoRow('Género', gender.isNotEmpty ? gender : '-'),
-                          ],
-                        ],
-                      ),
+                  // Tarjeta de información (filas oscuras)
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: _cardColor,
+                      borderRadius: BorderRadius.circular(26),
                     ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // "Mis direcciones" section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Mis direcciones', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        _addressTile(context, Icons.home_filled, 'Casa', 'Añadir la dirección de un domicilio', () {
-                          // TODO: Implementar navegación/edición de direcciones
-                        }),
-                        _addressTile(context, Icons.work_outline, 'Trabajo', 'Añadir una dirección de trabajo', () {}),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: 140,
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.add, color: Colors.black87),
-                            label: const Text('Añadir', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                              side: BorderSide(color: Colors.grey.shade300),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                              backgroundColor: Colors.white,
-                            ),
-                          ),
+                        const SizedBox(height: 6),
+                        _infoRow(
+                          icon: Icons.person_outline,
+                          label: 'Nombre',
+                          value: firstName,
                         ),
-                        const SizedBox(height: 24),
+                        const Divider(
+                          height: 1,
+                          color: Colors.black54,
+                          indent: 54,
+                          endIndent: 18,
+                        ),
+                        _infoRow(
+                          icon: Icons.person_outline,
+                          label: 'Apellido',
+                          value: lastName,
+                        ),
+                        const Divider(
+                          height: 1,
+                          color: Colors.black54,
+                          indent: 54,
+                          endIndent: 18,
+                        ),
+                        _infoRow(
+                          icon: Icons.phone_outlined,
+                          label: 'Número de teléfono móvil',
+                          value: phone,
+                        ),
+                        const Divider(
+                          height: 1,
+                          color: Colors.black54,
+                          indent: 54,
+                          endIndent: 18,
+                        ),
+                        _infoRow(
+                          icon: Icons.email_outlined,
+                          label: 'Email',
+                          value: email,
+                        ),
+                        if (rol == 'cliente') ...[
+                          const Divider(
+                            height: 1,
+                            color: Colors.black54,
+                            indent: 54,
+                            endIndent: 18,
+                          ),
+                          _infoRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Fecha de nacimiento',
+                            value: dob,
+                          ),
+                          const Divider(
+                            height: 1,
+                            color: Colors.black54,
+                            indent: 54,
+                            endIndent: 18,
+                          ),
+                          _infoRow(
+                            icon: Icons.transgender_outlined,
+                            label: 'Género',
+                            value: gender,
+                            isLast: true,
+                          ),
+                        ] else
+                          // Para salón, la última fila es email (redondear abajo)
+                          _infoRow(
+                            icon: Icons.email_outlined,
+                            label: 'Email',
+                            value: email,
+                            isLast: true,
+                          ),
+                        const SizedBox(height: 6),
                       ],
                     ),
                   ),

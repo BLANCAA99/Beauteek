@@ -20,6 +20,14 @@ class SalonBankAccountPage extends StatefulWidget {
 }
 
 class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
+  // 🎨 Tema Beauteek (mismo estilo que el mock)
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _fieldColor = Color(0xFF222736);
+  static const Color _primaryOrange = Color(0xFFFF9240);
+  static const Color _primaryOrangeLight = Color(0xFFFFB76B);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7B9C0);
+
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -77,14 +85,16 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
       print('📤 Enviando datos bancarios: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step3');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
@@ -93,7 +103,11 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Cuenta bancaria registrada! Ahora agrega tus servicios.'))
+          const SnackBar(
+            content: Text(
+              '¡Cuenta bancaria registrada! Ahora agrega tus servicios.',
+            ),
+          ),
         );
 
         Navigator.of(context).pushReplacement(
@@ -118,7 +132,7 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
       print('❌ Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}'))
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -128,48 +142,83 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        centerTitle: true,
+        leading: const BackButton(color: _textPrimary),
         title: const Text(
           'Cuenta bancaria',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: _textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
         ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           children: [
+            const SizedBox(height: 16),
             const Text(
               'Registra tu cuenta bancaria',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: _textPrimary,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Para recibir los pagos de tus servicios',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // Banco
-            const Text('Banco *', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Banco *',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: null,
+              value: _bancoController.text.isEmpty
+                  ? null
+                  : _bancoController.text,
+              dropdownColor: _fieldColor,
+              iconEnabledColor: _textSecondary,
               decoration: InputDecoration(
                 hintText: 'Selecciona tu banco',
+                hintStyle: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                ),
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: _fieldColor,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
               ),
               items: _bancosHonduras.map((banco) {
-                return DropdownMenuItem(value: banco, child: Text(banco));
+                return DropdownMenuItem(
+                  value: banco,
+                  child: Text(
+                    banco,
+                    style: const TextStyle(color: _textPrimary),
+                  ),
+                );
               }).toList(),
               onChanged: (value) {
                 if (value != null) _bancoController.text = value;
@@ -181,32 +230,63 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Tipo de cuenta
-            const Text('Tipo de cuenta *', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Ahorro'),
-                    value: 'ahorro',
-                    groupValue: _tipoCuenta,
-                    onChanged: (value) => setState(() => _tipoCuenta = value!),
-                  ),
-                ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Corriente'),
-                    value: 'corriente',
-                    groupValue: _tipoCuenta,
-                    onChanged: (value) => setState(() => _tipoCuenta = value!),
-                  ),
-                ),
-              ],
+            const Text(
+              'Tipo de cuenta *',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Theme(
+              data: Theme.of(context).copyWith(
+                unselectedWidgetColor: _textSecondary,
+                radioTheme: RadioThemeData(
+                  fillColor: MaterialStateProperty.resolveWith((states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return _primaryOrange;
+                    }
+                    return _textSecondary;
+                  }),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text(
+                        'Ahorro',
+                        style: TextStyle(color: _textPrimary),
+                      ),
+                      value: 'ahorro',
+                      groupValue: _tipoCuenta,
+                      onChanged: (value) =>
+                          setState(() => _tipoCuenta = value!),
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text(
+                        'Corriente',
+                        style: TextStyle(color: _textPrimary),
+                      ),
+                      value: 'corriente',
+                      groupValue: _tipoCuenta,
+                      onChanged: (value) =>
+                          setState(() => _tipoCuenta = value!),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
 
             // Número de cuenta
             _buildTextField(
@@ -216,7 +296,7 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
               keyboardType: TextInputType.number,
               icon: Icons.account_balance,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Nombre del titular
             _buildTextField(
@@ -225,7 +305,7 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
               hint: 'Nombre completo',
               icon: Icons.person_outline,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Identificación
             _buildTextField(
@@ -239,20 +319,32 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
 
             // Nota informativa
             Container(
-              padding: const EdgeInsets.all(12),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                color: const Color(0xFF111A2A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFF2E4C8F),
+                  width: 1,
+                ),
               ),
               child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Icon(
+                    Icons.info_outline,
+                    color: Color(0xFF4C7DFF),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
                     child: Text(
                       'Tu información bancaria está protegida y solo se usará para procesar pagos.',
-                      style: TextStyle(fontSize: 12),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _textSecondary,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -261,25 +353,43 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
             const SizedBox(height: 32),
 
             // Botón continuar
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submitForm,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF5B1A8),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitForm,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  elevation: 5,
+                  backgroundColor: _primaryOrange,
+                  foregroundColor: _textPrimary,
+                ).copyWith(
+                  backgroundColor: MaterialStateProperty.resolveWith((states) {
+                    if (states.contains(MaterialState.disabled)) {
+                      return _primaryOrange.withOpacity(0.5);
+                    }
+                    return _primaryOrange;
+                  }),
                 ),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                      'Siguiente: Agregar Servicios',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.4,
+                        ),
+                      )
+                    : const Text(
+                        'Siguiente: Agregar Servicios',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ],
         ),
@@ -287,6 +397,7 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
     );
   }
 
+  // 🔹 TextField reutilizable con estilo oscuro
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -297,18 +408,28 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+          ),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          style: const TextStyle(color: _textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+            hintStyle:
+                const TextStyle(color: _textSecondary, fontSize: 14),
+            prefixIcon:
+                icon != null ? Icon(icon, color: _textSecondary) : null,
             filled: true,
-            fillColor: Colors.grey.shade100,
+            fillColor: _fieldColor,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
             ),
           ),

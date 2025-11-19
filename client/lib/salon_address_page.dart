@@ -22,6 +22,13 @@ class SalonAddressPage extends StatefulWidget {
 }
 
 class _SalonAddressPageState extends State<SalonAddressPage> {
+  // 🎨 Tema Beauteek
+  static const Color _backgroundColor = Color(0xFF18100A);
+  static const Color _fieldColor = Color(0xFF22242C);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB7B9C0);
+
   final _formKey = GlobalKey<FormState>();
   final _addressController = TextEditingController();
   final _telefonoSucursalController = TextEditingController();
@@ -38,7 +45,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
   Future<void> _openLocationPicker() async {
     // ✅ CAMBIO: Obtener el userId del usuario actual
     final currentUser = FirebaseAuth.instance.currentUser;
-    
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -80,7 +87,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
       final payload = {
         'comercioId': widget.comercioId,
         'direccion': _addressController.text.trim(),
-        'ubicacion': { 
+        'ubicacion': {
           'latitude': _selectedLocation!.latitude,
           'longitude': _selectedLocation!.longitude,
         },
@@ -92,14 +99,16 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
       print('📤 Enviando dirección: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step2');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
@@ -109,7 +118,8 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Sucursal principal creada! Ahora registra tu cuenta bancaria.'),
+            content: Text(
+                '✅ Sucursal principal creada! Ahora registra tu cuenta bancaria.'),
           ),
         );
 
@@ -145,104 +155,132 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        centerTitle: true,
+        leading: const BackButton(color: _textPrimary),
         title: const Text(
           'Ubicación',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: _textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
         ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           children: [
+            const SizedBox(height: 16),
+            // Icono grande
+            const Center(
+              child: Icon(
+                Icons.location_on,
+                size: 80,
+                color: _primaryOrange,
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text(
               'Ubicación de tu sucursal principal',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: _textPrimary,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Podrás agregar más sucursales después',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             _buildTextField(
               controller: _addressController,
               label: 'Dirección completa *',
               hint: 'Ej: Col. Palmira, Av. República de Chile',
-              icon: Icons.location_on,
+              icon: Icons.location_on_outlined,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             _buildTextField(
               controller: _telefonoSucursalController,
               label: 'Teléfono de esta sucursal (opcional)',
               hint: 'Si es diferente al teléfono principal',
-              icon: Icons.phone,
+              icon: Icons.phone_in_talk_outlined,
               keyboardType: TextInputType.phone,
               isRequired: false,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // Botón para seleccionar ubicación
-            OutlinedButton.icon(
-              onPressed: _openLocationPicker,
-              icon: Icon(
-                _selectedLocation != null ? Icons.check_circle : Icons.map,
-                color: _selectedLocation != null
-                    ? Colors.green
-                    : const Color(0xFFEA963A),
-              ),
-              label: Text(
-                _selectedLocation != null
-                    ? '✓ Ubicación seleccionada'
-                    : 'Seleccionar en el mapa',
-                style: TextStyle(
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openLocationPicker,
+                icon: Icon(
+                  _selectedLocation != null ? Icons.check_circle : Icons.map,
                   color: _selectedLocation != null
-                      ? Colors.green
-                      : const Color(0xFFEA963A),
-                  fontWeight: FontWeight.bold,
+                      ? Colors.greenAccent
+                      : _primaryOrange,
                 ),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(
-                  color: _selectedLocation != null
-                      ? Colors.green
-                      : const Color(0xFFEA963A),
-                  width: 2,
+                label: Text(
+                  _selectedLocation != null
+                      ? 'Ubicación seleccionada'
+                      : 'Seleccionar en el mapa',
+                  style: TextStyle(
+                    color: _selectedLocation != null
+                        ? Colors.greenAccent
+                        : _primaryOrange,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(
+                    color: _selectedLocation != null
+                        ? Colors.greenAccent
+                        : _primaryOrange,
+                    width: 1.8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
               ),
             ),
 
             if (_selectedLocation != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade200),
+                  color: const Color(0xFF123321),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.location_on, color: Colors.green.shade700),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.place, color: Colors.greenAccent),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Lat: ${_selectedLocation!.latitude.toStringAsFixed(5)}\n'
+                        'Lat: ${_selectedLocation!.latitude.toStringAsFixed(5)} · '
                         'Lng: ${_selectedLocation!.longitude.toStringAsFixed(5)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green.shade900,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.white70,
                         ),
                       ),
                     ),
@@ -251,27 +289,38 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
               ),
             ],
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 34),
 
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submitForm,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF5B1A8),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitForm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryOrange,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  elevation: 5,
                 ),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                      'Siguiente: Cuenta Bancaria',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.4,
+                        ),
+                      )
+                    : const Text(
+                        'Siguiente: Cuenta Bancaria',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: _textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ],
         ),
@@ -279,6 +328,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
     );
   }
 
+  // 🔹 TextField con estilo oscuro
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -290,25 +340,35 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+            fontSize: 14,
+          ),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          style: const TextStyle(color: _textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+            hintStyle:
+                const TextStyle(color: _textSecondary, fontSize: 14),
+            prefixIcon:
+                icon != null ? Icon(icon, color: _textSecondary) : null,
             filled: true,
-            fillColor: Colors.grey.shade100,
+            fillColor: _fieldColor,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
             ),
           ),
-          validator: (value) =>
-              isRequired && (value == null || value.isEmpty)
-                  ? 'Este campo es requerido'
-                  : null,
+          validator: (value) => isRequired && (value == null || value.isEmpty)
+              ? 'Este campo es requerido'
+              : null,
         ),
       ],
     );
