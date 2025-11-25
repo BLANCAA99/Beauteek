@@ -29,8 +29,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final _nameController = TextEditingController();
   
   bool _isProcessing = false;
-  double get comision => widget.monto * 0.10;
-  double get total => widget.monto + comision;
+  // ✅ NUEVO: Sin comisión al cliente
+  double get total => widget.monto;
 
   @override
   void dispose() {
@@ -85,7 +85,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   child: Column(
                     children: [
                       _buildPriceRow('Valor del servicio', widget.monto),
-                      _buildPriceRow('Comisión de la app (10%)', comision),
                       Divider(color: Color(0xFF637588).withOpacity(0.3)),
                       _buildPriceRow('Total a pagar', total, isBold: true),
                     ],

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'inicio.dart';
 import 'api_constants.dart';
 import 'salon_address_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -72,57 +71,116 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
           await showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              title: const Column(
-                children: [
-                  Icon(Icons.credit_card, color: _primaryOrange, size: 48),
-                  SizedBox(height: 16),
-                  Text(
-                    'Método de pago requerido',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-                    textAlign: TextAlign.center,
+            builder: (context) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 420,
                   ),
-                ],
-              ),
-              content: const Text(
-                'Para registrar tu salón necesitas agregar un método de pago para tu suscripción.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Cancelar',
-                      style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const AddCardPage()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryOrange,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
+                  child: AlertDialog(
+                    backgroundColor: const Color(0xFFFFF4EB), // cremita suave
+                    insetPadding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text(
-                    'Agregar tarjeta',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    titlePadding: EdgeInsets.zero,
+                    contentPadding:
+                        const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                    actionsPadding:
+                        const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    title: null,
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Icono dentro de recuadro suave
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Icon(
+                            Icons.credit_card,
+                            color: _primaryOrange,
+                            size: 30,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Método de pago requerido',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1F1F1F),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Para registrar tu salón necesitas agregar un método de pago para tu suscripción.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.5,
+                            color: Color(0xFF7B6F63),
+                          ),
+                        ),
+                      ],
+                    ),
+                    actionsAlignment: MainAxisAlignment.spaceBetween,
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          // 🔁 misma lógica que ya tenías
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text(
+                          'Cancelar',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF8A8176),
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          // 🔁 misma lógica que ya tenías
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (_) => const AddCardPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryOrange,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 26,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        child: const Text(
+                          'Agregar tarjeta',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           );
         });
       } else {
@@ -137,7 +195,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
       );
     }
   }
-
   @override
   void dispose() {
     _salonNameController.dispose();

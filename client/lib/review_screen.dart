@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
 import 'api_constants.dart';
 
 class ReviewScreen extends StatefulWidget {
@@ -26,11 +29,72 @@ class _ReviewScreenState extends State<ReviewScreen> {
   int _rating = 0;
   final _commentController = TextEditingController();
   bool _isLoading = false;
+  XFile? _selectedImage;
+  bool _isUploadingImage = false;
+  
+  final ImagePicker _picker = ImagePicker();
+  final CloudinaryPublic _cloudinary = CloudinaryPublic(
+    'dskg1hw9n',
+    'Imagenes_Beauteek',
+    cache: false,
+  );
 
   @override
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _seleccionarFoto() async {
+    try {
+      final ImageSource? source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Seleccionar foto'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFFEA963A)),
+                title: const Text('Cámara'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFFEA963A)),
+                title: const Text('Galería'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() => _selectedImage = image);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar foto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _eliminarFoto() {
+    setState(() => _selectedImage = null);
   }
 
   Future<void> _submitReview() async {
@@ -51,6 +115,30 @@ class _ReviewScreenState extends State<ReviewScreen> {
       if (user == null) throw Exception('Usuario no autenticado');
 
       final idToken = await user.getIdToken();
+
+      // Subir foto a Cloudinary si existe
+      String? fotoUrl;
+      if (_selectedImage != null) {
+        setState(() => _isUploadingImage = true);
+        
+        try {
+          final response = await _cloudinary.uploadFile(
+            CloudinaryFile.fromFile(
+              _selectedImage!.path,
+              folder: 'resenas',
+            ),
+          );
+          fotoUrl = response.secureUrl;
+          print('✅ Foto subida a Cloudinary: $fotoUrl');
+        } catch (e) {
+          print('⚠️ Error subiendo foto: $e');
+          // Continuar sin foto si falla
+        } finally {
+          if (mounted) {
+            setState(() => _isUploadingImage = false);
+          }
+        }
+      }
 
       // ✅ Primero obtener el uid_negocio del comercio
       final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
@@ -82,6 +170,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         'usuario_salon_id': uidNegocio,
         'calificacion': _rating,
         'comentario': _commentController.text.trim(),
+        if (fotoUrl != null) 'foto_url': fotoUrl,
       };
 
       final url = Uri.parse('$apiBaseUrl/api/resenas');
@@ -222,6 +311,62 @@ class _ReviewScreenState extends State<ReviewScreen> {
                           color: Color(0xFFEA963A),
                           width: 2,
                         ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Foto opcional
+                  const Text(
+                    'Foto (opcional)',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  if (_selectedImage != null) ...[
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(_selectedImage!.path),
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54,
+                            ),
+                            onPressed: _eliminarFoto,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  OutlinedButton.icon(
+                    onPressed: _isUploadingImage ? null : _seleccionarFoto,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: Text(_selectedImage == null 
+                      ? 'Agregar foto del servicio' 
+                      : 'Cambiar foto'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEA963A),
+                      side: const BorderSide(color: Color(0xFFEA963A)),
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),

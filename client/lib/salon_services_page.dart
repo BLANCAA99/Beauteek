@@ -137,9 +137,21 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                         color: _primaryOrange.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Text(
-                        categoria['icon'],
-                        style: const TextStyle(fontSize: 26),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          categoria['icon'],
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.category,
+                              color: _primaryOrange,
+                              size: 40,
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -681,25 +693,32 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Icono naranja
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [_primaryOrange, _secondaryOrange],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  categoria['icon'],
-                                  style: const TextStyle(fontSize: 26),
-                                ),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _cardSoftColor,                 // o Colors.transparent
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.network(
+                                categoria['icon'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Center(
+                                    child: Icon(
+                                      Icons.category,
+                                      color: _primaryOrange,
+                                      size: 28,
+                                    ),
+                                  );
+                                },
                               ),
                             ),
+                          ),
+
                             const SizedBox(height: 10),
                             Text(
                               categoria['nombre'],
@@ -770,9 +789,29 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ListTile(
-                        leading: Text(
-                          servicio['categoria_icon'],
-                          style: const TextStyle(fontSize: 26),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            servicio['categoria_icon'],
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: _primaryOrange.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.category,
+                                  color: _primaryOrange,
+                                  size: 24,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         title: Text(
                           servicio['nombre'],

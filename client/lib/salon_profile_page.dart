@@ -4,10 +4,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
 import 'calendar_page.dart';
+import 'galeria_salon_page.dart';
+import 'review_screen.dart';
 
 class SalonProfilePage extends StatefulWidget {
   final String comercioId;
-  
+
   const SalonProfilePage({
     Key? key,
     required this.comercioId,
@@ -32,18 +34,21 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     _verificarFavorito();
   }
 
+  // ===================== LÓGICA (NO TOCADA) =====================
+
   Future<void> _cargarDatosComercio() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       // ✅ Obtener comercio
-      final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
-      
+      final comercioUrl =
+          Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
+
       print('🔍 Cargando comercio: $comercioUrl');
-      
+
       final comercioResponse = await http.get(
         comercioUrl,
         headers: {
@@ -54,14 +59,15 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       if (comercioResponse.statusCode == 200) {
         final comercioData = json.decode(comercioResponse.body);
-        
+
         // ✅ Obtener foto del propietario del salón
         String? fotoSalon;
         final uidPropietario = comercioData['uid_negocio'] as String?;
-        
+
         if (uidPropietario != null) {
           try {
-            final propietarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
+            final propietarioUrl =
+                Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
             final propietarioResponse = await http.get(
               propietarioUrl,
               headers: {
@@ -69,7 +75,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                 'Authorization': 'Bearer $idToken',
               },
             );
-            
+
             if (propietarioResponse.statusCode == 200) {
               final propietarioData = json.decode(propietarioResponse.body);
               fotoSalon = propietarioData['foto_url'] as String?;
@@ -78,17 +84,18 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             print('⚠️ Error obteniendo foto del propietario: $e');
           }
         }
-        
+
         // Si se obtuvo foto del propietario, reemplazar en comercioData
         if (fotoSalon != null && fotoSalon.isNotEmpty) {
           comercioData['foto_url'] = fotoSalon;
         }
-        
-        // ✅ CAMBIO: Usar /api/servicios con query param comercio_id
-        final serviciosUrl = Uri.parse('$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
-        
+
+        // ✅ Usar /api/servicios con query param comercio_id
+        final serviciosUrl = Uri.parse(
+            '$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
+
         print('🔍 Cargando servicios: $serviciosUrl');
-        
+
         final serviciosResponse = await http.get(
           serviciosUrl,
           headers: {
@@ -102,17 +109,18 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
         List<Map<String, dynamic>> servicios = [];
         if (serviciosResponse.statusCode == 200) {
-          final List<dynamic> serviciosData = json.decode(serviciosResponse.body);
-          servicios = serviciosData
-              .map((s) => s as Map<String, dynamic>)
-              .toList();
+          final List<dynamic> serviciosData =
+              json.decode(serviciosResponse.body);
+          servicios =
+              serviciosData.map((s) => s as Map<String, dynamic>).toList();
         }
 
         // ✅ NUEVO: Cargar reseñas del comercio
-        final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=${widget.comercioId}');
-        
+        final resenasUrl = Uri.parse(
+            '$apiBaseUrl/api/resenas?comercio_id=${widget.comercioId}');
+
         print('🔍 Cargando reseñas: $resenasUrl');
-        
+
         final resenasResponse = await http.get(
           resenasUrl,
           headers: {
@@ -123,28 +131,31 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
         List<Map<String, dynamic>> resenas = [];
         double calificacionPromedio = 0.0;
-        
+
         if (resenasResponse.statusCode == 200) {
-          final List<dynamic> resenasData = json.decode(resenasResponse.body);
-          
+          final List<dynamic> resenasData =
+              json.decode(resenasResponse.body);
+
           // Calcular calificación promedio
           if (resenasData.isNotEmpty) {
             double sumaCalificaciones = 0;
             for (var resena in resenasData) {
-              sumaCalificaciones += (resena['calificacion'] as num?)?.toDouble() ?? 0;
+              sumaCalificaciones +=
+                  (resena['calificacion'] as num?)?.toDouble() ?? 0;
             }
             calificacionPromedio = sumaCalificaciones / resenasData.length;
           }
-          
+
           // Obtener nombre de cada usuario que dejó reseña
           for (var resena in resenasData) {
             final usuarioId = resena['usuario_cliente_id'];
             String nombreUsuario = 'Usuario';
             String? fotoUsuario;
-            
+
             if (usuarioId != null) {
               try {
-                final usuarioUrl = Uri.parse('$apiBaseUrl/api/users/uid/$usuarioId');
+                final usuarioUrl =
+                    Uri.parse('$apiBaseUrl/api/users/uid/$usuarioId');
                 final usuarioResponse = await http.get(
                   usuarioUrl,
                   headers: {
@@ -152,17 +163,18 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                     'Authorization': 'Bearer $idToken',
                   },
                 );
-                
+
                 if (usuarioResponse.statusCode == 200) {
                   final usuarioData = json.decode(usuarioResponse.body);
-                  nombreUsuario = usuarioData['nombre_completo'] ?? 'Usuario';
+                  nombreUsuario =
+                      usuarioData['nombre_completo'] ?? 'Usuario';
                   fotoUsuario = usuarioData['foto_url'];
                 }
               } catch (e) {
                 print('⚠️ Error obteniendo usuario: $e');
               }
             }
-            
+
             resenas.add({
               ...resena as Map<String, dynamic>,
               'nombre_usuario': nombreUsuario,
@@ -170,7 +182,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             });
           }
         }
-        
+
         // Actualizar calificación del comercio con el promedio calculado
         if (calificacionPromedio > 0) {
           comercioData['calificacion'] = calificacionPromedio;
@@ -182,7 +194,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
           _resenas = resenas;
           _isLoading = false;
         });
-        
+
         print('✅ Comercio cargado: ${comercioData['nombre']}');
         print('✅ Servicios cargados: ${servicios.length}');
         print('✅ Reseñas cargadas: ${resenas.length}');
@@ -199,9 +211,10 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
-      final favoritosUrl = Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
-      
+
+      final favoritosUrl =
+          Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
+
       final response = await http.get(
         favoritosUrl,
         headers: {
@@ -212,13 +225,13 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       if (response.statusCode == 200) {
         final List<dynamic> favoritos = json.decode(response.body);
-        
+
         // Buscar si este comercio específico está en favoritos
         final favoritoExistente = favoritos.firstWhere(
           (fav) => fav['salon_id'] == widget.comercioId,
           orElse: () => null,
         );
-        
+
         if (favoritoExistente != null) {
           setState(() {
             _isFavorite = true;
@@ -231,17 +244,60 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     }
   }
 
+  void _mostrarFotoCompleta(String fotoUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Image.network(
+                fotoUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey.shade800,
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey,
+                        size: 64,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleFavorito() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      
+
       if (_isFavorite && _favoritoId != null) {
         // Eliminar favorito
-        final url = Uri.parse('$apiBaseUrl/api/favoritos/$_favoritoId');
-        
+        final url =
+            Uri.parse('$apiBaseUrl/api/favoritos/$_favoritoId');
+
         final response = await http.delete(
           url,
           headers: {
@@ -255,7 +311,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             _isFavorite = false;
             _favoritoId = null;
           });
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -269,7 +325,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
       } else {
         // Agregar favorito
         final url = Uri.parse('$apiBaseUrl/api/favoritos');
-        
+
         final response = await http.post(
           url,
           headers: {
@@ -284,12 +340,12 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
         if (response.statusCode == 201) {
           final responseData = json.decode(response.body);
-          
+
           setState(() {
             _isFavorite = true;
             _favoritoId = responseData['id'];
           });
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -315,10 +371,12 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     }
   }
 
+  // ===================== UI =====================
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(color: Color(0xFFEA963A)),
         ),
@@ -327,12 +385,13 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
     if (_comercioData == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('Error')),
-        body: Center(child: Text('No se pudo cargar el salón')),
+        appBar: AppBar(title: const Text('Error')),
+        body: const Center(child: Text('No se pudo cargar el salón')),
       );
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFF050507),
       body: CustomScrollView(
         slivers: [
           _buildAppBar(),
@@ -341,9 +400,11 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildInfo(),
+                const SizedBox(height: 24),
                 _buildServicios(),
+                const SizedBox(height: 24),
                 _buildResenas(),
-                SizedBox(height: 32),
+                const SizedBox(height: 120),
               ],
             ),
           ),
@@ -353,75 +414,223 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     );
   }
 
-  Widget _buildAppBar() {
+  SliverAppBar _buildAppBar() {
     final fotoUrl = _comercioData!['foto_url'] as String?;
-    
+    final nombre = _comercioData!['nombre'] ?? 'Salón';
+
     return SliverAppBar(
-      expandedHeight: 300,
+      expandedHeight: 320,
       pinned: true,
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isFavorite ? Icons.favorite : Icons.favorite_border,
-            color: _isFavorite ? Colors.red : Colors.white,
-            size: 28,
-          ),
-          onPressed: _toggleFavorito,
-        ),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: fotoUrl != null && fotoUrl.isNotEmpty
-            ? Image.network(fotoUrl, fit: BoxFit.cover)
-            : Container(
-                decoration: BoxDecoration(
+      backgroundColor: const Color(0xFF050507),
+      automaticallyImplyLeading: false,
+      flexibleSpace: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // Imagen de fondo
+              fotoUrl != null && fotoUrl.isNotEmpty
+                  ? Image.network(
+                      fotoUrl,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.store,
+                        size: 80,
+                        color: Colors.white,
+                      ),
+                    ),
+              // Degradado superior e inferior
+              Container(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.black38,
+                      Colors.transparent,
+                      Colors.black87,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
                 ),
-                child: Icon(Icons.store, size: 80, color: Colors.white),
               ),
+              // Botones back y favorito
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 12,
+                left: 16,
+                right: 16,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _roundIconButton(
+                      icon: Icons.arrow_back,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    _roundIconButton(
+                      icon: _isFavorite
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      onTap: _toggleFavorito,
+                      isFilled: _isFavorite,
+                    ),
+                  ],
+                ),
+              ),
+              // Nombre del salón sobre la imagen
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 28,
+                child: Text(
+                  nombre,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _roundIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isFilled = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isFilled ? Colors.white : Colors.black45,
+          shape: BoxShape.circle,
+          border: isFilled
+              ? null
+              : Border.all(color: Colors.white.withOpacity(0.6), width: 1),
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: isFilled ? const Color(0xFFEA963A) : Colors.white,
+        ),
       ),
     );
   }
 
   Widget _buildInfo() {
+    final calificacion =
+        (_comercioData!['calificacion'] as num?)?.toStringAsFixed(1) ??
+            '4.8';
+    final direccion =
+        _comercioData!['direccion'] ?? 'Dirección no disponible';
+
     return Padding(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _comercioData!['nombre'] ?? 'Salón',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
+          // Rating + número de reseñas
           Row(
             children: [
-              Icon(Icons.star, color: Color(0xFFFFB800), size: 20),
-              SizedBox(width: 4),
+              const Icon(Icons.star,
+                  color: Color(0xFFFFB800), size: 20),
+              const SizedBox(width: 6),
               Text(
-                '${_comercioData!['calificacion'] ?? 4.5}',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                '$calificacion ',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.grey),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _comercioData!['direccion'] ?? 'Dirección no disponible',
-                  style: TextStyle(color: Colors.grey[600]),
+              Text(
+                '(${_resenas.length} opiniones)',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFFB0B0B0),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          // Dirección
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on,
+                  color: Color(0xFFB48CFF), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  direccion,
+                  style: const TextStyle(
+                    color: Color(0xFFD0C7FF),
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Botón de Galería
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GaleriaSalonPage(
+                    comercioId: widget.comercioId,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFEA963A).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.photo_library_outlined,
+                    color: Color(0xFFEA963A),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Ver Galería de Fotos',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -430,34 +639,47 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
   Widget _buildServicios() {
     if (_servicios.isEmpty) {
-      return Padding(
+      return const Padding(
         padding: EdgeInsets.all(20),
-        child: Text('No hay servicios disponibles'),
+        child: Text(
+          'No hay servicios disponibles',
+          style: TextStyle(color: Colors.white),
+        ),
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
+        const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'Servicios',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 16),
         ..._servicios.map((servicio) {
+          final nombre = servicio['nombre'] ?? '';
+          final duracion = servicio['duracion_min'] ?? 0;
+          final precio = servicio['precio'];
+
+          final precioTexto = precio is num
+              ? 'L ${precio.toStringAsFixed(2)}'
+              : 'L 0.00';
+
           return Container(
-            margin: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            padding: EdgeInsets.all(16),
+            margin:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: [
@@ -466,26 +688,30 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        servicio['nombre'] ?? '',
-                        style: TextStyle(
+                        nombre,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        '${servicio['duracion_min']} min',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                        '$duracion min',
+                        style: const TextStyle(
+                          color: Color(0xFF9E9E9E),
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Text(
-                  'L${servicio['precio']?.toStringAsFixed(2) ?? '0.00'}',
-                  style: TextStyle(
+                  precioTexto,
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFEA963A),
+                    color: Color(0xFFFF9500),
                   ),
                 ),
               ],
@@ -500,29 +726,32 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Título + "Ver todas"
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
             children: [
-              Text(
-                'Reseñas',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              const Expanded(
+                child: Text(
+                  'Reseñas',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              SizedBox(width: 8),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Color(0xFFEA963A).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_resenas.length}',
+              GestureDetector(
+                onTap: () {
+                  // Aquí luego puedes navegar a pantalla de todas las reseñas
+                },
+                child: const Text(
+                  'Ver todas',
                   style: TextStyle(
-                    color: Color(0xFFEA963A),
-                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Color(0xFFFF9500),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -531,82 +760,90 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         ),
         if (_resenas.isEmpty)
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.rate_review_outlined,
-                    size: 64,
-                    color: Colors.grey.shade300,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.rate_review_outlined,
+                  size: 64,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'No hay reseñas aún',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'No hay reseñas aún',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 16,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Sé la primera persona en dejar una reseña.',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 14,
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Sé el primero en dejar una reseña',
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           )
         else
           ..._resenas.map((resena) {
+            final nombre = resena['nombre_usuario'] ?? 'Usuario';
+            final comentario = resena['comentario'] ?? '';
+            final calificacion =
+                (resena['calificacion'] as num?)?.toInt() ?? 0;
+            final fotoUsuario = resena['foto_usuario'] as String?;
+            final fotoResena = resena['foto_url'] as String?;
+
             return Container(
-              margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              padding: EdgeInsets.all(16),
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      // Avatar con foto o inicial
+                      // Avatar
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: resena['foto_usuario'] == null || (resena['foto_usuario'] as String).isEmpty
-                              ? LinearGradient(
-                                  colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
+                          gradient: (fotoUsuario == null ||
+                                  fotoUsuario.isEmpty)
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xFFEA963A),
+                                    Color(0xFFFF6B9D)
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 )
                               : null,
-                          image: resena['foto_usuario'] != null && (resena['foto_usuario'] as String).isNotEmpty
+                          image: (fotoUsuario != null &&
+                                  fotoUsuario.isNotEmpty)
                               ? DecorationImage(
-                                  image: NetworkImage(resena['foto_usuario']),
+                                  image: NetworkImage(fotoUsuario),
                                   fit: BoxFit.cover,
                                 )
                               : null,
                         ),
-                        child: resena['foto_usuario'] == null || (resena['foto_usuario'] as String).isEmpty
+                        child: (fotoUsuario == null ||
+                                fotoUsuario.isEmpty)
                             ? Center(
                                 child: Text(
-                                  (resena['nombre_usuario'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-                                  style: TextStyle(
+                                  nombre
+                                      .toString()
+                                      .substring(0, 1)
+                                      .toUpperCase(),
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -615,27 +852,30 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                               )
                             : null,
                       ),
-                      SizedBox(width: 12),
-                      // Nombre y estrellas
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
-                              resena['nombre_usuario'] ?? 'Usuario',
-                              style: TextStyle(
+                              nombre,
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Row(
-                              children: List.generate(5, (index) {
-                                final calificacion = (resena['calificacion'] as num?)?.toInt() ?? 0;
+                              children:
+                                  List.generate(5, (index) {
                                 return Icon(
-                                  index < calificacion ? Icons.star : Icons.star_border,
-                                  color: Color(0xFFFFB800),
-                                  size: 18,
+                                  index < calificacion
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: const Color(0xFFFFB800),
+                                  size: 16,
                                 );
                               }),
                             ),
@@ -644,20 +884,40 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                       ),
                     ],
                   ),
-                  if (resena['comentario'] != null && (resena['comentario'] as String).isNotEmpty) ...[
-                    SizedBox(height: 12),
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
+                  if (comentario.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      comentario,
+                      style: const TextStyle(
+                        color: Color(0xFFDDDDDD),
+                        fontSize: 14,
+                        height: 1.4,
                       ),
-                      child: Text(
-                        resena['comentario'],
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                          height: 1.5,
+                    ),
+                  ],
+                  if (fotoResena != null && fotoResena.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => _mostrarFotoCompleta(fotoResena),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          fotoResena,
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey.shade800,
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                                size: 48,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -671,47 +931,98 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
   }
 
   Widget _buildBookButton() {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + bottomInset),
+      decoration: const BoxDecoration(
+        color: Color(0xFF050507),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, -2),
+            color: Colors.black54,
+            blurRadius: 16,
+            offset: Offset(0, -6),
           ),
         ],
       ),
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CalendarPage(
-                mode: 'booking',
-                comercioId: widget.comercioId,
-                salonName: _comercioData!['nombre'],
-                servicios: _servicios,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Botón "Dejar una reseña" (outline)
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: () {
+                // Navegar a pantalla de crear reseña
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReviewScreen(
+                      citaId: '', // No requiere cita específica para reseña general
+                      comercioId: widget.comercioId,
+                      salonName: _comercioData!['nombre'] ?? 'Salón',
+                      servicioId: _servicios.isNotEmpty ? _servicios.first['id'].toString() : '',
+                    ),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                    color: Color(0xFFFF9500), width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+              child: const Text(
+                'Dejar una reseña',
+                style: TextStyle(
+                  color: Color(0xFFFF9500),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFEA963A),
-          padding: EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        child: Text(
-          'Agendar cita',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+          const SizedBox(height: 12),
+          // Botón principal "Agendar Cita" (pill con degradado)
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CalendarPage(
+                    mode: 'booking',
+                    comercioId: widget.comercioId,
+                    salonName: _comercioData!['nombre'],
+                    servicios: _servicios,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              height: 56,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF9500), Color(0xFFFF6B35)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(32),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Agendar Cita',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

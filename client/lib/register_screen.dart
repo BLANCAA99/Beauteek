@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
 import 'theme/app_theme.dart';
+import 'setup_location_page.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -198,7 +198,10 @@ class _RegisterScreenState extends State<RegisterScreen>
         await _showSuccessToast('Registro exitoso');
         if (!mounted) return;
 
-        Navigator.of(context).pop();
+        // Redirigir a SetupLocationPage para configurar ubicación y país
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SetupLocationPage()),
+        );
       } else {
         print('[register] Error al guardar usuario');
         if (!mounted) return;
@@ -227,8 +230,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   // ---------- UI REDISEÑADA ----------
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     BoxDecoration fieldDecoration(BuildContext context) {
       return BoxDecoration(
         color: Colors.transparent,

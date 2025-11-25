@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'search_page.dart';
 import 'salon_bank_account_page.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 
 class SalonAddressPage extends StatefulWidget {
   final String comercioId;
@@ -115,6 +116,55 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
 
       if (response.statusCode == 200) {
         if (!mounted) return;
+
+        // Guardar ubicación en colección ubicaciones
+        try {
+          // Obtener información de país y ciudad mediante geocodificación inversa
+          String pais = 'No especificado';
+          String ciudad = 'No especificado';
+          
+          try {
+            List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+              _selectedLocation!.latitude,
+              _selectedLocation!.longitude,
+            );
+            if (placemarks.isNotEmpty) {
+              pais = placemarks.first.country ?? 'No especificado';
+              ciudad = placemarks.first.locality ?? 
+                       placemarks.first.administrativeArea ?? 
+                       'No especificado';
+            }
+          } catch (geoError) {
+            print('⚠️ Error en geocodificación: $geoError');
+          }
+
+          final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones');
+          final ubicacionResponse = await http.post(
+            ubicacionUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode({
+              'uid_usuario': widget.uidNegocio,
+              'tipo_entidad': 'salon',
+              'es_principal': true,
+              'pais': pais,
+              'ciudad': ciudad,
+              'lat': _selectedLocation!.latitude,
+              'lng': _selectedLocation!.longitude,
+              'alias': 'Sucursal principal',
+              'direccion_completa': _addressController.text.trim(),
+            }),
+          ).timeout(const Duration(seconds: 30));
+          
+          if (ubicacionResponse.statusCode == 201) {
+            print('✅ Ubicación guardada en colección ubicaciones');
+          }
+        } catch (ubicacionError) {
+          print('❌ Error guardando ubicación: $ubicacionError');
+          // No bloquear el flujo si falla, solo registrar
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

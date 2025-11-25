@@ -24,7 +24,6 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _fieldColor = Color(0xFF222736);
   static const Color _primaryOrange = Color(0xFFFF9240);
-  static const Color _primaryOrangeLight = Color(0xFFFFB76B);
   static const Color _textPrimary = Colors.white;
   static const Color _textSecondary = Color(0xFFB7B9C0);
 

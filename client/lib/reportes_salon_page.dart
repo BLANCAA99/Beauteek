@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'api_constants.dart';
+import 'theme/app_theme.dart';
 
 class ReportesSalonPage extends StatefulWidget {
   const ReportesSalonPage({Key? key}) : super(key: key);
@@ -22,6 +23,7 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
   List<Map<String, dynamic>> _clientes = [];
   String? _comercioId;
   String? _nombreSalon;
+  String _periodoSeleccionado = 'Semana';
 
   @override
   void initState() {
@@ -321,200 +323,254 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.darkBackground,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF111418)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Reportes Detallados',
           style: TextStyle(
-            color: Color(0xFF111418),
+            color: AppTheme.textPrimary,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFEA963A)))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Card de total de clientes
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFEA963A), Color(0xFFFF6B9D)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange))
+          : Column(
+              children: [
+                // Selector de periodo
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      _PeriodoChip(
+                        label: 'Semana',
+                        isSelected: _periodoSeleccionado == 'Semana',
+                        onTap: () =>
+                            setState(() => _periodoSeleccionado = 'Semana'),
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFEA963A).withOpacity(0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.people,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Total de Clientes',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          '$_totalClientes',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 56,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _totalClientes == 1 ? 'cliente único' : 'clientes únicos',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
+                      const SizedBox(width: 12),
+                      _PeriodoChip(
+                        label: 'Mes',
+                        isSelected: _periodoSeleccionado == 'Mes',
+                        onTap: () =>
+                            setState(() => _periodoSeleccionado = 'Mes'),
+                      ),
+                      const SizedBox(width: 12),
+                      _PeriodoChip(
+                        label: 'Año',
+                        isSelected: _periodoSeleccionado == 'Año',
+                        onTap: () =>
+                            setState(() => _periodoSeleccionado = 'Año'),
+                      ),
+                    ],
                   ),
+                ),
 
-                  const SizedBox(height: 24),
-
-                  // Botón de descarga PDF
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _totalClientes > 0 ? _descargarReportePDF : null,
-                      icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-                      label: const Text(
-                        'Descargar Reporte PDF',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                // Lista de reportes
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      _ReporteCard(
+                        icon: Icons.bar_chart_rounded,
+                        iconColor: const Color(0xFFFF9500),
+                        backgroundColor: const Color(0xFF3B2612),
+                        titulo: 'Reporte de Ingresos Totales',
+                        onDownload: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Función en desarrollo'),
+                              backgroundColor: AppTheme.primaryOrange,
+                            ),
+                          );
+                        },
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD32F2F),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        disabledBackgroundColor: Colors.grey,
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.star_rounded,
+                        iconColor: const Color(0xFF34C759),
+                        backgroundColor: const Color(0xFF0D2538),
+                        titulo: 'Reporte de Servicios Más Populares',
+                        onDownload: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Función en desarrollo'),
+                              backgroundColor: AppTheme.primaryOrange,
+                            ),
+                          );
+                        },
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.person_add_rounded,
+                        iconColor: const Color(0xFF007AFF),
+                        backgroundColor: const Color(0xFF0B1F2E),
+                        titulo: 'Reporte de Nuevos Clientes',
+                        onDownload: _totalClientes > 0
+                            ? _descargarReportePDF
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.people_alt_rounded,
+                        iconColor: const Color(0xFFAF8260),
+                        backgroundColor: const Color(0xFF2A1F1A),
+                        titulo: 'Reporte de Ocupación por Empleado',
+                        hasDownload: false,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.shopping_bag_rounded,
+                        iconColor: const Color(0xFF34C759),
+                        backgroundColor: const Color(0xFF0D2538),
+                        titulo: 'Reporte de Venta de Productos',
+                        onDownload: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Función en desarrollo'),
+                              backgroundColor: AppTheme.primaryOrange,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.event_busy_rounded,
+                        iconColor: const Color(0xFF007AFF),
+                        backgroundColor: const Color(0xFF0B1F2E),
+                        titulo: 'Reporte de Citas Canceladas',
+                        onDownload: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Función en desarrollo'),
+                              backgroundColor: AppTheme.primaryOrange,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
+                ),
+              ],
+            ),
+    );
+  }
+}
 
-                  const SizedBox(height: 32),
+class _PeriodoChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-                  // Lista de clientes
-                  if (_clientes.isNotEmpty) ...[
-                    const Text(
-                      'Detalle de Clientes',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF111418),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ..._clientes.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final cliente = entry.value;
-                      
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: const Color(0xFFEA963A).withOpacity(0.1),
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(
-                                  color: Color(0xFFEA963A),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Cliente #${index + 1}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF111418),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${cliente['total_citas']} citas realizadas',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF637588),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                ],
+  const _PeriodoChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryOrange : AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppTheme.textSecondary,
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReporteCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final String titulo;
+  final VoidCallback? onDownload;
+  final bool hasDownload;
+
+  const _ReporteCard({
+    required this.icon,
+    required this.iconColor,
+    required this.backgroundColor,
+    required this.titulo,
+    this.onDownload,
+    this.hasDownload = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              titulo,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+          if (hasDownload)
+            GestureDetector(
+              onTap: onDownload,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.file_download_outlined,
+                  color: iconColor,
+                  size: 20,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

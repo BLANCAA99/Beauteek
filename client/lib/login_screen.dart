@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'inicio.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'api_constants.dart';
 import 'setup_location_page.dart';
 import 'theme/app_theme.dart';
@@ -107,11 +106,6 @@ class _LoginScreenState extends State<LoginScreen>
     _toastEntry?.remove();
   }
 
-  // Log solo en debug
-  void _d(String m) {
-    if (kDebugMode) debugPrint(m);
-  }
-
   // ───────── Login con email/password ─────────
   Future<void> login() async {
     if (!mounted) return;
@@ -197,12 +191,13 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (!mounted) return;
 
-      // 4) Redirigir según rol y ubicación
+      // 4) Redirigir: Clientes sin ubicación → SetupLocationPage, sino → InicioPage (router)
       if (rol == 'cliente' && ubicacion == null) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
       } else {
+        // InicioPage es un router que decide si mostrar InicioClientePage o InicioSalonPage
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const InicioPage()),
         );
@@ -288,10 +283,6 @@ class _LoginScreenState extends State<LoginScreen>
         print('🆕 Usuario nuevo con Google, creando perfil...');
 
         final displayName = user.displayName ?? '';
-        final nameParts = displayName.split(' ');
-        final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-        final lastName =
-            nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
         final createUrl = Uri.parse('$apiBaseUrl/api/users');
         final createPayload = {
@@ -334,17 +325,19 @@ class _LoginScreenState extends State<LoginScreen>
             'Error al verificar usuario: ${checkResponse.statusCode}');
       }
 
-      final rol = userData?['rol'] as String?;
-      final ubicacion = userData?['ubicacion'];
+      final rol = userData['rol'] as String?;
+      final ubicacion = userData['ubicacion'];
 
       await _showToast('¡Bienvenido!');
       if (!mounted) return;
 
+      // Redirigir según rol y ubicación
       if (rol == 'cliente' && ubicacion == null) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
       } else {
+        // InicioPage es un router que decide si mostrar InicioClientePage o InicioSalonPage
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const InicioPage()),
         );
@@ -665,8 +658,7 @@ class _LoginScreenState extends State<LoginScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
-                      color: Colors.red, size: 20),
+                  const Icon(Icons.error_outline, color: Colors.red, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -900,8 +892,7 @@ class _LoginScreenState extends State<LoginScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                     const SizedBox(height: 16),
                     Text(

@@ -34,7 +34,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   // 🎨 Colores de la pantalla tipo Beauteek
   static const Color _backgroundColor = Color(0xFF120D07);
-  static const Color _cardColor = Color(0xFF25201A);
   static const Color _fieldColor = Color(0xFF25201A);
   static const Color _primaryOrange = Color(0xFFEA963A);
   static const Color _textPrimary = Colors.white;

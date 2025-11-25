@@ -26,18 +26,14 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
     
     console.log('📄 Datos de la cita:', citaData);
 
-    // Calcular comisión y total
+    // ✅ NUEVO: Sin comisión al cliente, solo paga el monto del servicio
     const montoServicio = monto || citaData?.precio || 0;
-    const comision = montoServicio * 0.10;
-    const total = montoServicio + comision;
 
     // ✅ Solo incluir campos que NO sean undefined
     const pagoData: any = {
       cita_id: citaId,
       usuario_cliente_id: clienteId,
       monto: montoServicio,
-      comision: comision,
-      total: total,
       metodo_pago: 'tarjeta',
       estado: 'completado',
       fecha_pago: FieldValue.serverTimestamp(),
@@ -73,8 +69,6 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
       mensaje: 'Pago procesado exitosamente',
       pagoId: pagoRef.id,
       monto: montoServicio,
-      comision: comision,
-      total: total,
     });
   } catch (error: any) {
     console.error('❌ Error procesando pago:', error);

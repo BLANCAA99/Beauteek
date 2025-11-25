@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math' show cos, sqrt, asin;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'api_constants.dart';
 import 'salon_profile_page.dart';
 import 'theme/app_theme.dart';
+import 'comparar_servicios_page.dart';
 
 class SearchPage extends StatefulWidget {
   final String mode;
@@ -42,6 +42,12 @@ class _SearchPageState extends State<SearchPage> {
   Set<Circle> _circles = {};
   bool _showMap = true;
 
+  // UI: pestañas "Salones / Servicios"
+  int _indicePestana = 0;
+  
+  // Búsqueda
+  final TextEditingController _busquedaController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -49,22 +55,22 @@ class _SearchPageState extends State<SearchPage> {
         '🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
 
     if (widget.mode == 'search') {
-      // ✅ Cargar salones cercanos automáticamente
-      _cargarSalonesCercanos();
+      _cargarSalonesPorPais();
     } else if (widget.mode == 'category' && widget.salonesFiltrados != null) {
       _resultados = widget.salonesFiltrados!;
-      _cargarSalonesCercanos();
+      _cargarSalonesPorPais();
     }
   }
 
   @override
   void dispose() {
     _mapController?.dispose();
+    _busquedaController.dispose();
     super.dispose();
   }
 
-  // ✅ IGUAL QUE EN INICIO.DART
-  Future<void> _cargarSalonesCercanos() async {
+  // ✅ NUEVO: Cargar salones usando la colección ubicaciones
+  Future<void> _cargarSalonesPorPais() async {
     try {
       if (widget.userId == null) {
         print('⚠️ userId es null');
@@ -72,133 +78,144 @@ class _SearchPageState extends State<SearchPage> {
         return;
       }
 
+      // NUEVO: Obtener ubicación principal del cliente desde colección ubicaciones
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('⚠️ No hay usuario autenticado');
         setState(() => _isLoading = false);
         return;
       }
-
+      
       final idToken = await user.getIdToken();
-      if (idToken == null) {
-        print('⚠️ No se pudo obtener el token');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Primero obtener ubicación del usuario
-      await _obtenerUbicacionUsuario(idToken);
-
-      if (_userLat == null || _userLng == null) {
-        print('⚠️ No se pudo obtener ubicación del usuario');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      print(
-          '🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
-
-      // ✅ Usar apiBaseUrl de api_constants.dart
-      final url = Uri.parse(
-          '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10');
-
-      print('📍 URL completa: $url');
-
-      final response = await http.get(
-        url,
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${widget.userId}?tipo=cliente');
+      final ubicacionResponse = await http.get(
+        ubicacionUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final List<dynamic> saloneData = json.decode(response.body);
-
-        print('📊 Salones encontrados: ${saloneData.length}');
-        for (var salon in saloneData) {
-          print('  - ${salon['nombre']}: ${salon['distancia']} km');
+      ).timeout(const Duration(seconds: 30));
+      
+      if (ubicacionResponse.statusCode != 200) {
+        print('⚠️ Cliente sin ubicación principal');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Configura tu ubicación primero'),
+              backgroundColor: Colors.orange,
+            ),
+          );
         }
-
-        setState(() {
-          _resultados = List<Map<String, dynamic>>.from(
-              saloneData.map((s) => s as Map<String, dynamic>));
-          _isLoading = false;
-        });
-
-        print('✅ ${_resultados.length} salones cargados');
-        _actualizarMarcadores();
-      } else {
-        print('❌ Error HTTP: ${response.statusCode}');
-        print('📝 Response: ${response.body}');
         setState(() => _isLoading = false);
+        return;
       }
+
+      final ubicacionData = json.decode(ubicacionResponse.body);
+      final pais = ubicacionData['pais'];
+      final userLat = (ubicacionData['lat'] as num).toDouble();
+      final userLng = (ubicacionData['lng'] as num).toDouble();
+
+      setState(() {
+        _userLat = userLat;
+        _userLng = userLng;
+      });
+
+      print('🌍 País del cliente: $pais');
+      print('📍 Ubicación del cliente: ($userLat, $userLng)');
+
+      // NUEVO: Buscar salones por país desde colección ubicaciones
+      final salonesUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/salones/pais/$pais');
+      final salonesResponse = await http.get(
+        salonesUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 30));
+      
+      final List<dynamic> salones = salonesResponse.statusCode == 200 
+          ? json.decode(salonesResponse.body) 
+          : [];
+
+      print('📊 Salones encontrados en $pais: ${salones.length}');
+
+      // Calcular distancia para cada salón
+      final salonesConDistancia = salones.map<Map<String, dynamic>>((salon) {
+        final salonMap = salon as Map<String, dynamic>;
+        final ubicacionSalon = salonMap['ubicacion'] as Map<String, dynamic>?;
+        
+        if (ubicacionSalon != null) {
+          final salonLat = (ubicacionSalon['lat'] as num?)?.toDouble();
+          final salonLng = (ubicacionSalon['lng'] as num?)?.toDouble();
+          
+          if (salonLat != null && salonLng != null) {
+            final distancia = _calcularDistancia(
+              userLat, userLng, salonLat, salonLng,
+            );
+            salonMap['distancia'] = distancia;
+            salonMap['distancia_km'] = distancia;
+          } else {
+            salonMap['distancia'] = 999999.0;
+            salonMap['distancia_km'] = 999999.0;
+          }
+        }
+        
+        return salonMap;
+      }).toList();
+
+      // Ordenar por distancia (los más cercanos primero)
+      salonesConDistancia.sort((a, b) {
+        final distA = a['distancia_km'] as double? ?? double.infinity;
+        final distB = b['distancia_km'] as double? ?? double.infinity;
+        return distA.compareTo(distB);
+      });
+
+      setState(() {
+        _resultados = salonesConDistancia;
+        _isLoading = false;
+      });
+
+      print('✅ ${_resultados.length} salones cargados en $pais (ordenados por distancia)');
     } catch (e) {
       print('❌ Error: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  // ✅ IGUAL QUE EN INICIO.DART
-  Future<void> _obtenerUbicacionUsuario(String idToken) async {
-    try {
-      final uid = widget.userId;
-      if (uid == null) return;
+  // Calcular distancia usando fórmula de Haversine
+  double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371; // Radio de la Tierra en km
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
+        sin(dLon / 2) * sin(dLon / 2);
+    
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return R * c;
+  }
 
-      // ✅ Usar EXACTAMENTE el mismo endpoint que inicio.dart
-      final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
-      print('🔍 Obteniendo usuario: $url');
+  double _toRadians(double degree) {
+    return degree * pi / 180;
+  }
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final userData = json.decode(response.body) as Map<String, dynamic>;
-
-        print('👤 Datos del usuario obtenidos');
-        print('📍 Ubicación RAW: ${userData['ubicacion']}');
-
-        final ubicacion = userData['ubicacion'];
-        double? lat, lng;
-
-        // ✅ Manejo de múltiples formatos (igual que inicio.dart)
-        if (ubicacion is Map) {
-          lat = (ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
-          lng = (ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
-          print('📍 Formato: Map');
-        } else if (ubicacion is List && ubicacion.length >= 2) {
-          lat = (ubicacion[0] as num?)?.toDouble();
-          lng = (ubicacion[1] as num?)?.toDouble();
-          print('📍 Formato: List/Array');
-        }
-
-        print('📍 Lat parseada: $lat');
-        print('📍 Lng parseada: $lng');
-
-        if (lat != null && lng != null) {
-          setState(() {
-            _userLat = lat;
-            _userLng = lng;
-          });
-          print('✅ Ubicación del usuario: $_userLat, $_userLng');
-        }
-      } else {
-        print('❌ Error obteniendo usuario: ${response.statusCode}');
-        print('📝 Response: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Error obteniendo ubicación: $e');
+  String _formatearDistancia(double? distancia) {
+    if (distancia == null || distancia == double.infinity) {
+      return '';
     }
+    if (distancia < 1) {
+      return '${(distancia * 1000).toStringAsFixed(0)} m';
+    }
+    return '${distancia.toStringAsFixed(1)} km';
+  }
+
+  void _toggleMapa() {
+    setState(() {
+      _showMap = !_showMap;
+      if (_showMap) {
+        _actualizarMarcadores();
+      }
+    });
   }
 
   void _actualizarMarcadores() {
@@ -229,19 +246,11 @@ class _SearchPageState extends State<SearchPage> {
 
     for (int i = 0; i < _resultados.length; i++) {
       final salon = _resultados[i];
-
-      // ✅ CAMBIO: Leer ubicacion del comercio (no geo de sucursal)
       final ubicacion = salon['ubicacion'] as Map<String, dynamic>?;
 
       if (ubicacion != null) {
-        final lat = (ubicacion['lat'] ??
-                ubicacion['_latitude'] ??
-                ubicacion['latitude'])
-            ?.toDouble();
-        final lng = (ubicacion['lng'] ??
-                ubicacion['_longitude'] ??
-                ubicacion['longitude'])
-            ?.toDouble();
+        final lat = (ubicacion['lat'] ?? ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
+        final lng = (ubicacion['lng'] ?? ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
 
         if (lat != null && lng != null) {
           _markers.add(
@@ -250,8 +259,7 @@ class _SearchPageState extends State<SearchPage> {
               position: LatLng(lat, lng),
               infoWindow: InfoWindow(
                 title: salon['nombre'],
-                snippet:
-                    '${(salon['distancia'] as double).toStringAsFixed(1)} km',
+                snippet: '${(salon['distancia'] as double).toStringAsFixed(1)} km',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -263,8 +271,7 @@ class _SearchPageState extends State<SearchPage> {
                   );
                 },
               ),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueOrange),
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
             ),
           );
         }
@@ -272,31 +279,375 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     setState(() {});
-    print('📍 ${_markers.length} marcadores actualizados');
   }
 
-  String _formatearDistancia(double? distancia) {
-    if (distancia == null || distancia == double.infinity) {
-      return '';
-    }
-    if (distancia < 1) {
-      return '${(distancia * 1000).toStringAsFixed(0)}m';
-    }
-    return '${distancia.toStringAsFixed(1)}km';
+  // ========= UI NUEVA PARA LA LISTA =========
+
+  Widget _construirBuscadorYFiltros() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        children: [
+          // Barra de búsqueda
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.search, color: Color(0xFFB0B0B0), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _busquedaController,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    cursorColor: AppTheme.primaryOrange,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Buscar salones, servicios...',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF8E8E93),
+                        fontSize: 16,
+                      ),
+                    ),
+                    onSubmitted: (value) {
+                      if (value.trim().isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CompararServiciosPage(
+                              servicioNombre: value.trim(),
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Filtros (solo Ordenar, sin distancia ni precio)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _chipFiltro(
+              icono: Icons.tune_rounded,
+              texto: 'Ordenar',
+              onTap: () {
+                // Aquí luego puedes abrir bottom sheet de ordenamiento
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _toggleMapa() {
-    setState(() {
-      _showMap = !_showMap;
-      if (_showMap) {
-        _actualizarMarcadores();
-      }
-    });
+  Widget _chipFiltro({
+    required IconData icono,
+    required String texto,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, color: Colors.white, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              texto,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 👉 Tabs centradas + línea gris como en el diseño
+  Widget _construirPestanas() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _pestana('Salones', 0),
+            _pestana('Servicios', 1),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 1,
+          color: AppTheme.dividerColor.withOpacity(0.6),
+        ),
+      ],
+    );
+  }
+
+  Widget _pestana(String titulo, int indice) {
+    final bool seleccionado = _indicePestana == indice;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _indicePestana = indice;
+        });
+      },
+      child: Column(
+        children: [
+          Text(
+            titulo,
+            style: TextStyle(
+              color:
+                  seleccionado ? AppTheme.primaryOrange : AppTheme.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: 3,
+            width: 80,
+            decoration: BoxDecoration(
+              color: seleccionado ? AppTheme.primaryOrange : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _descripcionSalon(Map<String, dynamic> salon, double? distancia) {
+    final partes = <String>[];
+
+    final categoria =
+        salon['categoria'] ?? salon['tipo'] ?? salon['categoriaPrincipal'];
+
+    if (categoria != null && categoria.toString().isNotEmpty) {
+      partes.add(categoria.toString());
+    }
+
+    if (distancia != null && distancia != double.infinity) {
+      partes.add(_formatearDistancia(distancia));
+    }
+
+    final rangoPrecios = salon['rango_precios'] ?? salon['price_level'];
+    if (rangoPrecios != null && rangoPrecios.toString().isNotEmpty) {
+      partes.add(rangoPrecios.toString());
+    }
+
+    return partes.join(' • ');
+  }
+
+  Widget _construirListaSalones() {
+    if (_indicePestana == 1) {
+      // Pestaña "Servicios" (por ahora placeholder)
+      return const Center(
+        child: Text(
+          'Próximamente servicios',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      itemCount: _resultados.length,
+      physics: const BouncingScrollPhysics(),
+      itemBuilder: (context, index) {
+        final salon = _resultados[index];
+        final distancia = salon['distancia'] as double?;
+
+        final calificacion = (salon['calificacion'] ?? 4.8).toDouble();
+        final descripcion = _descripcionSalon(salon, distancia);
+
+        return GestureDetector(
+          onTap: () {
+            print('🔍 Navegando a salon: ${salon['nombre']}');
+            print('   comercioId: ${salon['id']}');
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SalonProfilePage(
+                  comercioId: salon['id'],
+                ),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Texto
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Rating
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFEA963A),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              calificacion.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Nombre
+                        Text(
+                          salon['nombre'] ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Descripción (categoría • distancia • precio)
+                        if (descripcion.isNotEmpty)
+                          Text(
+                            descripcion,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFFB0B0B0),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Imagen
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: salon['foto_url'] != null
+                        ? Image.network(
+                            salon['foto_url']!,
+                            width: 110,
+                            height: 110,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _placeholderImagen();
+                            },
+                          )
+                        : _placeholderImagen(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _placeholderImagen() {
+    return Container(
+      width: 110,
+      height: 110,
+      color: AppTheme.primaryOrange.withOpacity(0.2),
+      child: const Icon(
+        Icons.store,
+        color: AppTheme.primaryOrange,
+        size: 36,
+      ),
+    );
+  }
+
+  // 👉 Botón tipo pastilla centrado con sombra (como la referencia)
+  Widget _botonVerEnMapa() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Center(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: 260,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _toggleMapa,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.map),
+                label: const Text(
+                  'Ver en mapa',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CAMBIO: Mostrar mapa selector cuando mode == 'select'
+    // ✅ Modo selector de ubicación
     if (widget.mode == 'select') {
       return _MapLocationSelector(
         onLocationSelected: widget.onLocationSelected,
@@ -313,29 +664,17 @@ class _SearchPageState extends State<SearchPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Salones cercanos',
+          'Buscar',
           style: AppTheme.heading3,
         ),
-        actions: [
-          if (_resultados.isNotEmpty && _userLat != null)
-            Tooltip(
-              message: _showMap ? 'Ver lista' : 'Ver mapa',
-              child: IconButton(
-                icon: Icon(
-                  _showMap ? Icons.list : Icons.map,
-                  color: AppTheme.primaryOrange,
-                  size: 28,
-                ),
-                onPressed: _toggleMapa,
-              ),
-            ),
-        ],
+        // sin icono de mapa aquí, el toggle se hace con los botones inferiores
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.primaryOrange),
             )
           : _showMap && _userLat != null
+              // ===== VISTA MAPA =====
               ? Column(
                   children: [
                     Expanded(
@@ -354,6 +693,7 @@ class _SearchPageState extends State<SearchPage> {
                         zoomControlsEnabled: true,
                       ),
                     ),
+                    // Botón que te lleva a la lista
                     Container(
                       padding: const EdgeInsets.all(16),
                       color: AppTheme.cardBackground,
@@ -361,14 +701,20 @@ class _SearchPageState extends State<SearchPage> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _toggleMapa,
-                          style: AppTheme.primaryButtonStyle(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            shape: const StadiumBorder(),
+                            elevation: 0,
+                          ),
                           icon: const Icon(Icons.list),
                           label: Text(
-                            '${_resultados.length} Salones',
+                            '${_resultados.length} salones',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -376,6 +722,7 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ],
                 )
+              // ===== VISTA LISTA =====
               : _resultados.isEmpty
                   ? Center(
                       child: Column(
@@ -394,148 +741,21 @@ class _SearchPageState extends State<SearchPage> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      itemCount: _resultados.length,
-                      itemBuilder: (context, index) {
-                        final salon = _resultados[index];
-                        final distancia = salon['distancia'] as double?;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: AppTheme.elevatedCardDecoration(),
-                          child: InkWell(
-                            onTap: () {
-                              print('🔍 Navegando a salon: ${salon['nombre']}');
-                              print('   comercioId: ${salon['id']}');
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SalonProfilePage(
-                                    comercioId: salon['id'],
-                                  ),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: salon['foto_url'] != null
-                                        ? Image.network(
-                                            salon['foto_url']!,
-                                            width: 80,
-                                            height: 80,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                              return Container(
-                                                width: 80,
-                                                height: 80,
-                                                color: AppTheme.primaryOrange
-                                                    .withOpacity(0.2),
-                                                child: const Icon(
-                                                  Icons.store,
-                                                  color: AppTheme.primaryOrange,
-                                                  size: 32,
-                                                ),
-                                              );
-                                            },
-                                          )
-                                        : Container(
-                                            width: 80,
-                                            height: 80,
-                                            color: AppTheme.primaryOrange
-                                                .withOpacity(0.2),
-                                            child: const Icon(
-                                              Icons.store,
-                                              color: AppTheme.primaryOrange,
-                                              size: 32,
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                salon['nombre']!,
-                                                style:
-                                                    AppTheme.bodyLarge.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            if (distancia != null &&
-                                                distancia !=
-                                                    double.infinity) ...[
-                                              Text(
-                                                _formatearDistancia(distancia),
-                                                style: AppTheme.caption,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              const Icon(
-                                                Icons.location_on,
-                                                color: AppTheme.primaryOrange,
-                                                size: 16,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.star,
-                                              color: Color(0xFFEA963A),
-                                              size: 16,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              "${salon['calificacion'] ?? 4.5} • ${salon['reviews'] ?? 0} reviews",
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF637588),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: Color(0xFF637588),
-                                    size: 24,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                  : Column(
+                      children: [
+                        _construirBuscadorYFiltros(),
+                        _construirPestanas(),
+                        const SizedBox(height: 12),
+                        Expanded(child: _construirListaSalones()),
+                        _botonVerEnMapa(),
+                      ],
                     ),
     );
   }
 }
 
-// Widget para selector de ubicación
+// ================== _MapLocationSelector (SIN CAMBIOS DE LÓGICA) ==================
+
 class _MapLocationSelector extends StatefulWidget {
   final Function(LatLng position, String address)? onLocationSelected;
 

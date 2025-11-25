@@ -6,16 +6,19 @@ import { FieldValue } from "firebase-admin/firestore";
 
 // Esquema robusto
 const promocionSchema = z.object({
-  usuario_id: z.string().min(1),
-  nombre: z.string().min(1),
+  comercio_id: z.string().min(1),
+  servicio_id: z.string().min(1),
+  servicio_nombre: z.string().min(1),
+  foto_url: z.string().optional(),
   descripcion: z.string().optional(),
-  tipo_descuento: z.enum(["porcentaje", "monto"]), // restringe valores
-  valor: z.coerce.number().min(0),                 // coerce para aceptar "10" -> 10
-  fecha_inicio: z.coerce.date(),                   // acepta ISO/fecha-string
+  tipo_descuento: z.enum(["porcentaje", "monto"]),
+  valor: z.coerce.number().min(0),
+  precio_original: z.coerce.number().min(0).optional(),
+  precio_con_descuento: z.coerce.number().min(0).optional(),
+  fecha_inicio: z.coerce.date(),
   fecha_fin: z.coerce.date(),
   activo: z.coerce.boolean(),
 }).superRefine((data, ctx) => {
-  // porcentaje debe estar entre 0 y 100
   if (data.tipo_descuento === "porcentaje" && (data.valor < 0 || data.valor > 100)) {
     ctx.addIssue({
       code: "custom",
@@ -23,7 +26,6 @@ const promocionSchema = z.object({
       message: "Para 'porcentaje', el valor debe estar entre 0 y 100.",
     });
   }
-  // Rango de fechas válido
   if (data.fecha_fin < data.fecha_inicio) {
     ctx.addIssue({
       code: "custom",
