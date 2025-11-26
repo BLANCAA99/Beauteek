@@ -19,6 +19,17 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
   int _citasProximos7Dias = 0;
   double _ingresosProximos7Dias = 0;
   List<Map<String, dynamic>> _proximosClientes = [];
+  
+  // Nuevas estadísticas reales
+  double _promCitasPorDia = 0;
+  int _difCitasVsSemanaAnterior = 0;
+  double _promIngresosPorDia = 0;
+  double _difIngresosVsSemanaAnterior = 0;
+  List<Map<String, dynamic>> _serviciosTop = [];
+  int _nuevosClientes = 0;
+  double _calificacionPromedio = 0;
+  int _totalResenas = 0;
+  List<Map<String, dynamic>> _promocionesEfectivas = [];
 
   @override
   void initState() {
@@ -31,11 +42,9 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final idToken = await user.getIdToken();
+      final idToken = await user.getIdToken() ?? '';
 
-      // ✅ CAMBIO: Primero obtener el comercio_id del usuario salon
-      print('🔍 Buscando comercio para uid: ${user.uid}');
-
+      // Obtener comercio_id
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
       final comerciosResponse = await http.get(
         comerciosUrl,
@@ -46,32 +55,45 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
       );
 
       if (comerciosResponse.statusCode != 200) {
-        print('❌ Error obteniendo comercios: ${comerciosResponse.statusCode}');
         setState(() => _isLoading = false);
         return;
       }
 
       final List<dynamic> comercios = json.decode(comerciosResponse.body);
-
-      // Buscar el comercio que pertenece a este usuario
       final miComercio = comercios.firstWhere(
         (c) => c['uid_negocio'] == user.uid,
         orElse: () => null,
       );
 
       if (miComercio == null) {
-        print('⚠️ No se encontró comercio para este usuario');
         setState(() => _isLoading = false);
         return;
       }
 
-      final comercioId = miComercio['id'];
-      print('✅ Comercio encontrado: $comercioId');
+      final comercioId = (miComercio['id'] ?? '').toString();
+      if (comercioId.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // ✅ CAMBIO: Obtener todas las citas del comercio (sin filtro de estado)
+      // Cargar datos en paralelo
+      await Future.wait([
+        _cargarCitas(comercioId, idToken),
+        _cargarServicios(comercioId, idToken),
+        _cargarResenas(comercioId, idToken),
+        _cargarPromociones(comercioId, idToken),
+      ]);
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print('Error cargando estadísticas: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _cargarCitas(String comercioId, String idToken) async {
+    try {
       final citasUrl = Uri.parse('$apiBaseUrl/citas?comercio_id=$comercioId');
-      print('📍 Consultando citas: $citasUrl');
-
       final citasResponse = await http.get(
         citasUrl,
         headers: {
@@ -80,106 +102,242 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
         },
       );
 
-      print('📥 Status citas: ${citasResponse.statusCode}');
+      if (citasResponse.statusCode != 200) return;
 
-      if (citasResponse.statusCode == 200) {
-        final List<dynamic> todasLasCitas = json.decode(citasResponse.body);
-        print('📋 Total citas encontradas: ${todasLasCitas.length}');
+      final List<dynamic> todasLasCitas = json.decode(citasResponse.body);
+      
+      final ahora = DateTime.now();
+      final hoyInicio = DateTime(ahora.year, ahora.month, ahora.day);
+      final hoyFin = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
+      final manana = hoyInicio.add(const Duration(days: 1));
+      final fecha7Dias = hoyInicio.add(const Duration(days: 7));
+      final inicioSemanaActual = hoyInicio.subtract(Duration(days: 7));
+      final inicioSemanaAnterior = inicioSemanaActual.subtract(const Duration(days: 7));
+      final inicioMes = DateTime(ahora.year, ahora.month, 1);
 
-        if (todasLasCitas.isNotEmpty) {
-          print('📄 Ejemplo de cita: ${todasLasCitas[0]}');
-        }
+      int citasHoy = 0;
+      double ingresosHoy = 0;
+      int citas7Dias = 0;
+      double ingresos7Dias = 0;
+      int citasSemanaActual = 0;
+      double ingresosSemanaActual = 0;
+      int citasSemanaAnterior = 0;
+      double ingresosSemanaAnterior = 0;
+      Set<String> clientesUnicos = {};
+      List<Map<String, dynamic>> proximosList = [];
+      Map<String, int> serviciosCount = {};
 
-        final ahora = DateTime.now();
-        final hoyInicio = DateTime(ahora.year, ahora.month, ahora.day);
-        final hoyFin = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
-        final fecha7Dias = hoyInicio.add(const Duration(days: 7));
+      for (var cita in todasLasCitas) {
+        try {
+          DateTime fechaCita;
+          final fechaHoraStr = cita['fecha_hora'];
 
-        int citasHoy = 0;
-        double ingresosHoy = 0;
-        int citas7Dias = 0;
-        double ingresos7Dias = 0;
-        List<Map<String, dynamic>> proximosList = [];
-        final manana = hoyInicio.add(const Duration(days: 1));
-
-        for (var cita in todasLasCitas) {
-          try {
-            // ✅ CAMBIO: Parsear fecha correctamente
-            DateTime fechaCita;
-            final fechaHoraStr = cita['fecha_hora'];
-
-            if (fechaHoraStr is String) {
-              // Si es string tipo "2024-11-14T10:00" o "2024-11-14T10:00:00"
-              fechaCita = DateTime.parse(fechaHoraStr);
-            } else if (fechaHoraStr is Map &&
-                fechaHoraStr.containsKey('_seconds')) {
-              // Si es un Timestamp de Firestore serializado
-              final seconds = fechaHoraStr['_seconds'] as int;
-              fechaCita = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
-            } else {
-              print('⚠️ Formato de fecha no reconocido: $fechaHoraStr');
-              continue;
-            }
-
-            print('📅 Cita: ${cita['id']} - Fecha: $fechaCita');
-
-            // ✅ Citas de hoy
-            if (fechaCita.isAfter(hoyInicio) && fechaCita.isBefore(hoyFin)) {
-              citasHoy++;
-              ingresosHoy += (cita['precio'] ?? 0).toDouble();
-              print('   ✅ Es de hoy');
-            }
-            // ✅ Citas próximos 7 días (desde mañana)
-            if (fechaCita.isAfter(manana) && fechaCita.isBefore(fecha7Dias)) {
-              citas7Dias++;
-              ingresos7Dias += (cita['precio'] ?? 0).toDouble();
-              print('   ✅ Está en próximos 7 días');
-            }
-
-            // ✅ Citas futuras para lista de próximos clientes
-            if (fechaCita.isAfter(ahora)) {
-              proximosList.add({
-                ...cita,
-                'fecha_hora_parsed': fechaCita,
-              });
-            }
-          } catch (e) {
-            print('❌ Error procesando cita ${cita['id']}: $e');
+          if (fechaHoraStr is String) {
+            fechaCita = DateTime.parse(fechaHoraStr);
+          } else if (fechaHoraStr is Map && fechaHoraStr.containsKey('_seconds')) {
+            final seconds = fechaHoraStr['_seconds'] as int;
+            fechaCita = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+          } else {
+            continue;
           }
+
+          final precio = (cita['precio'] ?? 0).toDouble();
+          final servicioId = cita['servicio_id']?.toString() ?? '';
+          final clienteId = cita['usuario_id']?.toString() ?? '';
+
+          // Citas de hoy
+          if (fechaCita.isAfter(hoyInicio) && fechaCita.isBefore(hoyFin)) {
+            citasHoy++;
+            ingresosHoy += precio;
+          }
+
+          // Citas próximos 7 días
+          if (fechaCita.isAfter(manana) && fechaCita.isBefore(fecha7Dias)) {
+            citas7Dias++;
+            ingresos7Dias += precio;
+          }
+
+          // Citas semana actual (últimos 7 días)
+          if (fechaCita.isAfter(inicioSemanaActual) && fechaCita.isBefore(ahora)) {
+            citasSemanaActual++;
+            ingresosSemanaActual += precio;
+          }
+
+          // Citas semana anterior (7-14 días atrás)
+          if (fechaCita.isAfter(inicioSemanaAnterior) && fechaCita.isBefore(inicioSemanaActual)) {
+            citasSemanaAnterior++;
+            ingresosSemanaAnterior += precio;
+          }
+
+          // Nuevos clientes este mes
+          if (fechaCita.isAfter(inicioMes) && clienteId.isNotEmpty) {
+            clientesUnicos.add(clienteId);
+          }
+
+          // Contar servicios más solicitados
+          if (servicioId.isNotEmpty) {
+            serviciosCount[servicioId] = (serviciosCount[servicioId] ?? 0) + 1;
+          }
+
+          // Próximas citas
+          if (fechaCita.isAfter(ahora)) {
+            proximosList.add({
+              ...cita,
+              'fecha_hora_parsed': fechaCita,
+            });
+          }
+        } catch (e) {
+          print('Error procesando cita: $e');
         }
-
-        // Ordenar próximos clientes por fecha
-        proximosList.sort((a, b) {
-          final fechaA = a['fecha_hora_parsed'] as DateTime;
-          final fechaB = b['fecha_hora_parsed'] as DateTime;
-          return fechaA.compareTo(fechaB);
-        });
-
-        setState(() {
-          _citasHoy = citasHoy;
-          _ingresosHoy = ingresosHoy;
-          _citasProximos7Dias = citas7Dias;
-          _ingresosProximos7Dias = ingresos7Dias;
-          _proximosClientes =
-              proximosList.take(3).map((c) => c as Map<String, dynamic>? ?? {}).toList();
-          _isLoading = false;
-        });
-
-        print('✅ Estadísticas calculadas:');
-        print('   📅 Hoy ($hoyInicio - $hoyFin):');
-        print('      Citas: $citasHoy');
-        print('      Ingresos: L${ingresosHoy.toStringAsFixed(2)}');
-        print('   📅 Próximos 7 días ($manana - $fecha7Dias):');
-        print('      Citas: $citas7Dias');
-        print('      Ingresos: L${ingresos7Dias.toStringAsFixed(2)}');
-      } else {
-        print('Error HTTP: ${citasResponse.statusCode}');
-        setState(() => _isLoading = false);
       }
-    } catch (e, stackTrace) {
-      print('Error cargando estadísticas: $e');
-      print('Stack trace: $stackTrace');
-      setState(() => _isLoading = false);
+
+      proximosList.sort((a, b) {
+        final fechaA = a['fecha_hora_parsed'] as DateTime;
+        final fechaB = b['fecha_hora_parsed'] as DateTime;
+        return fechaA.compareTo(fechaB);
+      });
+
+      // Calcular promedios y diferencias
+      final promCitasSemanaActual = citasSemanaActual / 7;
+      final promCitasSemanaAnterior = citasSemanaAnterior > 0 ? citasSemanaAnterior / 7 : 0;
+      final difCitas = (promCitasSemanaActual - promCitasSemanaAnterior).round();
+
+      final promIngresosSemanaActual = ingresosSemanaActual / 7;
+      final promIngresosSemanaAnterior = ingresosSemanaAnterior > 0 ? ingresosSemanaAnterior / 7 : 0;
+      final difIngresos = promIngresosSemanaActual - promIngresosSemanaAnterior;
+
+      setState(() {
+        _citasHoy = citasHoy;
+        _ingresosHoy = ingresosHoy;
+        _citasProximos7Dias = citas7Dias;
+        _ingresosProximos7Dias = ingresos7Dias;
+        _proximosClientes = proximosList.take(3).toList();
+        _promCitasPorDia = promCitasSemanaActual;
+        _difCitasVsSemanaAnterior = difCitas;
+        _promIngresosPorDia = promIngresosSemanaActual;
+        _difIngresosVsSemanaAnterior = difIngresos;
+        _nuevosClientes = clientesUnicos.length;
+      });
+
+      // Guardar servicios count para usarlo después
+      _serviciosCountTemp = serviciosCount;
+    } catch (e) {
+      print('Error cargando citas: $e');
+    }
+  }
+
+  Map<String, int> _serviciosCountTemp = {};
+
+  Future<void> _cargarServicios(String comercioId, String idToken) async {
+    try {
+      final serviciosUrl = Uri.parse('$apiBaseUrl/servicios?comercio_id=$comercioId');
+      final serviciosResponse = await http.get(
+        serviciosUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (serviciosResponse.statusCode != 200) return;
+
+      final List<dynamic> servicios = json.decode(serviciosResponse.body);
+      
+      // Combinar servicios con su conteo
+      List<Map<String, dynamic>> serviciosConConteo = [];
+      int totalCitas = _serviciosCountTemp.values.fold(0, (sum, count) => sum + count);
+
+      for (var servicio in servicios) {
+        final servicioId = servicio['id']?.toString() ?? '';
+        final count = _serviciosCountTemp[servicioId] ?? 0;
+        
+        if (count > 0 && totalCitas > 0) {
+          serviciosConConteo.add({
+            'nombre': servicio['nombre'] ?? 'Servicio',
+            'count': count,
+            'porcentaje': (count / totalCitas),
+          });
+        }
+      }
+
+      // Ordenar por count descendente y tomar top 3
+      serviciosConConteo.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+
+      setState(() {
+        _serviciosTop = serviciosConConteo.take(3).toList();
+      });
+    } catch (e) {
+      print('Error cargando servicios: $e');
+    }
+  }
+
+  Future<void> _cargarResenas(String comercioId, String idToken) async {
+    try {
+      final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+      final resenasResponse = await http.get(
+        resenasUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (resenasResponse.statusCode != 200) return;
+
+      final List<dynamic> resenas = json.decode(resenasResponse.body);
+      
+      if (resenas.isEmpty) {
+        setState(() {
+          _calificacionPromedio = 0;
+          _totalResenas = 0;
+        });
+        return;
+      }
+
+      double sumaCalificaciones = 0;
+      for (var resena in resenas) {
+        sumaCalificaciones += (resena['calificacion'] ?? 0).toDouble();
+      }
+
+      setState(() {
+        _calificacionPromedio = sumaCalificaciones / resenas.length;
+        _totalResenas = resenas.length;
+      });
+    } catch (e) {
+      print('Error cargando reseñas: $e');
+    }
+  }
+
+  Future<void> _cargarPromociones(String comercioId, String idToken) async {
+    try {
+      final promocionesUrl = Uri.parse('$apiBaseUrl/api/promociones/comercio/$comercioId');
+      final promocionesResponse = await http.get(
+        promocionesUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (promocionesResponse.statusCode != 200) return;
+
+      final List<dynamic> promociones = json.decode(promocionesResponse.body);
+      
+      // Ordenar por usos (campo ficticio por ahora) y tomar top 1
+      List<Map<String, dynamic>> promocionesConUso = [];
+      for (var promo in promociones) {
+        promocionesConUso.add({
+          'titulo': promo['titulo'] ?? 'Promoción',
+          'descripcion': promo['descripcion'] ?? '',
+          'usos': 0, // TODO: implementar conteo real cuando exista la tabla de uso de promociones
+        });
+      }
+
+      setState(() {
+        _promocionesEfectivas = promocionesConUso.take(1).toList();
+      });
+    } catch (e) {
+      print('Error cargando promociones: $e');
     }
   }
 
@@ -281,31 +439,43 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
 
                   const SizedBox(height: 28),
 
-                  // RENDIMIENTO SEMANAL DETALLADO (dummy visual)
+                  // RENDIMIENTO SEMANAL DETALLADO
                   Text(
                     'Rendimiento Semanal Detallado',
                     style: _sectionTitleStyle,
                   ),
                   const SizedBox(height: 12),
                   Row(
-                    children: const [
+                    children: [
                       Expanded(
                         child: _MiniMetricCard(
                           titulo: 'Prom. Citas / Día',
-                          valor: '15',
-                          detalle: '+2 vs. sem. anterior',
-                          detalleColor: Color(0xFF22C55E),
-                          icon: Icons.trending_up,
+                          valor: _promCitasPorDia.toStringAsFixed(1),
+                          detalle: _difCitasVsSemanaAnterior >= 0
+                              ? '+${_difCitasVsSemanaAnterior} vs. sem. anterior'
+                              : '${_difCitasVsSemanaAnterior} vs. sem. anterior',
+                          detalleColor: _difCitasVsSemanaAnterior >= 0
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444),
+                          icon: _difCitasVsSemanaAnterior >= 0
+                              ? Icons.trending_up
+                              : Icons.trending_down,
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _MiniMetricCard(
                           titulo: 'Prom. Ingresos / Día',
-                          valor: 'L750',
-                          detalle: '-L50 vs. sem. anterior',
-                          detalleColor: Color(0xFFEF4444),
-                          icon: Icons.trending_down,
+                          valor: 'L${_promIngresosPorDia.toStringAsFixed(0)}',
+                          detalle: _difIngresosVsSemanaAnterior >= 0
+                              ? '+L${_difIngresosVsSemanaAnterior.toStringAsFixed(0)} vs. sem. anterior'
+                              : '-L${(-_difIngresosVsSemanaAnterior).toStringAsFixed(0)} vs. sem. anterior',
+                          detalleColor: _difIngresosVsSemanaAnterior >= 0
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444),
+                          icon: _difIngresosVsSemanaAnterior >= 0
+                              ? Icons.trending_up
+                              : Icons.trending_down,
                         ),
                       ),
                     ],
@@ -319,31 +489,47 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
                     style: _sectionTitleStyle,
                   ),
                   const SizedBox(height: 12),
-                  const _ServiciosTopCard(),
+                  _serviciosTop.isEmpty
+                      ? Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBackground,
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Text(
+                            'No hay datos de servicios aún',
+                            style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          ),
+                        )
+                      : _ServiciosTopCard(servicios: _serviciosTop),
 
                   const SizedBox(height: 28),
 
-                  // NUEVOS CLIENTES Y ESTRELLAS (dummy visual)
+                  // NUEVOS CLIENTES Y ESTRELLAS
                   Row(
-                    children: const [
+                    children: [
                       Expanded(
                         child: _MiniMetricCard(
                           titulo: 'Nuevos clientes',
-                          valor: '25',
-                          detalle: '+15% este mes',
-                          detalleColor: Color(0xFF22C55E),
+                          valor: '$_nuevosClientes',
+                          detalle: 'este mes',
+                          detalleColor: const Color(0xFF9CA3AF),
                           icon: Icons.person_add_alt_1_rounded,
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _MiniMetricCard(
                           titulo: 'Estrellas',
-                          valor: '4.8/5',
-                          detalle: '125 reseñas',
-                          detalleColor: Color(0xFF9CA3AF),
+                          valor: _totalResenas > 0
+                              ? '${_calificacionPromedio.toStringAsFixed(1)}/5'
+                              : 'N/A',
+                          detalle: _totalResenas > 0
+                              ? '$_totalResenas reseñas'
+                              : 'Sin reseñas',
+                          detalleColor: const Color(0xFF9CA3AF),
                           icon: Icons.star_rounded,
-                          iconColor: Color(0xFFFACC15),
+                          iconColor: const Color(0xFFFACC15),
                         ),
                       ),
                     ],
@@ -364,13 +550,15 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
                     const SizedBox(height: 28),
                   ],
 
-                  // PROMOCIONES MÁS EFECTIVAS (dummy visual)
-                  Text(
-                    'Promociones más efectivas',
-                    style: _sectionTitleStyle,
-                  ),
-                  const SizedBox(height: 12),
-                  const _PromoEfectivaCard(),
+                  // PROMOCIONES MÁS EFECTIVAS
+                  if (_promocionesEfectivas.isNotEmpty) ...[
+                    Text(
+                      'Promociones más efectivas',
+                      style: _sectionTitleStyle,
+                    ),
+                    const SizedBox(height: 12),
+                    _PromoEfectivaCard(promo: _promocionesEfectivas[0]),
+                  ],
                 ],
               ),
             ),
@@ -595,10 +783,18 @@ class _MiniMetricCard extends StatelessWidget {
 }
 
 class _ServiciosTopCard extends StatelessWidget {
-  const _ServiciosTopCard({Key? key}) : super(key: key);
+  final List<Map<String, dynamic>> servicios;
+
+  const _ServiciosTopCard({Key? key, required this.servicios}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final colors = [
+      AppTheme.primaryOrange,
+      const Color(0xFF3B82F6),
+      const Color(0xFF8B5CF6),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -607,25 +803,16 @@ class _ServiciosTopCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _ServicioBar(
-            nombre: 'Corte y Peinado',
-            porcentaje: 0.45,
-            porcentajeTexto: '45%',
-          ),
-          SizedBox(height: 10),
-          _ServicioBar(
-            nombre: 'Coloración',
-            porcentaje: 0.30,
-            porcentajeTexto: '30%',
-            colorBar: Color(0xFF3B82F6),
-          ),
-          SizedBox(height: 10),
-          _ServicioBar(
-            nombre: 'Manicura',
-            porcentaje: 0.25,
-            porcentajeTexto: '25%',
-          ),
+        children: [
+          for (int i = 0; i < servicios.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _ServicioBar(
+              nombre: servicios[i]['nombre'] ?? 'Servicio',
+              porcentaje: (servicios[i]['porcentaje'] as double?) ?? 0,
+              porcentajeTexto: '${((servicios[i]['porcentaje'] as double? ?? 0) * 100).toStringAsFixed(0)}%',
+              colorBar: colors[i % colors.length],
+            ),
+          ],
         ],
       ),
     );
@@ -691,10 +878,16 @@ class _ServicioBar extends StatelessWidget {
 }
 
 class _PromoEfectivaCard extends StatelessWidget {
-  const _PromoEfectivaCard({Key? key}) : super(key: key);
+  final Map<String, dynamic> promo;
+
+  const _PromoEfectivaCard({Key? key, required this.promo}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final titulo = promo['titulo'] ?? 'Promoción';
+    final descripcion = promo['descripcion'] ?? '';
+    final usos = promo['usos'] ?? 0;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -706,41 +899,47 @@ class _PromoEfectivaCard extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'Pack Relajación Total',
-                  style: TextStyle(
+                  titulo,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Masaje + Facial',
-                  style: TextStyle(
-                    color: Color(0xFF9CA3AF),
-                    fontSize: 13,
+                if (descripcion.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    descripcion,
+                    style: const TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
+                ],
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: const [
+            children: [
               Text(
-                '28%',
-                style: TextStyle(
+                usos > 0 ? '$usos' : 'N/A',
+                style: const TextStyle(
                   color: Color(0xFF3B82F6),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
-                'de uso',
-                style: TextStyle(
+                usos > 0 ? 'usos' : 'sin datos',
+                style: const TextStyle(
                   color: Color(0xFF9CA3AF),
                   fontSize: 12,
                 ),

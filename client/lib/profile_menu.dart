@@ -541,6 +541,36 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
       opciones.add(
         _menuTileConIcono(
           context,
+          Icons.help_outline,
+          'Centro de ayuda',
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CentroAyudaPage(),
+              ),
+            );
+          },
+        ),
+      );
+      opciones.add(
+        _menuTileConIcono(
+          context,
+          Icons.verified_user_outlined,
+          'Privacidad y seguridad',
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PrivacidadSeguridadPage(),
+              ),
+            );
+          },
+        ),
+      );
+      opciones.add(
+        _menuTileConIcono(
+          context,
           Icons.store_outlined,
           'Registrar mi salón de belleza',
           () {

@@ -35,6 +35,12 @@ dependencies:
   pdf: ^3.10.7 # ✅ CAMBIO: Para generar PDF en lugar de CSV
   path_provider: ^2.1.1 # ✅ AGREGAR: Para guardar archivos
   share_plus: ^7.2.1 # ✅ AGREGAR: Para compartir archivos
+  
+  # URL Launcher para emails
+  url_launcher: ^6.2.2
+  
+  # Firebase Cloud Messaging para notificaciones push
+  firebase_messaging: ^14.7.9
 
 dev_dependencies:
   flutter_test:

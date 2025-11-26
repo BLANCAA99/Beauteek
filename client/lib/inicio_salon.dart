@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
@@ -46,6 +47,61 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       ]);
     }
     setState(() => _isLoading = false);
+    
+    // Inicializar notificaciones DESPUÉS de cargar todo (no bloqueante)
+    _inicializarNotificaciones();
+  }
+
+  // Inicializar notificaciones push de forma NO bloqueante
+  Future<void> _inicializarNotificaciones() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Importar FirebaseMessaging
+      final messaging = FirebaseMessaging.instance;
+
+      // Solicitar permisos (no bloqueante)
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        print('✅ Permisos de notificaciones concedidos (Salón)');
+        
+        // Obtener token FCM
+        final fcmToken = await messaging.getToken();
+        if (fcmToken != null) {
+          print('📱 FCM Token (Salón): $fcmToken');
+          
+          // Guardar token en backend
+          final idToken = await user.getIdToken(true);
+          try {
+            await http.put(
+              Uri.parse('$apiBaseUrl/users/fcm-token'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+              body: json.encode({
+                'fcm_token': fcmToken,
+                'platform': 'android',
+              }),
+            );
+            print('✅ Token FCM guardado en servidor (Salón)');
+          } catch (e) {
+            print('⚠️ Error guardando token FCM: $e');
+          }
+        }
+      } else {
+        print('⚠️ Permisos de notificaciones denegados (Salón)');
+      }
+    } catch (e) {
+      print('⚠️ Error inicializando notificaciones: $e');
+      // No hacer nada, la app continúa normalmente
+    }
   }
 
   Future<void> _obtenerDatosUsuario() async {
@@ -164,8 +220,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           return fechaA.compareTo(fechaB);
         });
 
-        // Contar citas por confirmar
-        final porConfirmar = citasHoy.where((c) => c['estado'] == 'pendiente').length;
+        // Contar TODAS las citas por confirmar (no solo del día)
+        final porConfirmar = citasData.where((c) => c['estado'] == 'pendiente').length;
 
         if (!mounted) return;
 
@@ -189,7 +245,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/promociones/comercio/$_comercioId');
+      final url = Uri.parse('$apiBaseUrl/api/promociones/comercio/$_comercioId');
       print('🔍 Cargando promociones para comercio $_comercioId');
 
       final response = await http.get(
@@ -209,10 +265,20 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           if (promo['fecha_fin'] == null) return true;
           try {
             DateTime fechaFin;
-            if (promo['fecha_fin'] is String) {
-              fechaFin = DateTime.parse(promo['fecha_fin']);
+            final fechaFinData = promo['fecha_fin'];
+            
+            if (fechaFinData is String) {
+              fechaFin = DateTime.parse(fechaFinData);
+            } else if (fechaFinData is Map) {
+              // Firestore Timestamp: {_seconds: ..., _nanoseconds: ...}
+              final seconds = fechaFinData['_seconds'] ?? fechaFinData['seconds'];
+              if (seconds != null) {
+                fechaFin = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+              } else {
+                return true;
+              }
             } else {
-              fechaFin = DateTime.parse(promo['fecha_fin'].toString());
+              fechaFin = DateTime.parse(fechaFinData.toString());
             }
             return fechaFin.isAfter(now);
           } catch (e) {

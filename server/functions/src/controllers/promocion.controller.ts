@@ -3,6 +3,7 @@ import { db } from "../config/firebase";
 import { Promocion } from "../modelos/promocion.model";
 import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendPushNotificationByRole } from "../services/notification.service";
 
 // Esquema robusto
 const promocionSchema = z.object({
@@ -54,6 +55,29 @@ export const createPromocion = async (req: Request, res: Response): Promise<void
     };
 
     const docRef = await db.collection("promociones").add(payload);
+
+    // 🔔 Enviar notificación a todos los clientes sobre la nueva promoción
+    try {
+      // Obtener información del comercio
+      const comercioDoc = await db.collection("comercios").doc(data.comercio_id).get();
+      const comercioNombre = comercioDoc.data()?.nombre || 'Un salón';
+
+      await sendPushNotificationByRole(
+        'cliente',
+        {
+          title: '🎉 Nueva Promoción Disponible',
+          body: `${comercioNombre} tiene una nueva oferta en ${data.servicio_nombre}. ¡Aprovecha!`,
+        },
+        {
+          type: 'nueva_promocion',
+          entityId: docRef.id,
+        }
+      );
+      console.log(`✅ Notificación de nueva promoción enviada a todos los clientes`);
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificaciones de promoción:', notifError);
+    }
+
     res.status(201).json({ id: docRef.id, ...data });
     return;
   } catch (error: any) {

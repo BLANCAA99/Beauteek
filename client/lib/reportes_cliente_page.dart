@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:pdf/widgets.dart' as pw;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import 'api_constants.dart';
 import 'theme/app_theme.dart';
 
@@ -13,24 +18,12 @@ class ReportesClientePage extends StatefulWidget {
 }
 
 class _ReportesClientePageState extends State<ReportesClientePage> {
-  bool _isLoading = true;
-  List<Map<String, dynamic>> _citas = [];
-  List<Map<String, dynamic>> _pagos = [];
-  
-  double _gastoTotal = 0;
-  double _gastoMesActual = 0;
-  double _gastoMesAnterior = 0;
-  int _totalCitas = 0;
-  int _citasCompletadas = 0;
-  
-  Map<String, double> _gastosPorServicio = {};
-  Map<String, int> _frecuenciaPorServicio = {};
-  Map<String, double> _gastosPorSalon = {};
-  Map<String, int> _frecuenciaPorSalon = {};
-  
-  String? _servicioFavorito;
-  String? _salonFavorito;
-  
+  bool _isLoading = false;
+  String? _clienteId;
+  String? _nombreCliente;
+  String _periodoSeleccionado = 'Semana';
+  Map<String, dynamic>? _datosReporte;
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +32,7 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
   Future<void> _cargarDatos() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -47,112 +40,307 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
         return;
       }
 
-      final uid = user.uid;
-      final idToken = await user.getIdToken();
+      _clienteId = user.uid;
+      _nombreCliente = user.displayName ?? 'Cliente';
 
-      // Cargar citas del usuario
-      final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$uid');
-      print('🔍 Cargando citas: $citasUrl');
+      // Cargar reporte
+      await _cargarReporte();
 
-      final citasResponse = await http.get(
-        citasUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 8));
-
-      if (citasResponse.statusCode == 200) {
-        final List<dynamic> citasData = json.decode(citasResponse.body);
-        _citas = citasData.cast<Map<String, dynamic>>();
-        print('✅ ${_citas.length} citas cargadas');
-      }
-
-      // Cargar pagos del usuario
-      final pagosUrl = Uri.parse('$apiBaseUrl/api/pagos?usuario_id=$uid');
-      print('🔍 Cargando pagos: $pagosUrl');
-
-      final pagosResponse = await http.get(
-        pagosUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 8));
-
-      if (pagosResponse.statusCode == 200) {
-        final List<dynamic> pagosData = json.decode(pagosResponse.body);
-        _pagos = pagosData.cast<Map<String, dynamic>>();
-        print('✅ ${_pagos.length} pagos cargados');
-      }
-
-      _procesarEstadisticas();
-
-      if (!mounted) return;
       setState(() => _isLoading = false);
     } catch (e) {
-      print('❌ Error cargando datos: $e');
-      if (!mounted) return;
+      print('Error cargando datos: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  void _procesarEstadisticas() {
-    final now = DateTime.now();
-    final inicioMesActual = DateTime(now.year, now.month, 1);
-    final inicioMesAnterior = DateTime(now.year, now.month - 1, 1);
-    final finMesAnterior = DateTime(now.year, now.month, 0, 23, 59, 59);
+  Future<void> _cargarReporte() async {
+    if (_clienteId == null) return;
 
-    _totalCitas = _citas.length;
-    _citasCompletadas = _citas.where((c) => c['estado'] == 'completada').length;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    // Calcular gastos
-    for (var pago in _pagos) {
-      final monto = (pago['monto'] ?? 0).toDouble();
-      final servicio = pago['servicio_nombre'] ?? 'Servicio';
-      final salon = pago['comercio_nombre'] ?? 'Salón';
-      
-      _gastoTotal += monto;
+      final idToken = await user.getIdToken();
+      final reporteUrl = Uri.parse(
+        '$apiBaseUrl/reportes/cliente/$_clienteId?periodo=$_periodoSeleccionado',
+      );
 
-      // Acumular por servicio
-      _gastosPorServicio[servicio] = (_gastosPorServicio[servicio] ?? 0) + monto;
-      _frecuenciaPorServicio[servicio] = (_frecuenciaPorServicio[servicio] ?? 0) + 1;
+      print('🔍 Llamando a: $reporteUrl');
 
-      // Acumular por salón
-      _gastosPorSalon[salon] = (_gastosPorSalon[salon] ?? 0) + monto;
-      _frecuenciaPorSalon[salon] = (_frecuenciaPorSalon[salon] ?? 0) + 1;
+      final response = await http.get(
+        reporteUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
 
-      // Calcular por mes
-      if (pago['created_at'] != null) {
-        try {
-          final fecha = DateTime.parse(pago['created_at']);
-          if (fecha.isAfter(inicioMesActual)) {
-            _gastoMesActual += monto;
-          } else if (fecha.isAfter(inicioMesAnterior) && fecha.isBefore(finMesAnterior)) {
-            _gastoMesAnterior += monto;
-          }
-        } catch (e) {
-          print('Error parseando fecha: $e');
+      print('📊 Status: ${response.statusCode}');
+      print('📊 Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _datosReporte = json.decode(response.body) as Map<String, dynamic>;
+          print('✅ Datos cargados: $_datosReporte');
+        });
+      } else {
+        print('❌ Error en respuesta: ${response.statusCode} - ${response.body}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al cargar datos: ${response.statusCode}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
+    } catch (e) {
+      print('❌ Error cargando reporte: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
 
-    // Encontrar favoritos
-    if (_frecuenciaPorServicio.isNotEmpty) {
-      _servicioFavorito = _frecuenciaPorServicio.entries
-          .reduce((a, b) => a.value > b.value ? a : b)
-          .key;
+  Future<void> _cambiarPeriodo(String periodo) async {
+    setState(() {
+      _periodoSeleccionado = periodo;
+      _isLoading = true;
+    });
+    await _cargarReporte();
+    setState(() => _isLoading = false);
+  }
+
+  String _formatearMoneda(double cantidad) {
+    return NumberFormat.currency(locale: 'es_MX', symbol: '\$').format(cantidad);
+  }
+
+  Future<void> _descargarResumenGeneral() async {
+    if (_datosReporte == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final pdf = pw.Document();
+      final gastoTotal = _datosReporte!['gastoTotal'] ?? 0.0;
+      final totalCitas = _datosReporte!['totalCitas'] ?? 0;
+      final citasCompletadas = _datosReporte!['citasCompletadas'] ?? 0;
+      final citasCanceladas = _datosReporte!['citasCanceladas'] ?? 0;
+      final salonesVisitados = _datosReporte!['salonesVisitados'] ?? 0;
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Mi Resumen General', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('$_nombreCliente - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 20),
+              pw.Text('Gasto Total: ${_formatearMoneda(gastoTotal)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('Total de Citas: $totalCitas'),
+              pw.Text('Citas Completadas: $citasCompletadas'),
+              pw.Text('Citas Canceladas: $citasCanceladas'),
+              pw.Text('Salones Visitados: $salonesVisitados'),
+            ],
+          ),
+        ),
+      );
+
+      await _compartirPDF(pdf, 'mi_resumen_general');
+    } catch (e) {
+      print('Error: $e');
+      _mostrarError('Error al generar el reporte');
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
 
-    if (_frecuenciaPorSalon.isNotEmpty) {
-      _salonFavorito = _frecuenciaPorSalon.entries
-          .reduce((a, b) => a.value > b.value ? a : b)
-          .key;
+  Future<void> _descargarReporteSalones() async {
+    if (_datosReporte == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final pdf = pw.Document();
+      final salones = _datosReporte!['salones'] as List? ?? [];
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Mis Salones Visitados', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('$_nombreCliente - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 20),
+              ...salones.take(10).map((salon) {
+                final s = salon as Map<String, dynamic>;
+                return pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 8),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(s['nombre'] ?? 'Salon', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Visitas: ${s['visitas'] ?? 0} - Gasto: ${_formatearMoneda((s['gasto_total'] ?? 0).toDouble())}'),
+                      pw.SizedBox(height: 5),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      );
+
+      await _compartirPDF(pdf, 'mis_salones_visitados');
+    } catch (e) {
+      print('Error: $e');
+      _mostrarError('Error al generar el reporte');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _descargarReporteServicios() async {
+    if (_datosReporte == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final pdf = pw.Document();
+      final servicios = _datosReporte!['serviciosFrecuentes'] as List? ?? [];
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Mis Servicios Frecuentes', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('$_nombreCliente - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 20),
+              ...servicios.map((servicio) {
+                final s = servicio as Map<String, dynamic>;
+                return pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 8),
+                  child: pw.Text('${s['nombre'] ?? 'Servicio'}: ${s['cantidad'] ?? 0} veces'),
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      );
+
+      await _compartirPDF(pdf, 'mis_servicios_frecuentes');
+    } catch (e) {
+      print('Error: $e');
+      _mostrarError('Error al generar el reporte');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _descargarHistorialCitas() async {
+    if (_datosReporte == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final pdf = pw.Document();
+      final citas = _datosReporte!['citas'] as List? ?? [];
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Mi Historial de Citas', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('$_nombreCliente - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 20),
+              ...citas.take(15).map((cita) {
+                final c = cita as Map<String, dynamic>;
+                return pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 10),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('${c['salon'] ?? 'Salon'} - ${c['estado'] ?? 'pendiente'}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      pw.Text('${c['servicio'] ?? 'Servicio'} - ${_formatearMoneda((c['precio'] ?? 0).toDouble())}'),
+                      pw.SizedBox(height: 5),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      );
+
+      await _compartirPDF(pdf, 'mi_historial_citas');
+    } catch (e) {
+      print('Error: $e');
+      _mostrarError('Error al generar el reporte');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _compartirPDF(pw.Document pdf, String nombreBase) async {
+    try {
+      final bytes = await pdf.save();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/${nombreBase}_$timestamp.pdf';
+      final file = File(path);
+      await file.writeAsBytes(bytes);
+
+      final result = await Share.shareXFiles(
+        [XFile(path, mimeType: 'application/pdf')],
+        subject: 'Mi Reporte - Beauteek',
+        text: 'Reporte generado por Beauteek',
+      );
+
+      if (mounted && result.status == ShareResultStatus.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reporte compartido exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error compartiendo PDF: $e');
+      _mostrarError('Error al compartir el reporte');
+    }
+  }
+
+  void _mostrarError(String mensaje) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final hayDatos = _datosReporte != null;
+
     return Scaffold(
       backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
@@ -162,498 +350,217 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
           icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Mis Reportes', style: AppTheme.heading3),
+        title: const Text(
+          'Mis Reportes',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryOrange),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 📊 Resumen general
-                  Text(
-                    'Resumen General',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Cards de resumen
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'Gasto Total',
-                          'L ${_gastoTotal.toStringAsFixed(2)}',
-                          Icons.account_balance_wallet_outlined,
-                          AppTheme.primaryOrange,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Citas Totales',
-                          '$_totalCitas',
-                          Icons.event_outlined,
-                          const Color(0xFF2ECC71),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'Mes Actual',
-                          'L ${_gastoMesActual.toStringAsFixed(2)}',
-                          Icons.calendar_month,
-                          const Color(0xFF74A9FF),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Completadas',
-                          '$_citasCompletadas',
-                          Icons.check_circle_outline,
-                          const Color(0xFF9B59B6),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // 📈 Comparativa mensual
-                  Text(
-                    'Comparativa Mensual',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildComparativaCard(),
-
-                  const SizedBox(height: 32),
-
-                  // ⭐ Favoritos
-                  Text(
-                    'Tus Favoritos',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  if (_servicioFavorito != null)
-                    _buildFavoritoCard(
-                      'Servicio más usado',
-                      _servicioFavorito!,
-                      '${_frecuenciaPorServicio[_servicioFavorito]} veces',
-                      Icons.cut,
-                      const Color(0xFF3B2612),
-                    ),
-                  const SizedBox(height: 12),
-                  if (_salonFavorito != null)
-                    _buildFavoritoCard(
-                      'Salón favorito',
-                      _salonFavorito!,
-                      '${_frecuenciaPorSalon[_salonFavorito]} visitas',
-                      Icons.store,
-                      const Color(0xFF0D2538),
-                    ),
-
-                  const SizedBox(height: 32),
-
-                  // 💰 Top 5 servicios por gasto
-                  Text(
-                    'Top 5 Servicios por Gasto',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTopServiciosGasto(),
-
-                  const SizedBox(height: 32),
-
-                  // 🏆 Top 5 salones por frecuencia
-                  Text(
-                    'Top 5 Salones Más Visitados',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTopSalonesFrecuencia(),
-
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildStatCard(String label, String valor, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(borderRadius: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const Spacer(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            valor,
-            style: AppTheme.heading2.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: AppTheme.caption.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildComparativaCard() {
-    final diferencia = _gastoMesActual - _gastoMesAnterior;
-    final porcentaje = _gastoMesAnterior > 0
-        ? ((diferencia / _gastoMesAnterior) * 100)
-        : 0.0;
-    final esPositivo = diferencia > 0;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: AppTheme.cardDecoration(borderRadius: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Mes Actual',
-                    style: AppTheme.bodyMedium.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'L ${_gastoMesActual.toStringAsFixed(2)}',
-                    style: AppTheme.heading2.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryOrange,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Mes Anterior',
-                    style: AppTheme.bodyMedium.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'L ${_gastoMesAnterior.toStringAsFixed(2)}',
-                    style: AppTheme.heading3.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: esPositivo
-                  ? AppTheme.errorRed.withOpacity(0.15)
-                  : const Color(0xFF2ECC71).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange))
+          : Column(
               children: [
-                Icon(
-                  esPositivo ? Icons.trending_up : Icons.trending_down,
-                  color: esPositivo ? AppTheme.errorRed : const Color(0xFF2ECC71),
-                  size: 20,
+                // Selector de periodo
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      _PeriodoChip(
+                        label: 'Semana',
+                        isSelected: _periodoSeleccionado == 'Semana',
+                        onTap: () => _cambiarPeriodo('Semana'),
+                      ),
+                      const SizedBox(width: 12),
+                      _PeriodoChip(
+                        label: 'Mes',
+                        isSelected: _periodoSeleccionado == 'Mes',
+                        onTap: () => _cambiarPeriodo('Mes'),
+                      ),
+                      const SizedBox(width: 12),
+                      _PeriodoChip(
+                        label: 'Ano',
+                        isSelected: _periodoSeleccionado == 'Ano',
+                        onTap: () => _cambiarPeriodo('Ano'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '${esPositivo ? "+" : ""}${porcentaje.toStringAsFixed(1)}% vs mes anterior',
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: esPositivo ? AppTheme.errorRed : const Color(0xFF2ECC71),
-                    fontWeight: FontWeight.w600,
+
+                // Mensaje de sin datos
+                if (!hayDatos)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBackground,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: AppTheme.primaryOrange, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'No hay datos disponibles para este periodo',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Lista de reportes
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      _ReporteCard(
+                        icon: Icons.assessment_rounded,
+                        iconColor: const Color(0xFF007AFF),
+                        backgroundColor: const Color(0xFF0B1F2E),
+                        titulo: 'Mi Resumen General',
+                        onDownload: hayDatos ? _descargarResumenGeneral : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.store_rounded,
+                        iconColor: const Color(0xFF34C759),
+                        backgroundColor: const Color(0xFF0D2538),
+                        titulo: 'Mis Salones Visitados',
+                        onDownload: hayDatos ? _descargarReporteSalones : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.spa_rounded,
+                        iconColor: const Color(0xFFFF9500),
+                        backgroundColor: const Color(0xFF3B2612),
+                        titulo: 'Mis Servicios Frecuentes',
+                        onDownload: hayDatos ? _descargarReporteServicios : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.history_rounded,
+                        iconColor: const Color(0xFFAF8260),
+                        backgroundColor: const Color(0xFF2A1F1A),
+                        titulo: 'Mi Historial de Citas',
+                        onDownload: hayDatos ? _descargarHistorialCitas : null,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _PeriodoChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _PeriodoChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryOrange : AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppTheme.textSecondary,
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildFavoritoCard(String titulo, String nombre, String detalle, IconData icon, Color fondo) {
+class _ReporteCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final String titulo;
+  final VoidCallback? onDownload;
+
+  const _ReporteCard({
+    required this.icon,
+    required this.iconColor,
+    required this.backgroundColor,
+    required this.titulo,
+    this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: fondo,
-        borderRadius: BorderRadius.circular(20),
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: AppTheme.primaryOrange.withOpacity(0.2),
+              color: iconColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: AppTheme.primaryOrange, size: 24),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  titulo,
-                  style: AppTheme.caption.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  nombre,
-                  style: AppTheme.bodyLarge.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  detalle,
-                  style: AppTheme.caption.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
+            child: Text(
+              titulo,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary, size: 16),
+          GestureDetector(
+            onTap: onDownload,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.file_download_outlined,
+                color: onDownload != null ? iconColor : iconColor.withOpacity(0.3),
+                size: 20,
+              ),
+            ),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTopServiciosGasto() {
-    final topServicios = _gastosPorServicio.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    final top5 = topServicios.take(5).toList();
-
-    if (top5.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: AppTheme.cardDecoration(borderRadius: 20),
-        child: Center(
-          child: Text(
-            'Aún no tienes servicios registrados',
-            style: AppTheme.bodyLarge.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ),
-      );
-    }
-
-    final maxGasto = top5.first.value;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(borderRadius: 20),
-      child: Column(
-        children: top5.asMap().entries.map((entry) {
-          final index = entry.key;
-          final servicio = entry.value;
-          final porcentaje = (servicio.value / maxGasto);
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        gradient: index == 0
-                            ? AppTheme.primaryGradient
-                            : null,
-                        color: index == 0 ? null : AppTheme.textSecondary.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            color: index == 0 ? Colors.white : AppTheme.textSecondary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        servicio.key,
-                        style: AppTheme.bodyLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'L ${servicio.value.toStringAsFixed(2)}',
-                      style: AppTheme.bodyLarge.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryOrange,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: porcentaje,
-                    minHeight: 8,
-                    backgroundColor: AppTheme.textSecondary.withOpacity(0.1),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      index == 0 ? AppTheme.primaryOrange : AppTheme.primaryOrange.withOpacity(0.6),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTopSalonesFrecuencia() {
-    final topSalones = _frecuenciaPorSalon.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    final top5 = topSalones.take(5).toList();
-
-    if (top5.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: AppTheme.cardDecoration(borderRadius: 20),
-        child: Center(
-          child: Text(
-            'Aún no has visitado ningún salón',
-            style: AppTheme.bodyLarge.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(borderRadius: 20),
-      child: Column(
-        children: top5.asMap().entries.map((entry) {
-          final index = entry.key;
-          final salon = entry.value;
-          final gasto = _gastosPorSalon[salon.key] ?? 0;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: index == 0 ? AppTheme.primaryGradient : null,
-                    color: index == 0 ? null : AppTheme.cardBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.store,
-                      color: index == 0 ? Colors.white : AppTheme.textSecondary,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        salon.key,
-                        style: AppTheme.bodyLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${salon.value} visitas • L ${gasto.toStringAsFixed(2)}',
-                        style: AppTheme.caption.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
       ),
     );
   }

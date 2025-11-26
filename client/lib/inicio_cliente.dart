@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
@@ -108,6 +109,61 @@ class _InicioClientePageState extends State<InicioClientePage> {
     await _cargarEstadisticasCliente();
     await _cargarSalonesDestacados();
     await _verificarCitasFinalizadas();
+    
+    // Inicializar notificaciones DESPUÉS de cargar todo (no bloqueante)
+    _inicializarNotificaciones();
+  }
+
+  // Inicializar notificaciones push de forma NO bloqueante
+  Future<void> _inicializarNotificaciones() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Importar FirebaseMessaging
+      final messaging = FirebaseMessaging.instance;
+
+      // Solicitar permisos (no bloqueante)
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        print('✅ Permisos de notificaciones concedidos');
+        
+        // Obtener token FCM
+        final fcmToken = await messaging.getToken();
+        if (fcmToken != null) {
+          print('📱 FCM Token: $fcmToken');
+          
+          // Guardar token en backend
+          final idToken = await user.getIdToken(true);
+          try {
+            await http.put(
+              Uri.parse('$apiBaseUrl/users/fcm-token'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+              body: json.encode({
+                'fcm_token': fcmToken,
+                'platform': 'android',
+              }),
+            );
+            print('✅ Token FCM guardado en servidor');
+          } catch (e) {
+            print('⚠️ Error guardando token FCM: $e');
+          }
+        }
+      } else {
+        print('⚠️ Permisos de notificaciones denegados');
+      }
+    } catch (e) {
+      print('⚠️ Error inicializando notificaciones: $e');
+      // No hacer nada, la app continúa normalmente
+    }
   }
 
   Future<void> _obtenerDatosUsuario() async {

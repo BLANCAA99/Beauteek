@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'theme/app_theme.dart';
 import 'api_constants.dart';
+import 'introduccion_beauteek_page.dart';
+import 'metodos_pago_salon_page.dart';
 
 class ConfiguracionSalonPage extends StatefulWidget {
   const ConfiguracionSalonPage({Key? key}) : super(key: key);
@@ -14,10 +16,7 @@ class ConfiguracionSalonPage extends StatefulWidget {
 }
 
 class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
-  bool _activarRecordatorios = true;
   bool _notificarReservas = true;
-  bool _mostrarDireccion = false;
-  bool _permitirResenas = true;
   bool _isLoading = true;
   bool _isSaving = false;
   String? _comercioId;
@@ -40,7 +39,6 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
 
       final idToken = await user.getIdToken();
 
-      // Obtener comercio
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
       final comerciosResponse = await http.get(
         comerciosUrl,
@@ -60,7 +58,6 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
         if (miComercio != null) {
           _comercioId = miComercio['id'];
 
-          // Cargar configuración desde Firestore
           final configDoc = await FirebaseFirestore.instance
               .collection('configuracion_salon')
               .doc(_comercioId)
@@ -69,10 +66,7 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
           if (configDoc.exists) {
             final data = configDoc.data()!;
             setState(() {
-              _activarRecordatorios = data['activar_recordatorios'] ?? true;
               _notificarReservas = data['notificar_reservas'] ?? true;
-              _mostrarDireccion = data['mostrar_direccion'] ?? false;
-              _permitirResenas = data['permitir_resenas'] ?? true;
               _isLoading = false;
             });
           } else {
@@ -100,10 +94,7 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
           .collection('configuracion_salon')
           .doc(_comercioId)
           .set({
-        'activar_recordatorios': _activarRecordatorios,
         'notificar_reservas': _notificarReservas,
-        'mostrar_direccion': _mostrarDireccion,
-        'permitir_resenas': _permitirResenas,
         'fecha_actualizacion': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -177,13 +168,13 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // Sección: Reglas de Reserva
           const Text(
-            'Reglas de Reserva',
+            'CONFIGURACIÓN GENERAL',
             style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 16),
@@ -193,69 +184,42 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
             backgroundColor: const Color(0xFF3B2612),
             titulo: 'Métodos de pago',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Función en desarrollo'),
-                  backgroundColor: AppTheme.primaryOrange,
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MetodosPagoSalonPage(),
                 ),
               );
             },
           ),
           const SizedBox(height: 12),
           _OpcionCard(
-            icon: Icons.access_time_rounded,
+            icon: Icons.lightbulb_outline_rounded,
             iconColor: AppTheme.primaryOrange,
             backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Tiempo mínimo para reservar',
-            subtitulo: '24 horas',
+            titulo: 'Introducción a Beauteek',
+            subtitulo: 'Aprende cómo usar la aplicación',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Función en desarrollo'),
-                  backgroundColor: AppTheme.primaryOrange,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _OpcionCard(
-            icon: Icons.description_rounded,
-            iconColor: AppTheme.primaryOrange,
-            backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Política de cancelación',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Función en desarrollo'),
-                  backgroundColor: AppTheme.primaryOrange,
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const IntroduccionBeauteekPage(),
                 ),
               );
             },
           ),
           const SizedBox(height: 32),
 
-          // Sección: Notificaciones
           const Text(
-            'Notificaciones',
+            'NOTIFICACIONES',
             style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 16),
-          _OpcionConSwitch(
-            icon: Icons.notifications_active_rounded,
-            iconColor: AppTheme.primaryOrange,
-            backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Activar recordatorios para clientes',
-            value: _activarRecordatorios,
-            onChanged: (value) {
-              setState(() => _activarRecordatorios = value);
-              _guardarConfiguracion();
-            },
-          ),
-          const SizedBox(height: 12),
           _OpcionConSwitch(
             icon: Icons.mail_rounded,
             iconColor: AppTheme.primaryOrange,
@@ -264,41 +228,6 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
             value: _notificarReservas,
             onChanged: (value) {
               setState(() => _notificarReservas = value);
-              _guardarConfiguracion();
-            },
-          ),
-          const SizedBox(height: 32),
-
-          // Sección: Visibilidad del Perfil
-          const Text(
-            'Visibilidad del Perfil',
-            style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _OpcionConSwitch(
-            icon: Icons.location_on_rounded,
-            iconColor: AppTheme.primaryOrange,
-            backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Mostrar dirección en el perfil',
-            value: _mostrarDireccion,
-            onChanged: (value) {
-              setState(() => _mostrarDireccion = value);
-              _guardarConfiguracion();
-            },
-          ),
-          const SizedBox(height: 12),
-          _OpcionConSwitch(
-            icon: Icons.star_rounded,
-            iconColor: AppTheme.primaryOrange,
-            backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Permitir reseñas de clientes',
-            value: _permitirResenas,
-            onChanged: (value) {
-              setState(() => _permitirResenas = value);
               _guardarConfiguracion();
             },
           ),

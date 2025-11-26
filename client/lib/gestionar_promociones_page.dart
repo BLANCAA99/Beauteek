@@ -536,7 +536,7 @@ class _PromocionCard extends StatelessWidget {
                   children: [
                     if (promocion['precio_original'] != null) ...[
                       Text(
-                        '€${promocion['precio_original']}',
+                        'L. ${promocion['precio_original']}',
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 14,
@@ -546,7 +546,7 @@ class _PromocionCard extends StatelessWidget {
                       const SizedBox(width: 8),
                     ],
                     Text(
-                      '€${promocion['precio_con_descuento'] ?? '0.00'}',
+                      'L. ${promocion['precio_con_descuento'] ?? '0.00'}',
                       style: const TextStyle(
                         color: AppTheme.primaryOrange,
                         fontSize: 20,

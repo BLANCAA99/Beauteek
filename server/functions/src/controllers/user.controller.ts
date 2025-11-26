@@ -329,3 +329,59 @@ export const registerSalonComplete = async (req: Request, res: Response): Promis
     message: "Este endpoint está deprecado. Usa /api/comercios/register-salon-step1, step2 y step3"
   });
 };
+
+// 🔔 Actualizar FCM token del usuario
+export const updateFCMToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // req.user viene del middleware de autenticación
+    const uid = (req as any).user?.uid;
+    
+    if (!uid) {
+      res.status(401).json({ error: "No autenticado" });
+      return;
+    }
+
+    const { fcm_token, platform } = req.body;
+
+    if (!fcm_token) {
+      res.status(400).json({ error: "fcm_token es requerido" });
+      return;
+    }
+
+    await db.collection("usuarios").doc(uid).update({
+      fcm_token,
+      platform: platform || 'unknown',
+      fcm_token_updated_at: FieldValue.serverTimestamp(),
+    });
+
+    console.log(`✅ [updateFCMToken] Token FCM actualizado para usuario ${uid}`);
+    res.status(200).json({ message: "Token FCM actualizado" });
+  } catch (error: any) {
+    console.error("[updateFCMToken] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 🔔 Eliminar FCM token del usuario (logout)
+export const deleteFCMToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const uid = (req as any).user?.uid;
+    
+    if (!uid) {
+      res.status(401).json({ error: "No autenticado" });
+      return;
+    }
+
+    await db.collection("usuarios").doc(uid).update({
+      fcm_token: FieldValue.delete(),
+      platform: FieldValue.delete(),
+      fcm_token_updated_at: FieldValue.delete(),
+    });
+
+    console.log(`✅ [deleteFCMToken] Token FCM eliminado para usuario ${uid}`);
+    res.status(200).json({ message: "Token FCM eliminado" });
+  } catch (error: any) {
+    console.error("[deleteFCMToken] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
