@@ -5,7 +5,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
 import 'api_constants.dart';
+import 'search_page.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -23,6 +26,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _photoUrlController;
   late TextEditingController _dobController; // Fecha de Nacimiento
   String? _selectedGender; // Género
+  String? _ubicacionId; // ID de la ubicación en Firestore
+  String _pais = '';
+  String _ciudad = '';
+  LatLng? _newLocation; // Nueva ubicación seleccionada
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -62,6 +69,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         TextEditingController(text: widget.userData['fecha_nacimiento'] ?? '');
     _selectedGender = widget.userData['genero'];
     _cargarUsuarioDeApi();
+    _cargarUbicacion();
   }
 
   @override
@@ -72,6 +80,43 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _photoUrlController.dispose();
     _dobController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarUbicacion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final idToken = await user.getIdToken();
+      final url = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
+
+      print('📍 Cargando ubicación: $url');
+
+      final resp = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      print('📍 Status ubicación: ${resp.statusCode}');
+
+      if (resp.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(resp.body);
+        print('📍 Ubicación cargada: ${data['pais']}, ${data['ciudad']}');
+
+        setState(() {
+          _ubicacionId = data['id'];
+          _pais = data['pais'] ?? '';
+          _ciudad = data['ciudad'] ?? '';
+        });
+      } else {
+        print('⚠️ No se encontró ubicación principal');
+      }
+    } catch (e) {
+      print('❌ Error cargando ubicación: $e');
+    }
   }
 
   Future<void> _cargarUsuarioDeApi() async {
@@ -177,6 +222,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final idToken = await user.getIdToken();
 
+      // 1. Actualizar datos del usuario
       final url = Uri.parse('$apiBaseUrl/api/users/${user.uid}');
 
       final Map<String, dynamic> profileData = {
@@ -200,6 +246,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         body: json.encode(profileData),
       );
 
+      // 2. Actualizar ubicación si se seleccionó una nueva
+      if (_newLocation != null && _ubicacionId != null && idToken != null) {
+        await _actualizarUbicacion(idToken);
+      }
+
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Perfil actualizado con éxito')),
@@ -220,6 +271,122 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _actualizarUbicacion(String idToken) async {
+    if (_ubicacionId == null || _newLocation == null) return;
+
+    try {
+      // Obtener información de la dirección usando geocoding
+      final placemarks = await placemarkFromCoordinates(
+        _newLocation!.latitude,
+        _newLocation!.longitude,
+      );
+
+      String pais = 'Honduras';
+      String ciudad = '';
+      String direccionCompleta = '';
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        pais = place.country ?? 'Honduras';
+        ciudad = place.locality ?? place.subAdministrativeArea ?? '';
+        
+        final partes = [
+          place.street,
+          place.subLocality,
+          place.locality,
+          place.subAdministrativeArea,
+          place.administrativeArea,
+          place.country,
+        ].where((p) => p != null && p.isNotEmpty).toList();
+        
+        direccionCompleta = partes.join(', ');
+      }
+
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/$_ubicacionId');
+      
+      final Map<String, dynamic> ubicacionData = {
+        'lat': _newLocation!.latitude,
+        'lng': _newLocation!.longitude,
+        'pais': pais,
+        'ciudad': ciudad,
+        'direccion_completa': direccionCompleta,
+      };
+
+      print('📍 Actualizando ubicación: ${json.encode(ubicacionData)}');
+
+      final ubicacionResponse = await http.put(
+        ubicacionUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode(ubicacionData),
+      );
+
+      print('📍 Status actualización ubicación: ${ubicacionResponse.statusCode}');
+
+      if (ubicacionResponse.statusCode == 200) {
+        print('✅ Ubicación actualizada correctamente');
+      } else {
+        print('⚠️ Error actualizando ubicación: ${ubicacionResponse.body}');
+      }
+    } catch (e) {
+      print('❌ Error al actualizar ubicación: $e');
+    }
+  }
+
+  Future<void> _abrirSelectorUbicacion() async {
+    LatLng? selectedPosition;
+    
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SearchPage(
+          mode: 'select',
+          onLocationSelected: (position, address) {
+            selectedPosition = position;
+          },
+        ),
+      ),
+    );
+
+    if (selectedPosition != null) {
+      setState(() {
+        _newLocation = selectedPosition;
+      });
+      
+      // Actualizar la vista con la nueva ubicación
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          selectedPosition!.latitude,
+          selectedPosition!.longitude,
+        );
+        
+        if (placemarks.isNotEmpty && mounted) {
+          final place = placemarks.first;
+          setState(() {
+            _pais = place.country ?? 'Honduras';
+            _ciudad = place.locality ?? place.subAdministrativeArea ?? '';
+          });
+          
+          print('📍 Ubicación seleccionada: $_ciudad, $_pais');
+        }
+      } catch (e) {
+        print('❌ Error obteniendo dirección: $e');
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Ubicación actualizada a $_ciudad, $_pais. Guarda los cambios para confirmar.'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -425,6 +592,94 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     (value == null || value.trim().isEmpty)
                         ? 'Por favor, ingresa tu dirección'
                         : null,
+              ),
+              const SizedBox(height: 18),
+
+              // Ubicación - Solo lectura con botón para editar
+              const Text(
+                'Ubicación',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _fieldColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.black.withOpacity(0.25)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, color: _primaryOrange, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_ciudad.isNotEmpty)
+                                Text(
+                                  _ciudad,
+                                  style: const TextStyle(
+                                    color: _textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              if (_pais.isNotEmpty)
+                                Text(
+                                  _pais,
+                                  style: const TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              if (_ciudad.isEmpty && _pais.isEmpty)
+                                const Text(
+                                  'Sin ubicación',
+                                  style: TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _abrirSelectorUbicacion,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _primaryOrange,
+                          side: const BorderSide(color: _primaryOrange, width: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.edit_location_alt, size: 18),
+                        label: Text(
+                          _newLocation != null 
+                            ? 'Ubicación actualizada (guarda para confirmar)'
+                            : 'Editar ubicación en el mapa',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
 

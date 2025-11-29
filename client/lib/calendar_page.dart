@@ -471,7 +471,7 @@ class _CalendarPageState extends State<CalendarPage> {
         'servicio_id': servicio['id'],
         'usuario_cliente_id': _userId,
         'fecha_hora': fechaHora.toIso8601String().substring(0, 16),
-        'duracion_min': servicio['duracion_min'],
+        'duracion_min': servicio['duracion_min'] ?? servicio['duracion'] ?? 60,
         'precio': servicio['precio'],
         'servicio_nombre': servicio['nombre'],
         'estado': 'pendiente',
@@ -520,9 +520,11 @@ class _CalendarPageState extends State<CalendarPage> {
         final citaIdFinal = citaId;
         final montoFinal = (servicio['precio'] as num?)?.toDouble() ?? 0.0;
         final salonNameFinal = widget.salonName ?? 'Salón de belleza';
+        final precioOriginal = servicio['precio_original'] as num?;
+        final descuento = servicio['descuento'] as num?;
 
         print(
-            '💰 Datos para pago: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal');
+            '💰 Datos para pago: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal, precioOriginal=$precioOriginal, descuento=$descuento');
 
         await _cargarCitasReales();
         setState(() => _isLoading = false);
@@ -623,6 +625,8 @@ class _CalendarPageState extends State<CalendarPage> {
                                     citaId: citaIdFinal,
                                     monto: montoFinal,
                                     salonName: salonNameFinal,
+                                    precioOriginal: precioOriginal?.toDouble(),
+                                    descuento: descuento?.toDouble(),
                                   ),
                                 ),
                               ).then((pagado) {

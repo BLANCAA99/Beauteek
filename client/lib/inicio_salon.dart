@@ -58,10 +58,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Importar FirebaseMessaging
       final messaging = FirebaseMessaging.instance;
 
-      // Solicitar permisos (no bloqueante)
       final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
@@ -71,12 +69,10 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         print('✅ Permisos de notificaciones concedidos (Salón)');
         
-        // Obtener token FCM
         final fcmToken = await messaging.getToken();
         if (fcmToken != null) {
           print('📱 FCM Token (Salón): $fcmToken');
           
-          // Guardar token en backend
           final idToken = await user.getIdToken(true);
           try {
             await http.put(
@@ -100,7 +96,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       }
     } catch (e) {
       print('⚠️ Error inicializando notificaciones: $e');
-      // No hacer nada, la app continúa normalmente
     }
   }
 
@@ -122,6 +117,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
     }
   }
 
+  // 🔹 Aquí es donde ahora tomamos foto_url desde USERS y no desde comercios
   Future<void> _cargarDatosSalon() async {
     try {
       if (_uidUsuario == null) return;
@@ -131,6 +127,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
       final idToken = await user.getIdToken();
 
+      // 1) Obtener todos los comercios para saber cuál es el del usuario
       final url = Uri.parse('$apiBaseUrl/comercios');
 
       print('🏢 Buscando comercios del salón: $_uidUsuario');
@@ -145,7 +142,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           )
           .timeout(const Duration(seconds: 6));
 
-      print('📥 Status: ${response.statusCode}');
+      print('📥 Status (comercios): ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final List<dynamic> comercios = json.decode(response.body);
@@ -155,17 +152,50 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           orElse: () => null,
         );
 
+        // 2) Obtener foto_url desde USERS (colección de usuarios)
+        String? fotoSalon;
+
+        try {
+          final userUrl =
+              Uri.parse('$apiBaseUrl/api/users/uid/$_uidUsuario');
+          print('🔍 Cargando datos de usuario salón: $userUrl');
+
+          final userResponse = await http.get(
+            userUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          ).timeout(const Duration(seconds: 6));
+
+          print('📥 Status (usuario salón): ${userResponse.statusCode}');
+
+          if (userResponse.statusCode == 200) {
+            final userData =
+                json.decode(userResponse.body) as Map<String, dynamic>;
+            final fotoUrl = userData['foto_url']?.toString();
+            if (fotoUrl != null && fotoUrl.isNotEmpty) {
+              fotoSalon = fotoUrl;
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error cargando foto desde users: $e');
+        }
+
         if (miComercio != null) {
           setState(() {
             _comercioId = miComercio['id'];
             _nombreSalon = miComercio['nombre'] ?? 'Mi Salón';
-            _logoSalon = miComercio['foto_url'];
+            // foto principal del salón: primero la de users, si no, la de FirebaseAuth
+            _logoSalon = fotoSalon ?? user.photoURL;
           });
-          print('✅ Datos del salón cargados: $_nombreSalon (ID: $_comercioId)');
+          print(
+              '✅ Datos del salón cargados: nombre=$_nombreSalon, id=$_comercioId, logo=$_logoSalon');
         } else {
           print('⚠️ No se encontró comercio para este usuario');
           setState(() {
             _nombreSalon = 'Mi Salón';
+            _logoSalon = fotoSalon ?? user.photoURL;
           });
         }
       }
@@ -203,7 +233,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (response.statusCode == 200) {
         final List<dynamic> citasData = json.decode(response.body);
 
-        // Filtrar citas de hoy y ordenar por hora
         final citasHoy = citasData.where((cita) {
           if (cita['fecha_hora'] == null) return false;
           try {
@@ -220,8 +249,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           return fechaA.compareTo(fechaB);
         });
 
-        // Contar TODAS las citas por confirmar (no solo del día)
-        final porConfirmar = citasData.where((c) => c['estado'] == 'pendiente').length;
+        final porConfirmar =
+            citasData.where((c) => c['estado'] == 'pendiente').length;
 
         if (!mounted) return;
 
@@ -230,7 +259,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           _citasPorConfirmar = porConfirmar;
         });
 
-        print('✅ Citas del día cargadas: ${_citasDelDia.length}, por confirmar: $_citasPorConfirmar');
+        print(
+            '✅ Citas del día cargadas: ${_citasDelDia.length}, por confirmar: $_citasPorConfirmar');
       }
     } catch (e) {
       print('❌ Error cargando citas del día: $e');
@@ -245,7 +275,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/api/promociones/comercio/$_comercioId');
+      final url =
+          Uri.parse('$apiBaseUrl/api/promociones/comercio/$_comercioId');
       print('🔍 Cargando promociones para comercio $_comercioId');
 
       final response = await http.get(
@@ -260,7 +291,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
         final List<dynamic> promocionesData = json.decode(response.body);
         final now = DateTime.now();
 
-        // Filtrar solo promociones activas
         final activas = promocionesData.where((promo) {
           if (promo['fecha_fin'] == null) return true;
           try {
@@ -270,10 +300,11 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             if (fechaFinData is String) {
               fechaFin = DateTime.parse(fechaFinData);
             } else if (fechaFinData is Map) {
-              // Firestore Timestamp: {_seconds: ..., _nanoseconds: ...}
-              final seconds = fechaFinData['_seconds'] ?? fechaFinData['seconds'];
+              final seconds =
+                  fechaFinData['_seconds'] ?? fechaFinData['seconds'];
               if (seconds != null) {
-                fechaFin = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+                fechaFin =
+                    DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
               } else {
                 return true;
               }
@@ -308,7 +339,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
+      final url =
+          Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
       print('🔍 Cargando reseñas para comercio $_comercioId');
 
       final response = await http.get(
@@ -322,7 +354,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (response.statusCode == 200) {
         final List<dynamic> resenasData = json.decode(response.body);
 
-        // Ordenar por fecha descendente y tomar las 3 más recientes
         resenasData.sort((a, b) {
           final fechaA = a['created_at'] != null
               ? DateTime.parse(a['created_at'])
@@ -439,25 +470,30 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                     child: Container(
                       width: 52,
                       height: 52,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: _logoSalon == null
-                            ? AppTheme.primaryGradient
-                            : null,
-                        image: _logoSalon != null
-                            ? DecorationImage(
-                                image: NetworkImage(_logoSalon!),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
+                        gradient: AppTheme.primaryGradient,
                       ),
-                      child: _logoSalon == null
-                          ? const Icon(
+                      child: _logoSalon != null && _logoSalon!.isNotEmpty
+                          ? ClipOval(
+                              child: Image.network(
+                                _logoSalon!,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.store,
+                                    color: Colors.white,
+                                    size: 28,
+                                  );
+                                },
+                              ),
+                            )
+                          : const Icon(
                               Icons.store,
                               color: Colors.white,
                               size: 28,
-                            )
-                          : null,
+                            ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -465,7 +501,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Línea de saludo + nombre del salón
                         Text(
                           '${_obtenerSaludo()}, ${_nombreSalon ?? 'Mi Salón'}',
                           style: AppTheme.heading3.copyWith(
@@ -506,7 +541,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const NotificacionesPage(),
+                              builder: (context) =>
+                                  const NotificacionesPage(),
                             ),
                           );
                         },
@@ -537,8 +573,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             Expanded(
               child: _isLoading
                   ? const Center(
-                      child:
-                          CircularProgressIndicator(color: AppTheme.primaryOrange),
+                      child: CircularProgressIndicator(
+                          color: AppTheme.primaryOrange),
                     )
                   : SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
@@ -548,7 +584,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Fecha y hora actual (pill)
                           Center(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -580,7 +615,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           ),
                           const SizedBox(height: 32),
 
-                          // Citas del día
                           Text(
                             'Citas del día',
                             style: AppTheme.heading2.copyWith(
@@ -589,11 +623,11 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Timeline de citas dinámico
                           if (_citasDelDia.isEmpty)
                             Container(
                               padding: const EdgeInsets.all(24),
-                              decoration: AppTheme.cardDecoration(borderRadius: 20),
+                              decoration: AppTheme.cardDecoration(
+                                  borderRadius: 20),
                               child: Center(
                                 child: Column(
                                   children: [
@@ -617,11 +651,15 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                             ..._citasDelDia.asMap().entries.map((entry) {
                               final index = entry.key;
                               final cita = entry.value;
-                              final esUltimo = index == _citasDelDia.length - 1;
+                              final esUltimo =
+                                  index == _citasDelDia.length - 1;
 
-                              final fechaHora = DateTime.parse(cita['fecha_hora']);
-                              final horaFormato = DateFormat('HH:mm').format(fechaHora);
-                              final estado = cita['estado'] ?? 'pendiente';
+                              final fechaHora =
+                                  DateTime.parse(cita['fecha_hora']);
+                              final horaFormato =
+                                  DateFormat('HH:mm').format(fechaHora);
+                              final estado =
+                                  cita['estado'] ?? 'pendiente';
                               
                               Color estadoColor;
                               Color tituloColor;
@@ -655,15 +693,21 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               }
 
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
+                                padding:
+                                    const EdgeInsets.only(bottom: 12),
                                 child: _TimelineCard(
                                   estadoColor: estadoColor,
                                   lineaColor: const Color(0xFF2C3344),
                                   fondo: fondo,
-                                  titulo: '$horaFormato - $estadoTexto',
+                                  titulo:
+                                      '$horaFormato - $estadoTexto',
                                   tituloColor: tituloColor,
-                                  servicio: cita['servicio_nombre'] ?? 'Servicio',
-                                  cliente: cita['usuario_nombre'] ?? 'Cliente',
+                                  servicio:
+                                      cita['servicio_nombre'] ??
+                                          'Servicio',
+                                  cliente:
+                                      cita['usuario_nombre'] ??
+                                          'Cliente',
                                   esUltimo: esUltimo,
                                 ),
                               );
@@ -671,7 +715,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
                           const SizedBox(height: 28),
 
-                          // Promociones
                           Text(
                             'Promociones',
                             style: AppTheme.heading2.copyWith(
@@ -691,7 +734,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const GestionarPromocionesPage(),
+                                  builder: (_) =>
+                                      const GestionarPromocionesPage(),
                                 ),
                               );
                             },
@@ -699,7 +743,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
                           const SizedBox(height: 24),
 
-                          // Recordatorios
                           _SeccionGrandeCard(
                             color: const Color(0xFF0D2538),
                             icon: Icons.check_circle_outline,
@@ -713,7 +756,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const CalendarPage(mode: 'view'),
+                                  builder: (context) =>
+                                      const CalendarPage(mode: 'view'),
                                 ),
                               );
                             },
@@ -721,7 +765,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
                           const SizedBox(height: 28),
 
-                          // Últimas reseñas
                           Text(
                             'Últimas reseñas',
                             style: AppTheme.heading2.copyWith(
@@ -732,7 +775,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           if (_resenas.isEmpty)
                             Container(
                               padding: const EdgeInsets.all(24),
-                              decoration: AppTheme.cardDecoration(borderRadius: 20),
+                              decoration: AppTheme.cardDecoration(
+                                  borderRadius: 20),
                               child: Center(
                                 child: Column(
                                   children: [
@@ -758,33 +802,44 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
                                 itemCount: _resenas.length,
-                                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 12),
                                 itemBuilder: (context, index) {
                                   final resena = _resenas[index];
-                                  final comentario = resena['comentario'] ?? '';
-                                  final calificacion = (resena['calificacion'] ?? 0).toInt();
-                                  final nombreUsuario = resena['usuario_nombre'] ?? 'Cliente';
+                                  final comentario =
+                                      resena['comentario'] ?? '';
+                                  final calificacion =
+                                      (resena['calificacion'] ?? 0)
+                                          .toInt();
+                                  final nombreUsuario =
+                                      resena['usuario_nombre'] ??
+                                          'Cliente';
                                   
                                   String fechaRelativa = 'Reciente';
                                   if (resena['created_at'] != null) {
                                     try {
-                                      final fecha = DateTime.parse(resena['created_at']);
-                                      final diferencia = DateTime.now().difference(fecha);
+                                      final fecha = DateTime.parse(
+                                          resena['created_at']);
+                                      final diferencia = DateTime.now()
+                                          .difference(fecha);
                                       
                                       if (diferencia.inDays > 7) {
-                                        fechaRelativa = 'hace ${diferencia.inDays ~/ 7} semana${diferencia.inDays ~/ 7 != 1 ? "s" : ""}';
+                                        fechaRelativa =
+                                            'hace ${diferencia.inDays ~/ 7} semana${diferencia.inDays ~/ 7 != 1 ? "s" : ""}';
                                       } else if (diferencia.inDays > 0) {
-                                        fechaRelativa = 'hace ${diferencia.inDays} día${diferencia.inDays != 1 ? "s" : ""}';
+                                        fechaRelativa =
+                                            'hace ${diferencia.inDays} día${diferencia.inDays != 1 ? "s" : ""}';
                                       } else if (diferencia.inHours > 0) {
-                                        fechaRelativa = 'hace ${diferencia.inHours} hora${diferencia.inHours != 1 ? "s" : ""}';
+                                        fechaRelativa =
+                                            'hace ${diferencia.inHours} hora${diferencia.inHours != 1 ? "s" : ""}';
                                       }
-                                    } catch (e) {
-                                      // Usar valor por defecto
-                                    }
+                                    } catch (_) {}
                                   }
 
                                   return _ResenaCard(
-                                    texto: comentario.isNotEmpty ? '"$comentario"' : '"Buen servicio"',
+                                    texto: comentario.isNotEmpty
+                                        ? '"$comentario"'
+                                        : '"Buen servicio"',
                                     cliente: nombreUsuario,
                                     fecha: fechaRelativa,
                                     calificacion: calificacion,
@@ -838,7 +893,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const GestionarPromocionesPage(),
+                      builder: (_) =>
+                          const GestionarPromocionesPage(),
                     ),
                   );
                 },
@@ -943,7 +999,6 @@ class _TimelineCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Línea vertical + punto
         Column(
           children: [
             Container(
@@ -967,7 +1022,6 @@ class _TimelineCard extends StatelessWidget {
           ],
         ),
         const SizedBox(width: 12),
-        // Card de información
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -1133,7 +1187,6 @@ class _ResenaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Estrellitas dinámicas
           Row(
             children: List.generate(
               5,

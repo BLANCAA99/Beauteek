@@ -59,7 +59,7 @@ app.use('/citas', citaRoutes);
 app.use('/api/galeria-fotos', galeriaFotoRoutes);
 app.use('/api/ubicaciones', ubicacionRoutes);
 app.use('/api/suscripciones', suscripcionRoutes);
-app.use('/reportes', reporteRoutes);
+app.use('/api/reportes', reporteRoutes);
 app.use('/soporte', soporteRoutes);
 
 console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /soporte');

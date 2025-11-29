@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'api_constants.dart';
 import 'salon_profile_page.dart';
 import 'theme/app_theme.dart';
@@ -40,7 +41,7 @@ class _SearchPageState extends State<SearchPage> {
   GoogleMapController? _mapController;
   Set<Marker> _markers = {};
   Set<Circle> _circles = {};
-  bool _showMap = true;
+  bool _showMap = true; // Mostrar mapa por defecto
 
   // UI: pestañas "Salones / Servicios"
   int _indicePestana = 0;
@@ -175,6 +176,9 @@ class _SearchPageState extends State<SearchPage> {
       });
 
       print('✅ ${_resultados.length} salones cargados en $pais (ordenados por distancia)');
+      
+      // Actualizar marcadores inmediatamente al cargar los salones
+      _actualizarMarcadores();
     } catch (e) {
       print('❌ Error: $e');
       setState(() => _isLoading = false);
@@ -209,6 +213,41 @@ class _SearchPageState extends State<SearchPage> {
     return '${distancia.toStringAsFixed(1)} km';
   }
 
+  // Función para abrir Google Maps con direcciones
+  Future<void> _abrirGoogleMaps(double lat, double lng, String nombreSalon) async {
+    // URL para Google Maps con direcciones desde la ubicación actual
+    final url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+        print('📍 Abriendo Google Maps para: $nombreSalon');
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo abrir Google Maps'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error abriendo Google Maps: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al abrir el mapa'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _toggleMapa() {
     setState(() {
       _showMap = !_showMap;
@@ -216,6 +255,69 @@ class _SearchPageState extends State<SearchPage> {
         _actualizarMarcadores();
       }
     });
+  }
+
+  void _mostrarOpcionesSalon(Map<String, dynamic> salon, double lat, double lng) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                salon['nombre'] ?? 'Salón',
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.store, color: AppTheme.primaryOrange),
+                title: const Text(
+                  'Ver perfil del salón',
+                  style: TextStyle(color: AppTheme.textPrimary),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SalonProfilePage(
+                        comercioId: salon['id'],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const Divider(color: AppTheme.dividerColor),
+              ListTile(
+                leading: const Icon(Icons.directions, color: AppTheme.primaryOrange),
+                title: const Text(
+                  '¿Cómo llegar?',
+                  style: TextStyle(color: AppTheme.textPrimary),
+                ),
+                subtitle: const Text(
+                  'Abrir en Google Maps',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirGoogleMaps(lat, lng, salon['nombre'] ?? 'Salón');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _actualizarMarcadores() {
@@ -259,7 +361,7 @@ class _SearchPageState extends State<SearchPage> {
               position: LatLng(lat, lng),
               infoWindow: InfoWindow(
                 title: salon['nombre'],
-                snippet: '${(salon['distancia'] as double).toStringAsFixed(1)} km',
+                snippet: 'Toca para ver perfil • ${(salon['distancia'] as double).toStringAsFixed(1)} km',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -272,6 +374,10 @@ class _SearchPageState extends State<SearchPage> {
                 },
               ),
               icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+              onTap: () {
+                // Mostrar diálogo con opciones
+                _mostrarOpcionesSalon(salon, lat, lng);
+              },
             ),
           );
         }
@@ -769,11 +875,21 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   GoogleMapController? _mapController;
   LatLng _selectedPosition = const LatLng(14.0723, -87.1921);
   bool _isLoadingLocation = false;
-  final Set<Marker> _markers = {};
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
     super.initState();
+    // Crear marcador inicial inmediatamente
+    _markers = {
+      Marker(
+        markerId: const MarkerId('selected_location'),
+        position: _selectedPosition,
+        draggable: true,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        onDragEnd: _onMarkerDragEnd,
+      ),
+    };
     _initializeLocation();
   }
 
@@ -869,16 +985,20 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   }
 
   void _updateMarker(LatLng position) {
-    _markers.clear();
-    _markers.add(
-      Marker(
-        markerId: const MarkerId('selected_location'),
-        position: position,
-        draggable: true,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-        onDragEnd: _onMarkerDragEnd,
-      ),
-    );
+    if (mounted) {
+      setState(() {
+        _markers = {
+          Marker(
+            markerId: const MarkerId('selected_location'),
+            position: position,
+            draggable: true,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+            onDragEnd: _onMarkerDragEnd,
+          ),
+        };
+      });
+      print('📍 Marcador actualizado en: $position');
+    }
   }
 
   void _onMarkerDragEnd(LatLng newPosition) {
@@ -929,11 +1049,7 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
             ),
             onMapCreated: (controller) {
               _mapController = controller;
-              if (mounted) {
-                setState(() {
-                  _updateMarker(_selectedPosition);
-                });
-              }
+              print('📍 Mapa creado. Marcadores actuales: ${_markers.length}');
             },
             onTap: _onMapTap,
             markers: _markers,

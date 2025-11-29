@@ -3,18 +3,27 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import 'api_constants.dart';
 
 class PaymentScreen extends StatefulWidget {
   final String citaId;
   final double monto;
   final String salonName;
+  final double? precioOriginal;
+  final double? descuento;
 
   const PaymentScreen({
     Key? key,
     required this.citaId,
     required this.monto,
     required this.salonName,
+    this.precioOriginal,
+    this.descuento,
   }) : super(key: key);
 
   @override
@@ -84,9 +93,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildPriceRow('Valor del servicio', widget.monto),
-                      Divider(color: Color(0xFF637588).withOpacity(0.3)),
-                      _buildPriceRow('Total a pagar', total, isBold: true),
+                      if (widget.precioOriginal != null && widget.descuento != null) ...[
+                        _buildPriceRow('Precio original', widget.precioOriginal!),
+                        const SizedBox(height: 8),
+                        _buildDiscountRow('Descuento (-${widget.descuento!.toStringAsFixed(0)}%)', 
+                          widget.precioOriginal! - widget.monto),
+                        Divider(color: Color(0xFF637588).withOpacity(0.3)),
+                        _buildPriceRow('Total a pagar', total, isBold: true),
+                      ] else ...[
+                        _buildPriceRow('Valor del servicio', widget.monto),
+                        Divider(color: Color(0xFF637588).withOpacity(0.3)),
+                        _buildPriceRow('Total a pagar', total, isBold: true),
+                      ],
                     ],
                   ),
                 ),
@@ -290,6 +308,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  Widget _buildDiscountRow(String label, double amount) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Colors.green,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            '-L${amount.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 15,
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPriceRow(String label, double amount, {bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -357,12 +402,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Pago procesado exitosamente!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        final pagoData = json.decode(response.body);
+        
+        // Mostrar diálogo de éxito con opción de descargar recibo
+        await _mostrarDialogoExito(pagoData);
+        
         Navigator.pop(context, true);
       } else {
         final error = json.decode(response.body);
@@ -381,6 +425,203 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  Future<void> _mostrarDialogoExito(Map<String, dynamic> pagoData) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle, color: Colors.green, size: 32),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                '¡Pago Exitoso!',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tu pago ha sido procesado correctamente.',
+              style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F2F4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildInfoRow('Monto pagado', 'L${widget.monto.toStringAsFixed(2)}'),
+                  const Divider(),
+                  _buildInfoRow('Referencia', pagoData['id'] ?? 'N/A'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '¿Deseas descargar tu recibo?',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Ahora no', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              await _generarYDescargarRecibo(pagoData);
+              if (mounted) Navigator.pop(context);
+            },
+            icon: const Icon(Icons.download, color: Colors.white),
+            label: const Text('Descargar Recibo', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEA963A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generarYDescargarRecibo(Map<String, dynamic> pagoData) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final pdf = pw.Document();
+      final ahora = DateTime.now();
+      final fechaStr = DateFormat('dd/MM/yyyy HH:mm').format(ahora);
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('RECIBO DE PAGO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
+              pw.Text('Beauteek - Plataforma de Belleza', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 20),
+              
+              pw.Text('INFORMACION DEL PAGO', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('Fecha: $fechaStr'),
+              pw.Text('Referencia: ${pagoData['id'] ?? 'N/A'}'),
+              pw.Text('Cliente: ${user.displayName ?? user.email ?? 'Cliente'}'),
+              pw.SizedBox(height: 20),
+              
+              pw.Text('DETALLES DEL SERVICIO', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('Salon: ${widget.salonName}'),
+              pw.Text('Cita ID: ${widget.citaId}'),
+              pw.SizedBox(height: 20),
+              
+              pw.Divider(),
+              pw.SizedBox(height: 10),
+              
+              if (widget.precioOriginal != null && widget.descuento != null) ...[
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Precio original:'),
+                    pw.Text('L${widget.precioOriginal!.toStringAsFixed(2)}'),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Descuento (-${widget.descuento!.toStringAsFixed(0)}%):'),
+                    pw.Text('-L${(widget.precioOriginal! - widget.monto).toStringAsFixed(2)}'),
+                  ],
+                ),
+                pw.Divider(),
+              ],
+              
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('TOTAL PAGADO:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('L${widget.monto.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+              
+              pw.SizedBox(height: 30),
+              pw.Divider(),
+              pw.SizedBox(height: 10),
+              pw.Text('Gracias por usar Beauteek', style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('Este es un comprobante de pago electronico', style: const pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+        ),
+      );
+
+      final bytes = await pdf.save();
+      final directory = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '${directory.path}/recibo_pago_$timestamp.pdf';
+      final file = File(path);
+      await file.writeAsBytes(bytes);
+
+      final result = await Share.shareXFiles(
+        [XFile(path, mimeType: 'application/pdf')],
+        subject: 'Recibo de Pago - Beauteek',
+        text: 'Tu recibo de pago por L${widget.monto.toStringAsFixed(2)}',
+      );
+
+      if (mounted && result.status == ShareResultStatus.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recibo descargado exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error generando recibo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al generar recibo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

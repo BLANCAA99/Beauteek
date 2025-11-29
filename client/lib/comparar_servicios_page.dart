@@ -31,16 +31,61 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     _buscarServicios();
   }
 
+  String _normalizarTexto(String texto) {
+    return texto
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ñ', 'n');
+  }
+
   Future<void> _buscarServicios() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
-      final idToken = await user.getIdToken();
+      final idTokenNullable = await user.getIdToken();
+      if (idTokenNullable == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final idToken = idTokenNullable;
+      
+      print('🔍 Buscando servicios: "${widget.servicioNombre}"');
 
-      // 1. Obtener todos los comercios
+      // Obtener ubicación del cliente primero
+      final userId = user.uid;
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
+      final ubicacionResponse = await http.get(
+        ubicacionUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (ubicacionResponse.statusCode != 200) {
+        print('⚠️ No se pudo obtener ubicación del cliente');
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final ubicacionData = json.decode(ubicacionResponse.body);
+      final userLat = (ubicacionData['lat'] as num).toDouble();
+      final userLng = (ubicacionData['lng'] as num).toDouble();
+      
+      print('📍 Ubicación cliente: ($userLat, $userLng)');
+
+      // Obtener todos los comercios
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
       final comerciosResponse = await http.get(
         comerciosUrl,
@@ -48,103 +93,95 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (comerciosResponse.statusCode != 200) {
-        setState(() => _isLoading = false);
+        print('❌ Error obteniendo comercios: ${comerciosResponse.statusCode}');
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
       final List<dynamic> comercios = json.decode(comerciosResponse.body);
+      print('📊 Comercios obtenidos: ${comercios.length}');
 
-      // 2. Para cada comercio, obtener sus servicios
+      // Para cada comercio, obtener sus servicios
       List<Map<String, dynamic>> serviciosEncontrados = [];
 
       for (var comercio in comercios) {
         try {
-          final serviciosUrl = Uri.parse('$apiBaseUrl/servicios/comercio/${comercio['id']}');
+          final serviciosUrl = Uri.parse('$apiBaseUrl/api/servicios?comercio_id=${comercio['id']}');
           final serviciosResponse = await http.get(
             serviciosUrl,
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $idToken',
             },
-          );
+          ).timeout(const Duration(seconds: 5));
 
           if (serviciosResponse.statusCode == 200) {
             final List<dynamic> servicios = json.decode(serviciosResponse.body);
 
             // Filtrar servicios que coincidan con la búsqueda
             for (var servicio in servicios) {
-              final nombreServicio = (servicio['nombre'] ?? '').toString().toLowerCase();
-              final busqueda = widget.servicioNombre.toLowerCase();
+              final nombreServicio = _normalizarTexto(servicio['nombre'] ?? '');
+              final busqueda = _normalizarTexto(widget.servicioNombre);
 
               if (nombreServicio.contains(busqueda)) {
-                // Calcular distancia real
-                final distancia = await _calcularDistanciaReal(comercio);
+                // Calcular distancia usando ubicación ya obtenida
+                final distancia = await _calcularDistanciaConUbicacion(
+                  comercio, 
+                  userLat, 
+                  userLng,
+                  idToken,
+                );
                 
                 serviciosEncontrados.add({
                   'servicio': servicio,
                   'comercio': comercio,
-                  'precio': servicio['precio'] ?? 0,
+                  'precio': (servicio['precio'] ?? 0).toDouble(),
                   'duracion': servicio['duracion'] ?? 0,
                   'distancia': distancia,
-                  'rating': comercio['rating'] ?? 4.0,
+                  'rating': (comercio['rating'] ?? 4.0).toDouble(),
                   'resenas': comercio['total_resenas'] ?? 0,
                 });
               }
             }
           }
         } catch (e) {
-          print('Error obteniendo servicios del comercio ${comercio['id']}: $e');
+          print('⚠️ Error obteniendo servicios del comercio ${comercio['id']}: $e');
         }
       }
 
-      // 3. Ordenar por precio (menor a mayor)
-      serviciosEncontrados.sort((a, b) => a['precio'].compareTo(b['precio']));
+      print('✅ Servicios encontrados: ${serviciosEncontrados.length}');
 
-      setState(() {
-        _serviciosEncontrados = serviciosEncontrados;
-        _isLoading = false;
-      });
+      // Ordenar por precio (menor a mayor)
+      serviciosEncontrados.sort((a, b) => 
+        (a['precio'] as double).compareTo(b['precio'] as double));
+
+      if (mounted) {
+        setState(() {
+          _serviciosEncontrados = serviciosEncontrados;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('❌ Error buscando servicios: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  Future<double> _calcularDistanciaReal(Map<String, dynamic> comercio) async {
+  Future<double> _calcularDistanciaConUbicacion(
+    Map<String, dynamic> comercio,
+    double userLat,
+    double userLng,
+    String idToken,
+  ) async {
     try {
-      // Obtener ubicación del usuario desde Firestore
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return 0.0;
-
-      final idToken = await user.getIdToken();
-      final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
-      final userResponse = await http.get(
-        userUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      );
-
-      if (userResponse.statusCode != 200) return 0.0;
-
-      final userData = json.decode(userResponse.body);
-      final ubicacionUsuario = userData['ubicacion'];
-      
-      double? userLat, userLng;
-      if (ubicacionUsuario is Map) {
-        userLat = (ubicacionUsuario['_latitude'] ?? ubicacionUsuario['latitude'])?.toDouble();
-        userLng = (ubicacionUsuario['_longitude'] ?? ubicacionUsuario['longitude'])?.toDouble();
-      }
-
-      if (userLat == null || userLng == null) return 0.0;
-
       // Obtener ubicación del comercio desde usuarios collection
       final uidUsuario = comercio['uid_usuario'];
-      if (uidUsuario == null) return 0.0;
+      if (uidUsuario == null) return 999.0;
       
       final comercioUserUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidUsuario');
       final comercioUserResponse = await http.get(
@@ -153,9 +190,9 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      );
+      ).timeout(const Duration(seconds: 5));
 
-      if (comercioUserResponse.statusCode != 200) return 0.0;
+      if (comercioUserResponse.statusCode != 200) return 999.0;
 
       final comercioUserData = json.decode(comercioUserResponse.body);
       final ubicacionComercio = comercioUserData['ubicacion'];
@@ -166,13 +203,13 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
         comercioLng = (ubicacionComercio['_longitude'] ?? ubicacionComercio['longitude'])?.toDouble();
       }
 
-      if (comercioLat == null || comercioLng == null) return 0.0;
+      if (comercioLat == null || comercioLng == null) return 999.0;
 
       // Calcular distancia usando fórmula Haversine
       return _calcularDistanciaHaversine(userLat, userLng, comercioLat, comercioLng);
     } catch (e) {
-      print('Error calculando distancia: $e');
-      return 0.0;
+      print('⚠️ Error calculando distancia: $e');
+      return 999.0;
     }
   }
 
@@ -357,13 +394,32 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           ),
         ),
       ),
-      body: Column(
+      body: _isLoading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    color: AppTheme.primaryOrange,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Buscando mejores opciones...',
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
         children: [
           // Resumen comparativo
           if (_serviciosEncontrados.isNotEmpty) _buildResumenComparativo(),
           
           // Filtros de ordenamiento
-          Padding(
+          if (_serviciosEncontrados.isNotEmpty)
+            Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: _opcionesOrden.map((opcion) {
@@ -409,13 +465,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
 
           // Lista de servicios encontrados
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.primaryOrange,
-                    ),
-                  )
-                : _serviciosEncontrados.isEmpty
+            child: _serviciosEncontrados.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -430,6 +480,14 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                               'No se encontraron servicios',
                               style: AppTheme.bodyLarge.copyWith(
                                 color: AppTheme.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Intenta buscar con otro término',
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 14,
                               ),
                             ),
                           ],

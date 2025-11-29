@@ -93,9 +93,16 @@ export const getPromociones = async (_req: Request, res: Response): Promise<void
     const promociones: Promocion[] = snapshot.docs.map(
       (doc) => ({ id: doc.id, ...doc.data() } as Promocion)
     );
+    
+    console.log(`📊 Total promociones en Firestore: ${promociones.length}`);
+    if (promociones.length > 0) {
+      console.log(`📊 Primera promoción:`, JSON.stringify(promociones[0]));
+    }
+    
     res.json(promociones);
     return;
   } catch (error: any) {
+    console.error('❌ Error obteniendo promociones:', error);
     res.status(500).json({ error: error.message });
     return;
   }

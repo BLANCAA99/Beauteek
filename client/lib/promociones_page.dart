@@ -36,10 +36,16 @@ class _PromocionesPageState extends State<PromocionesPage> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        print('⚠️ Usuario no autenticado');
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/promociones');
+      final url = Uri.parse('$apiBaseUrl/api/promociones');
+
+      print('🔍 Cargando promociones desde: $url');
 
       final response = await http.get(
         url,
@@ -47,23 +53,56 @@ class _PromocionesPageState extends State<PromocionesPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
+
+      print('📊 Status promociones: ${response.statusCode}');
+      print('📊 Body length: ${response.body.length}');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+        print('📊 Total promociones recibidas: ${data.length}');
         
         // Filtrar promociones activas y vigentes
         final now = DateTime.now();
+        print('📅 Fecha actual: $now');
+        
         final promocionesActivas = data.where((promo) {
-          if (promo['activo'] != true) return false;
+          print('🔍 Verificando promo: ${promo['servicio_nombre']}');
+          print('   - activo: ${promo['activo']}');
+          print('   - fecha_fin: ${promo['fecha_fin']}');
+          
+          if (promo['activo'] != true) {
+            print('   ❌ Rechazada: activo != true');
+            return false;
+          }
           
           try {
-            final fechaFin = DateTime.parse(promo['fecha_fin']);
-            return fechaFin.isAfter(now);
+            // Intentar parsear la fecha
+            dynamic fechaFinData = promo['fecha_fin'];
+            DateTime fechaFin;
+            
+            if (fechaFinData is Map && fechaFinData.containsKey('_seconds')) {
+              // Timestamp de Firestore
+              final seconds = fechaFinData['_seconds'] as int;
+              fechaFin = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+            } else if (fechaFinData is String) {
+              fechaFin = DateTime.parse(fechaFinData);
+            } else {
+              print('   ❌ Formato de fecha no reconocido');
+              return false;
+            }
+            
+            print('   - fecha_fin parseada: $fechaFin');
+            final esValida = fechaFin.isAfter(now);
+            print('   ${esValida ? "✅" : "❌"} ${esValida ? "Válida" : "Expirada"}');
+            return esValida;
           } catch (e) {
+            print('   ❌ Error parseando fecha: $e');
             return false;
           }
         }).toList();
+        
+        print('✅ Promociones activas: ${promocionesActivas.length}');
 
         // Obtener detalles de comercios
         final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
@@ -109,7 +148,18 @@ class _PromocionesPageState extends State<PromocionesPage> {
     return _promociones.where((promo) {
       final servicioNombre = (promo['servicio_nombre'] ?? '').toString().toLowerCase();
       final categoria = _categoriaSeleccionada.toLowerCase();
-      return servicioNombre.contains(categoria);
+      
+      // Mapeo de categorías a palabras clave relacionadas
+      final palabrasClave = <String, List<String>>{
+        'cabello': ['cabello', 'pelo', 'corte', 'tinte', 'peinado', 'keratin', 'balayage'],
+        'uñas': ['uñas', 'manicure', 'pedicure', 'nail', 'gelish', 'acrilico'],
+        'masajes': ['masaje', 'masajes', 'relajante', 'terapeutico', 'spa'],
+        'faciales': ['facial', 'faciales', 'rostro', 'limpieza facial', 'peeling'],
+      };
+      
+      // Buscar coincidencias con palabras clave
+      final palabras = palabrasClave[categoria] ?? [categoria];
+      return palabras.any((palabra) => servicioNombre.contains(palabra));
     }).toList();
   }
 
@@ -213,58 +263,43 @@ class _PromocionesPageState extends State<PromocionesPage> {
 
           const SizedBox(height: 16),
 
-          // Banner "Agenda desde casa"
+          // Banner "Cómo agendar"
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFFFF9500), Color(0xFFFF6B00)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Agenda desde casa',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.white, size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        '¿Cómo agendar tu cita?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                  _buildPasoAgenda('1', 'Elige la promoción que te guste'),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Reserva tus citas de belleza fácil y rápido.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppTheme.primaryOrange,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text(
-                      'Descubrir',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  _buildPasoAgenda('2', 'Selecciona fecha y hora'),
+                  const SizedBox(height: 8),
+                  _buildPasoAgenda('3', '¡Listo! Paga en app o en el local'),
                 ],
               ),
             ),
@@ -282,11 +317,40 @@ class _PromocionesPageState extends State<PromocionesPage> {
                   )
                 : _promocionesFiltradas.isEmpty
                     ? Center(
-                        child: Text(
-                          'No hay promociones disponibles',
-                          style: AppTheme.bodyLarge.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inbox_outlined,
+                              size: 80,
+                              color: AppTheme.textSecondary.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _categoriaSeleccionada == 'Todos'
+                                  ? 'No hay promociones disponibles'
+                                  : 'No hay promociones en $_categoriaSeleccionada',
+                              style: AppTheme.bodyLarge.copyWith(
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            if (_categoriaSeleccionada != 'Todos')
+                              TextButton(
+                                onPressed: () {
+                                  setState(() => _categoriaSeleccionada = 'Todos');
+                                },
+                                child: const Text(
+                                  'Ver todas las promociones',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryOrange,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       )
                     : ListView.builder(
@@ -297,13 +361,87 @@ class _PromocionesPageState extends State<PromocionesPage> {
                           return _PromocionCard(
                             promocion: promo,
                             onTap: () {
-                              _mostrarDetallePromocion(promo);
+                              _navegarACalendario(promo);
                             },
                           );
                         },
                       ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPasoAgenda(String numero, String texto) {
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              numero,
+              style: const TextStyle(
+                color: AppTheme.primaryOrange,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            texto,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _navegarACalendario(Map<String, dynamic> promo) {
+    final comercio = promo['comercio'] as Map<String, dynamic>?;
+    
+    if (comercio == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo obtener información del salón'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Crear el objeto de servicio con el descuento aplicado
+    final servicioConDescuento = {
+      'id': promo['servicio_id'],
+      'nombre': promo['servicio_nombre'],
+      'precio': promo['precio_con_descuento'], // Precio con descuento
+      'precio_original': promo['precio_original'], // Precio original para mostrar
+      'duracion': promo['duracion'] ?? 60,
+      'descuento': promo['valor'], // Porcentaje de descuento
+      'promocion_id': promo['id'],
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CalendarPage(
+          mode: 'booking',
+          comercioId: comercio['id'],
+          salonName: comercio['nombre'] ?? 'Salón',
+          servicioId: promo['servicio_id'],
+          servicios: [servicioConDescuento],
+        ),
       ),
     );
   }
@@ -377,7 +515,7 @@ class _PromocionesPageState extends State<PromocionesPage> {
               children: [
                 if (promo['precio_original'] != null)
                   Text(
-                    '€${promo['precio_original']}',
+                    'L.${promo['precio_original']}',
                     style: const TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 16,
@@ -386,7 +524,7 @@ class _PromocionesPageState extends State<PromocionesPage> {
                   ),
                 const SizedBox(width: 12),
                 Text(
-                  '€${promo['precio_con_descuento'] ?? '0.00'}',
+                  'L.${promo['precio_con_descuento'] ?? '0.00'}',
                   style: const TextStyle(
                     color: AppTheme.primaryOrange,
                     fontSize: 24,
@@ -459,20 +597,28 @@ class _MedioPagoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 80,
-      height: 50,
+      width: 75,
+      height: 48,
       decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Center(
         child: Text(
           logo,
           style: TextStyle(
             color: color,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
           ),
         ),
       ),
@@ -616,7 +762,7 @@ class _PromocionCard extends StatelessWidget {
                     children: [
                       if (promocion['precio_original'] != null)
                         Text(
-                          '€${promocion['precio_original']}',
+                          'L ${promocion['precio_original']}',
                           style: const TextStyle(
                             color: AppTheme.textSecondary,
                             fontSize: 14,
@@ -625,7 +771,7 @@ class _PromocionCard extends StatelessWidget {
                         ),
                       const SizedBox(width: 8),
                       Text(
-                        '€${promocion['precio_con_descuento'] ?? '0.00'}',
+                        'L ${promocion['precio_con_descuento'] ?? '0.00'}',
                         style: const TextStyle(
                           color: AppTheme.primaryOrange,
                           fontSize: 20,

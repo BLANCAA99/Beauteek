@@ -26,6 +26,7 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
   List<Map<String, dynamic>> _fotos = [];
   List<Map<String, dynamic>> _servicios = [];
   String? _servicioSeleccionado; // para subir fotos nuevas
+  bool _esDuenoSalon = false; // Validar si es el dueño del salón
 
   final ImagePicker _picker = ImagePicker();
   bool _subiendoFoto = false;
@@ -44,6 +45,23 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
+
+      // Verificar si el usuario es el dueño del salón
+      final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
+      final comercioResponse = await http.get(
+        comercioUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (comercioResponse.statusCode == 200) {
+        final comercioData = json.decode(comercioResponse.body);
+        final uidDueno = comercioData['uid_usuario'];
+        _esDuenoSalon = (uidDueno == user.uid);
+        print('📸 [Galería] ¿Es dueño del salón? $_esDuenoSalon');
+      }
 
       // 1. Traer servicios (MISMA RUTA QUE EN GestionarPromociones y SalonProfilePage)
       final serviciosUrl = Uri.parse(
@@ -210,8 +228,8 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
                     );
                   },
                 ),
-      floatingActionButton: widget.modoSeleccion
-          ? null // en modo selección no se suben fotos nuevas
+      floatingActionButton: (widget.modoSeleccion || !_esDuenoSalon)
+          ? null // en modo selección o si no es dueño, no mostrar botón
           : FloatingActionButton(
               backgroundColor: AppTheme.primaryOrange,
               onPressed: _servicios.isEmpty
@@ -227,7 +245,7 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
                   : _mostrarFormularioNuevaFoto,
               child: const Icon(Icons.add, color: Colors.white),
             ),
-      bottomNavigationBar: (!_isLoading && _servicios.isEmpty)
+      bottomNavigationBar: (!_isLoading && _esDuenoSalon && _servicios.isEmpty)
           ? Container(
               padding: const EdgeInsets.all(12),
               color: AppTheme.primaryOrange,

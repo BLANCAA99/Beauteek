@@ -84,7 +84,7 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       final idToken = await user.getIdToken();
       final reporteUrl = Uri.parse(
-        '$apiBaseUrl/reportes/salon/$_comercioId?periodo=$_periodoSeleccionado',
+        '$apiBaseUrl/api/reportes/salon/$_comercioId?periodo=$_periodoSeleccionado',
       );
 
       print('🔍 Llamando a: $reporteUrl');
@@ -375,9 +375,9 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
                   child: Row(
                     children: [
                       _PeriodoChip(
-                        label: 'Semana',
-                        isSelected: _periodoSeleccionado == 'Semana',
-                        onTap: () => _cambiarPeriodo('Semana'),
+                        label: 'Todos',
+                        isSelected: _periodoSeleccionado == 'Todos',
+                        onTap: () => _cambiarPeriodo('Todos'),
                       ),
                       const SizedBox(width: 12),
                       _PeriodoChip(

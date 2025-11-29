@@ -26,6 +26,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _salonesDestacados = [];
   List<Map<String, dynamic>> _salonesFiltrados = [];
+  List<Map<String, dynamic>> _promocionesActivas = [];
   String? _categoriaSeleccionada;
   String _textoBusqueda = '';
   final TextEditingController _searchController = TextEditingController();
@@ -35,11 +36,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
   String? _uidUsuario;
   String _nombreUsuario = 'Usuario';
   String? _fotoUsuario;
-  
+
   // Estadísticas personalizadas del cliente
   int _citasPendientes = 0;
   int _totalServicios = 0;
   int _salonesVisitados = 0;
+
+  // Caché en memoria: uid_negocio -> foto_url
+  final Map<String, String?> _cacheFotosSalones = {};
 
   final categorias = [
     {"nombre": "Coloración"},
@@ -72,9 +76,12 @@ class _InicioClientePageState extends State<InicioClientePage> {
         return;
       }
 
-      // NUEVO: Verificar ubicación desde colección ubicaciones
       final idToken = await user.getIdToken();
-      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
+      final ubicacionUrl = Uri.parse(
+          '$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
+
+      print('🔍 Verificando ubicación del cliente: $ubicacionUrl');
+
       final ubicacionResponse = await http.get(
         ubicacionUrl,
         headers: {
@@ -82,13 +89,17 @@ class _InicioClientePageState extends State<InicioClientePage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 30));
-      
-      final ubicacionPrincipal = ubicacionResponse.statusCode == 200 
-          ? json.decode(ubicacionResponse.body) 
+
+      print('📍 Status ubicación: ${ubicacionResponse.statusCode}');
+      print('📍 Body: ${ubicacionResponse.body}');
+
+      final ubicacionPrincipal = ubicacionResponse.statusCode == 200
+          ? json.decode(ubicacionResponse.body)
           : null;
 
       if (ubicacionPrincipal == null) {
-        print('⚠️ Cliente sin ubicación principal, redirigiendo a SetupLocationPage');
+        print(
+            '⚠️ Cliente sin ubicación principal, redirigiendo a SetupLocationPage');
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
@@ -108,22 +119,19 @@ class _InicioClientePageState extends State<InicioClientePage> {
     await _obtenerDatosUsuario();
     await _cargarEstadisticasCliente();
     await _cargarSalonesDestacados();
+    await _cargarPromocionesActivas();
     await _verificarCitasFinalizadas();
-    
-    // Inicializar notificaciones DESPUÉS de cargar todo (no bloqueante)
+
     _inicializarNotificaciones();
   }
 
-  // Inicializar notificaciones push de forma NO bloqueante
   Future<void> _inicializarNotificaciones() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Importar FirebaseMessaging
       final messaging = FirebaseMessaging.instance;
 
-      // Solicitar permisos (no bloqueante)
       final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
@@ -132,13 +140,11 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         print('✅ Permisos de notificaciones concedidos');
-        
-        // Obtener token FCM
+
         final fcmToken = await messaging.getToken();
         if (fcmToken != null) {
           print('📱 FCM Token: $fcmToken');
-          
-          // Guardar token en backend
+
           final idToken = await user.getIdToken(true);
           try {
             await http.put(
@@ -162,7 +168,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
       }
     } catch (e) {
       print('⚠️ Error inicializando notificaciones: $e');
-      // No hacer nada, la app continúa normalmente
     }
   }
 
@@ -185,19 +190,21 @@ class _InicioClientePageState extends State<InicioClientePage> {
       final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
       print('🔍 Obteniendo usuario: $url');
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(
-        const Duration(seconds: 8),
-        onTimeout: () {
-          print('⏱️ Timeout obteniendo usuario');
-          throw Exception('Timeout al obtener datos del usuario');
-        },
-      );
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          )
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              print('⏱️ Timeout obteniendo usuario');
+              throw Exception('Timeout al obtener datos del usuario');
+            },
+          );
 
       print('📥 Status: ${response.statusCode}');
 
@@ -206,33 +213,35 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
         print('👤 Datos del usuario obtenidos');
         final nombreCompleto =
-            userData['nombre_completo'] ??
-            userData['displayName'] ??
-            'Usuario';
+            userData['nombre_completo'] ?? userData['displayName'] ?? 'Usuario';
 
-       final primerNombre = nombreCompleto.toString().split(' ').first;
+        final primerNombre = nombreCompleto.toString().split(' ').first;
 
         if (!mounted) return;
 
         setState(() {
           _uidUsuario = uid;
           _nombreUsuario = primerNombre;
-          _fotoUsuario = (userData['foto_url'] != null && userData['foto_url'].toString().isNotEmpty) ? userData['foto_url']: user.photoURL;
+          _fotoUsuario = (userData['foto_url'] != null &&
+                  userData['foto_url'].toString().isNotEmpty)
+              ? userData['foto_url']
+              : user.photoURL;
         });
 
-        // NUEVO: Obtener ubicación desde colección ubicaciones
-        final idToken = await user.getIdToken();
-        final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$uid?tipo=cliente');
+        // Ubicación del cliente
+        final idToken2 = await user.getIdToken();
+        final ubicacionUrl =
+            Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$uid?tipo=cliente');
         final ubicacionResponse = await http.get(
           ubicacionUrl,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer $idToken',
+            'Authorization': 'Bearer $idToken2',
           },
         ).timeout(const Duration(seconds: 30));
-        
-        final ubicacionData = ubicacionResponse.statusCode == 200 
-            ? json.decode(ubicacionResponse.body) 
+
+        final ubicacionData = ubicacionResponse.statusCode == 200
+            ? json.decode(ubicacionResponse.body)
             : null;
 
         if (!mounted) return;
@@ -248,7 +257,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
             _userLat = ubicacionData['lat'];
             _userLng = ubicacionData['lng'];
           });
-          print('✅ Ubicación desde colección ubicaciones: Lat=$_userLat, Lng=$_userLng');
+          print(
+              '✅ Ubicación desde colección ubicaciones: Lat=$_userLat, Lng=$_userLng');
         }
       } else {
         print('❌ Error HTTP: ${response.statusCode}');
@@ -266,29 +276,203 @@ class _InicioClientePageState extends State<InicioClientePage> {
     }
   }
 
-  Future<void> _cargarSalonesDestacados() async {
+  /// Helper: trae (y cachea) la foto del salón según uid_negocio en colección usuarios
+  Future<String?> _obtenerFotoSalonPorUid(
+      String uidNegocio, String idToken) async {
+    if (_cacheFotosSalones.containsKey(uidNegocio)) {
+      return _cacheFotosSalones[uidNegocio];
+    }
+
     try {
-      if (_userLat == null || _userLng == null) {
-        print('⚠️ Usuario sin ubicación, mostrando categorías sin salones');
-        if (!mounted) return;
-        setState(() {
-          _salonesDestacados = [];
-          _salonesFiltrados = [];
-          _isLoading = false;
-        });
-        return;
+      final propietarioUrl =
+          Uri.parse('$apiBaseUrl/api/users/uid/$uidNegocio');
+      final propietarioResponse = await http.get(
+        propietarioUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 4));
+
+      if (propietarioResponse.statusCode == 200) {
+        final propietarioData = json.decode(propietarioResponse.body);
+        final fotoSalon = propietarioData['foto_url'] as String?;
+        _cacheFotosSalones[uidNegocio] = fotoSalon;
+        return fotoSalon;
+      } else {
+        print(
+            '⚠️ Error HTTP obteniendo usuario $uidNegocio: ${propietarioResponse.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ Error obteniendo foto del salón (uid=$uidNegocio): $e');
+    }
+
+    _cacheFotosSalones[uidNegocio] = null;
+    return null;
+  }
+
+  Future<void> _cargarSalonesDestacados() async {
+  try {
+    if (_userLat == null || _userLng == null) {
+      print('⚠️ Usuario sin ubicación, mostrando categorías sin salones');
+      if (!mounted) return;
+      setState(() {
+        _salonesDestacados = [];
+        _salonesFiltrados = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final idToken = await user.getIdToken();
+
+    final url = Uri.parse(
+      '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10',
+    );
+
+    print('🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $idToken',
+      },
+    ).timeout(const Duration(seconds: 8));
+
+    print('📥 Response status (cerca): ${response.statusCode}');
+
+    if (response.statusCode != 200) {
+      print('❌ Error HTTP en /comercios/cerca: ${response.statusCode}');
+      if (!mounted) return;
+      setState(() {
+        _salonesDestacados = [];
+        _salonesFiltrados = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final List<dynamic> saloneData = json.decode(response.body);
+    print('📊 Salones encontrados: ${saloneData.length}');
+
+    final List<Map<String, dynamic>> salonesConFoto = [];
+
+    for (var salon in saloneData) {
+      final salonMap = Map<String, dynamic>.from(salon);
+      final comercioId = salonMap['id'] as String?;
+      String? uidPropietario;
+
+      print('➡️ Procesando comercioId: $comercioId');
+
+      // 1️⃣ Traer detalle del comercio para obtener uid_negocio si no viene
+      if (comercioId != null) {
+        try {
+          final detalleUrl = Uri.parse('$apiBaseUrl/comercios/$comercioId');
+          final detalleResp = await http.get(
+            detalleUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          ).timeout(const Duration(seconds: 5));
+
+          print('   📄 Detalle comercio status: ${detalleResp.statusCode}');
+
+          if (detalleResp.statusCode == 200) {
+            final detalleData = json.decode(detalleResp.body);
+            uidPropietario = detalleData['uid_negocio'] as String?;
+
+            // Si del detalle ya viene una foto_url, la usamos también
+            final fotoDesdeDetalle = detalleData['foto_url'] as String?;
+            if (fotoDesdeDetalle != null && fotoDesdeDetalle.isNotEmpty) {
+              salonMap['foto_url'] = fotoDesdeDetalle;
+            }
+
+            print('   ✅ uid_negocio desde detalle: $uidPropietario');
+          }
+        } catch (e) {
+          print('⚠️ Error obteniendo detalle de comercio $comercioId: $e');
+        }
       }
 
+      // 2️⃣ Si tenemos uid_negocio, pedir foto al endpoint /api/users/uid/{uid}
+      if (uidPropietario != null && uidPropietario.isNotEmpty && idToken != null) {
+        final fotoSalon =
+            await _obtenerFotoSalonPorUid(uidPropietario, idToken);
+        print('   🖼️ fotoSalon obtenida para $uidPropietario: $fotoSalon');
+
+        if (fotoSalon != null && fotoSalon.isNotEmpty) {
+          salonMap['foto_url'] = fotoSalon;
+        }
+      }
+
+      // 3️⃣ Calificación promedio desde reseñas
+      if (comercioId != null) {
+        try {
+          final resenasUrl =
+              Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+          final resenasResponse = await http.get(
+            resenasUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          ).timeout(const Duration(seconds: 3));
+
+          if (resenasResponse.statusCode == 200) {
+            final List<dynamic> resenasData =
+                json.decode(resenasResponse.body);
+
+            if (resenasData.isNotEmpty) {
+              double sumaCalificaciones = 0;
+              for (var resena in resenasData) {
+                sumaCalificaciones +=
+                    (resena['calificacion'] as num?)?.toDouble() ?? 0;
+              }
+              salonMap['calificacion'] =
+                  sumaCalificaciones / resenasData.length;
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
+        }
+      }
+
+      print('   ✅ salonMap final: $salonMap');
+      salonesConFoto.add(salonMap);
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _salonesDestacados = salonesConFoto;
+      _salonesFiltrados = _salonesDestacados;
+      _isLoading = false;
+    });
+    print('✅ ${_salonesDestacados.length} salones cargados (con posibles fotos)');
+  } catch (e) {
+    print('❌ Error _cargarSalonesDestacados: $e');
+    if (!mounted) return;
+    setState(() {
+      _salonesDestacados = [];
+      _salonesFiltrados = [];
+      _isLoading = false;
+    });
+  }
+}
+  Future<void> _cargarPromocionesActivas() async {
+    try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final idToken = await user.getIdToken();
+      final url = Uri.parse('$apiBaseUrl/api/promociones');
 
-      final url = Uri.parse(
-          '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10');
-
-      print(
-          '🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
+      print('🎁 Cargando promociones activas');
 
       final response = await http.get(
         url,
@@ -298,106 +482,33 @@ class _InicioClientePageState extends State<InicioClientePage> {
         },
       ).timeout(const Duration(seconds: 8));
 
-      print('📥 Response status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
-        final List<dynamic> saloneData = json.decode(response.body);
+        final List<dynamic> data = json.decode(response.body);
 
-        print('📊 Salones encontrados: ${saloneData.length}');
+        final now = DateTime.now();
+        final promocionesActivas = data.where((promo) {
+          if (promo['activo'] != true) return false;
 
-        final List<Map<String, dynamic>> salonesConFoto = [];
-        for (var salon in saloneData) {
-          final salonMap = salon as Map<String, dynamic>;
-          final uidPropietario = salonMap['uid_negocio'] as String?;
-          final comercioId = salonMap['id'] as String?;
-
-          if (uidPropietario != null) {
-            try {
-              final propietarioUrl =
-                  Uri.parse('$apiBaseUrl/api/users/uid/$uidPropietario');
-              final propietarioResponse = await http.get(
-                propietarioUrl,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer $idToken',
-                },
-              ).timeout(const Duration(seconds: 3));
-
-              if (propietarioResponse.statusCode == 200) {
-                final propietarioData = json.decode(propietarioResponse.body);
-                final fotoSalon = propietarioData['foto_url'] as String?;
-
-                if (fotoSalon != null && fotoSalon.isNotEmpty) {
-                  salonMap['foto_url'] = fotoSalon;
-                }
-              }
-            } catch (e) {
-              print(
-                  '⚠️ Error obteniendo foto del salón ${salonMap['nombre']}: $e');
-            }
+          try {
+            final fechaFin = DateTime.parse(promo['fecha_fin']);
+            return fechaFin.isAfter(now);
+          } catch (e) {
+            return false;
           }
+        }).toList();
 
-          if (comercioId != null) {
-            try {
-              final resenasUrl =
-                  Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
-              final resenasResponse = await http.get(
-                resenasUrl,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer $idToken',
-                },
-              ).timeout(const Duration(seconds: 3));
-
-              if (resenasResponse.statusCode == 200) {
-                final List<dynamic> resenasData =
-                    json.decode(resenasResponse.body);
-
-                if (resenasData.isNotEmpty) {
-                  double sumaCalificaciones = 0;
-                  for (var resena in resenasData) {
-                    sumaCalificaciones +=
-                        (resena['calificacion'] as num?)?.toDouble() ?? 0;
-                  }
-                  salonMap['calificacion'] =
-                      sumaCalificaciones / resenasData.length;
-                }
-              }
-            } catch (e) {
-              print(
-                  '⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
-            }
-          }
-
-          salonesConFoto.add(salonMap);
-        }
+        print(
+            '✅ Promociones activas encontradas: ${promocionesActivas.length}');
 
         if (!mounted) return;
 
         setState(() {
-          _salonesDestacados = salonesConFoto;
-          _salonesFiltrados = _salonesDestacados;
-          _isLoading = false;
-        });
-
-        print('✅ ${_salonesDestacados.length} salones cargados');
-      } else {
-        print('❌ Error HTTP: ${response.statusCode}');
-        if (!mounted) return;
-        setState(() {
-          _salonesDestacados = [];
-          _salonesFiltrados = [];
-          _isLoading = false;
+          _promocionesActivas =
+              promocionesActivas.cast<Map<String, dynamic>>();
         });
       }
     } catch (e) {
-      print('❌ Error: $e');
-      if (!mounted) return;
-      setState(() {
-        _salonesDestacados = [];
-        _salonesFiltrados = [];
-        _isLoading = false;
-      });
+      print('❌ Error cargando promociones: $e');
     }
   }
 
@@ -456,7 +567,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       final idToken = await user.getIdToken();
 
-      // Cargar citas del usuario
       final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
       print('📊 Cargando estadísticas del cliente: $citasUrl');
 
@@ -470,15 +580,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       if (citasResponse.statusCode == 200) {
         final List<dynamic> citasData = json.decode(citasResponse.body);
-        
+
         final ahora = DateTime.now();
         int pendientes = 0;
         Set<String> comerciosUnicos = {};
-        
+
         for (var cita in citasData) {
           final estado = cita['estado'] as String?;
-          
-          // Contar citas pendientes (confirmadas o pendientes que aún no han pasado)
+
           if (estado == 'confirmada' || estado == 'pendiente') {
             try {
               final fechaStr = cita['fecha'] as String?;
@@ -492,8 +601,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
               print('⚠️ Error parseando fecha: $e');
             }
           }
-          
-          // Contar salones únicos visitados (citas completadas)
+
           if (estado == 'completada') {
             final comercioId = cita['comercio_id'] as String?;
             if (comercioId != null) {
@@ -501,16 +609,17 @@ class _InicioClientePageState extends State<InicioClientePage> {
             }
           }
         }
-        
+
         if (!mounted) return;
-        
+
         setState(() {
           _citasPendientes = pendientes;
           _totalServicios = citasData.length;
           _salonesVisitados = comerciosUnicos.length;
         });
-        
-        print('✅ Estadísticas: Pendientes=$_citasPendientes, Total=$_totalServicios, Salones=$_salonesVisitados');
+
+        print(
+            '✅ Estadísticas: Pendientes=$_citasPendientes, Total=$_totalServicios, Salones=$_salonesVisitados');
       } else if (citasResponse.statusCode == 404) {
         print('ℹ️ Usuario sin citas registradas');
         if (!mounted) return;
@@ -578,7 +687,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
         if (citaId == null) continue;
 
-        final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?cita_id=$citaId');
+        final resenasUrl =
+            Uri.parse('$apiBaseUrl/api/resenas?cita_id=$citaId');
         print('🔍 Verificando reseña para cita $citaId: $resenasUrl');
 
         final resenasResponse = await http.get(
@@ -611,7 +721,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
             break;
           }
         } else {
-          print('⚠️ Error verificando reseñas: ${resenasResponse.statusCode}');
+          print(
+              '⚠️ Error verificando reseñas: ${resenasResponse.statusCode}');
         }
       }
     } catch (e) {
@@ -805,7 +916,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
         final servicios = salon['servicios'] as List<dynamic>?;
         if (servicios != null) {
           return servicios.any((servicio) {
-            final nombreServicio = _normalizarTexto(servicio['nombre'] ?? '');
+            final nombreServicio =
+                _normalizarTexto(servicio['nombre'] ?? '');
             final categoriaId =
                 _normalizarTexto(servicio['categoria_id'] ?? '');
 
@@ -821,7 +933,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
     print('🔍 Búsqueda "$texto": ${_salonesFiltrados.length} resultados');
   }
 
-  // ---------- NUEVOS HELPERS DE UI PARA EL REDISEÑO ----------
+  // ---------- UI HELPERS ----------
 
   Widget _buildSalonesDestacadosSection() {
     if (_isLoading) {
@@ -888,6 +1000,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
           final salon = salones[i];
           final distancia = salon['distancia'] as double;
 
+          final fotoUrl = salon['foto_url'] as String?;
+
           return Padding(
             padding: const EdgeInsets.only(right: 14),
             child: GestureDetector(
@@ -914,10 +1028,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
                       child: SizedBox(
                         width: 220,
                         height: 140,
-                        child: salon['foto_url'] != null &&
-                                (salon['foto_url'] as String).isNotEmpty
+                        child: (fotoUrl != null && fotoUrl.isNotEmpty)
                             ? Image.network(
-                                salon['foto_url'],
+                                fotoUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder:
                                     (context, error, stackTrace) =>
@@ -990,12 +1103,204 @@ class _InicioClientePageState extends State<InicioClientePage> {
     );
   }
 
+  Widget _buildBannerDescuentos() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PromocionesPage()),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2196F3),
+                Color(0xFF00BCD4),
+                Color(0xFF4CAF50),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2196F3).withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.local_offer,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '¡Descuentos exclusivos!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Aprovecha las promociones del día',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBeneficiosBeauteek() {
+    final beneficios = [
+      {
+        'icon': Icons.verified_user,
+        'titulo': 'Salones verificados',
+        'descripcion': 'Solo trabajamos con profesionales certificados',
+        'color': const Color(0xFF4CAF50),
+      },
+      {
+        'icon': Icons.calendar_today,
+        'titulo': 'Reserva fácil',
+        'descripcion': 'Agenda tu cita en segundos desde tu celular',
+        'color': const Color(0xFF2196F3),
+      },
+      {
+        'icon': Icons.star,
+        'titulo': 'Reseñas reales',
+        'descripcion': 'Lee opiniones de clientes verificados',
+        'color': const Color(0xFFFF9800),
+      },
+      {
+        'icon': Icons.location_on,
+        'titulo': 'Encuentra cerca',
+        'descripcion': 'Los mejores salones en tu zona',
+        'color': const Color(0xFFE91E63),
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '¿Por qué elegir Beauteek?',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.1,
+            ),
+            itemCount: beneficios.length,
+            itemBuilder: (context, index) {
+              final beneficio = beneficios[index];
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: (beneficio['color'] as Color).withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (beneficio['color'] as Color).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        beneficio['icon'] as IconData,
+                        color: beneficio['color'] as Color,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      beneficio['titulo'] as String,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      beneficio['descripcion'] as String,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEstadisticasSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          // Estadística 1: Citas próximas/pendientes
+          // Citas pendientes
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -1040,7 +1345,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _citasPendientes == 1 ? 'Cita\npendiente' : 'Citas\npendientes',
+                    _citasPendientes == 1
+                        ? 'Cita\npendiente'
+                        : 'Citas\npendientes',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Colors.white,
@@ -1052,7 +1359,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
             ),
           ),
           const SizedBox(width: 12),
-          // Estadística 2: Total de servicios reservados
+          // Total servicios
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -1097,7 +1404,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _totalServicios == 1 ? 'Servicio\nreservado' : 'Servicios\nreservados',
+                    _totalServicios == 1
+                        ? 'Servicio\nreservado'
+                        : 'Servicios\nreservados',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Colors.white,
@@ -1109,7 +1418,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
             ),
           ),
           const SizedBox(width: 12),
-          // Estadística 3: Salones visitados
+          // Salones visitados
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -1154,7 +1463,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _salonesVisitados == 1 ? 'Salón\nvisitado' : 'Salones\nvisitados',
+                    _salonesVisitados == 1
+                        ? 'Salón\nvisitado'
+                        : 'Salones\nvisitados',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Colors.white,
@@ -1187,6 +1498,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
       child: Column(
         children: nuevos.map((salon) {
           final distancia = salon['distancia'] as double;
+          final fotoUrl = salon['foto_url'] as String?;
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -1199,10 +1511,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
                   child: SizedBox(
                     width: 60,
                     height: 60,
-                    child: salon['foto_url'] != null &&
-                            (salon['foto_url'] as String).isNotEmpty
+                    child: (fotoUrl != null && fotoUrl.isNotEmpty)
                         ? Image.network(
-                            salon['foto_url'],
+                            fotoUrl,
                             fit: BoxFit.cover,
                           )
                         : Container(
@@ -1260,7 +1571,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
     );
   }
 
-  // ----------------- BUILD (REDISEÑADO) -----------------
+  // ----------------- BUILD -----------------
 
   @override
   Widget build(BuildContext context) {
@@ -1268,7 +1579,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
       backgroundColor: AppTheme.darkBackground,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // TODO: usar este botón después
+          // futuro botón IA
         },
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -1311,26 +1622,27 @@ class _InicioClientePageState extends State<InicioClientePage> {
                         shape: BoxShape.circle,
                         gradient: AppTheme.primaryGradient,
                       ),
-                      child: _fotoUsuario != null && _fotoUsuario!.isNotEmpty
-                          ? ClipOval(
-                              child: Image.network(
-                                _fotoUsuario!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  // Si falla la imagen, mostramos el ícono por defecto
-                                  return const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                    size: 28,
-                                  );
-                                },
-                              ),
-                            )
-                          : const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 28,
-                            ),
+                      child:
+                          _fotoUsuario != null && _fotoUsuario!.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    _fotoUsuario!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) {
+                                      return const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                        size: 28,
+                                      );
+                                    },
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1363,7 +1675,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const NotificacionesPage(),
+                              builder: (context) =>
+                                  const NotificacionesPage(),
                             ),
                           );
                         },
@@ -1390,7 +1703,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
               ),
             ),
 
-            // CATEGORÍAS TIPO "SHEIN"
+            // CATEGORÍAS
             SizedBox(
               height: 44,
               child: ListView.separated(
@@ -1404,9 +1717,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
                   final baseColors = <Color>[
                     AppTheme.primaryOrange,
-                    const Color(0xFF2563EB), // azul
-                    const Color(0xFF10B981), // verde
-                    const Color(0xFF64748B), // gris
+                    const Color(0xFF2563EB),
+                    const Color(0xFF10B981),
+                    const Color(0xFF64748B),
                   ];
                   final baseColor = baseColors[index % baseColors.length];
 
@@ -1416,11 +1729,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: seleccionada ? baseColor : AppTheme.cardBackground,
+                        color: seleccionada
+                            ? baseColor
+                            : AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color:
-                              seleccionada ? baseColor : AppTheme.dividerColor,
+                          color: seleccionada
+                              ? baseColor
+                              : AppTheme.dividerColor,
                         ),
                       ),
                       child: Center(
@@ -1447,7 +1763,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
             // BARRA DE BÚSQUEDA
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF2A2A2C),
@@ -1481,7 +1798,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
                         },
                         style: AppTheme.bodyMedium,
                         decoration: InputDecoration(
-                          hintText: 'Buscar salones, uñas, peinados...',
+                          hintText:
+                              'Buscar salones, uñas, peinados...',
                           hintStyle: AppTheme.bodyMedium.copyWith(
                             color: AppTheme.textSecondary,
                           ),
@@ -1532,77 +1850,190 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // PROMOS DEL DÍA
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Text(
-                        'Promos del día',
-                        style: AppTheme.heading2,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 4),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2563EB), // azul
-                              Color(0xFF10B981), // verde
-                            ],
-                          ),
-                        ),
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.local_offer_outlined,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '¡25% OFF en manicura!',
-                                    style: AppTheme.bodyLarge.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Válido en salones seleccionados.',
-                                    style: AppTheme.caption.copyWith(
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+
+                    // BANNER DE DESCUENTOS
+                    _buildBannerDescuentos(),
 
                     const SizedBox(height: 16),
 
-                    // SALONES DESTACADOS CERCA DE TI / RESULTADOS
+                    // PROMOS DEL DÍA
+                    if (_promocionesActivas.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Text(
+                          'Promos del día',
+                          style: AppTheme.heading2,
+                        ),
+                      ),
+                      SizedBox(
+                        height: 160,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                          itemCount: _promocionesActivas.length,
+                          itemBuilder: (context, index) {
+                            final promo = _promocionesActivas[index];
+                            final descuento = promo['valor'] ?? 0;
+                            final fotoUrl = promo['foto_url'] as String?;
+                            final precioOriginal =
+                                promo['precio_original'];
+                            final precioDescuento =
+                                promo['precio_con_descuento'];
+
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PromocionesPage(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                width: 280,
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 4),
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(20),
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      const Color(0xFFFF6B9D)
+                                          .withOpacity(0.8),
+                                      const Color(0xFFEA963A)
+                                          .withOpacity(0.8),
+                                    ],
+                                  ),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    if (fotoUrl != null &&
+                                        fotoUrl.isNotEmpty)
+                                      ClipRRect(
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                        child: Image.network(
+                                          fotoUrl,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (_, __, ___) =>
+                                                  const SizedBox(),
+                                        ),
+                                      ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black
+                                                .withOpacity(0.7),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets
+                                                    .symmetric(
+                                                horizontal: 12,
+                                                vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      20),
+                                            ),
+                                            child: Text(
+                                              '-$descuento% OFF',
+                                              style: const TextStyle(
+                                                color:
+                                                    Color(0xFFEA963A),
+                                                fontSize: 14,
+                                                fontWeight:
+                                                    FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          Text(
+                                            promo['servicio_nombre'] ??
+                                                'Servicio',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight:
+                                                  FontWeight.bold,
+                                            ),
+                                            maxLines: 2,
+                                            overflow:
+                                                TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              if (precioOriginal !=
+                                                  null)
+                                                Text(
+                                                  '\$$precioOriginal',
+                                                  style:
+                                                      const TextStyle(
+                                                    color:
+                                                        Colors.white70,
+                                                    fontSize: 14,
+                                                    decoration:
+                                                        TextDecoration
+                                                            .lineThrough,
+                                                  ),
+                                                ),
+                                              const SizedBox(width: 8),
+                                              if (precioDescuento !=
+                                                  null)
+                                                Text(
+                                                  '\$$precioDescuento',
+                                                  style:
+                                                      const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // SALONES DESTACADOS
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
@@ -1614,16 +2045,20 @@ class _InicioClientePageState extends State<InicioClientePage> {
                               style: AppTheme.heading2,
                             ),
                           ),
-                          if (_categoriaSeleccionada != null || _isBuscando)
+                          if (_categoriaSeleccionada != null ||
+                              _isBuscando)
                             GestureDetector(
-                              onTap: () => _filtrarPorCategoria('Todos'),
+                              onTap: () =>
+                                  _filtrarPorCategoria('Todos'),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color:
-                                      AppTheme.primaryOrange.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(20),
+                                  color: AppTheme.primaryOrange
+                                      .withOpacity(0.15),
+                                  borderRadius:
+                                      BorderRadius.circular(20),
                                 ),
                                 child: Row(
                                   children: [
@@ -1635,7 +2070,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
                                     const SizedBox(width: 4),
                                     Text(
                                       'Limpiar',
-                                      style: AppTheme.caption.copyWith(
+                                      style:
+                                          AppTheme.caption.copyWith(
                                         color: AppTheme.primaryOrange,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -1648,8 +2084,10 @@ class _InicioClientePageState extends State<InicioClientePage> {
                       ),
                     ),
                     _buildSalonesDestacadosSection(),
+
                     const SizedBox(height: 24),
-                    // ESTADÍSTICAS PERSONALIZADAS DEL CLIENTE
+
+                    // TU ACTIVIDAD
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 0),
@@ -1663,7 +2101,11 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
                     const SizedBox(height: 24),
 
-                    // BASADO EN TUS VISITAS RECIENTES
+                    // BENEFICIOS DE BEAUTEEK
+                    _buildBeneficiosBeauteek(),
+
+                    const SizedBox(height: 24),
+
                     if (_salonesDestacados.isNotEmpty) ...[
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -1678,7 +2120,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
                       const SizedBox(height: 24),
 
-                      // NUEVOS SALONES EN TU ZONA
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 0),
@@ -1700,7 +2141,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         ),
       ),
 
-      // Bottom Navigation Bar (igual que antes)
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppTheme.cardBackground,
@@ -1709,7 +2149,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1796,7 +2237,8 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppTheme.primaryOrange : AppTheme.textSecondary;
+    final color =
+        selected ? AppTheme.primaryOrange : AppTheme.textSecondary;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

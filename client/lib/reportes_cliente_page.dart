@@ -21,8 +21,9 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
   bool _isLoading = false;
   String? _clienteId;
   String? _nombreCliente;
-  String _periodoSeleccionado = 'Semana';
+  String _periodoSeleccionado = 'Todos';
   Map<String, dynamic>? _datosReporte;
+  Map<String, dynamic>? _datosGastosPorSalon;
 
   @override
   void initState() {
@@ -43,8 +44,9 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       _clienteId = user.uid;
       _nombreCliente = user.displayName ?? 'Cliente';
 
-      // Cargar reporte
+      // Cargar reportes
       await _cargarReporte();
+      await _cargarGastosPorSalon();
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -62,7 +64,7 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       final idToken = await user.getIdToken();
       final reporteUrl = Uri.parse(
-        '$apiBaseUrl/reportes/cliente/$_clienteId?periodo=$_periodoSeleccionado',
+        '$apiBaseUrl/api/reportes/cliente/$_clienteId?periodo=$_periodoSeleccionado',
       );
 
       print('🔍 Llamando a: $reporteUrl');
@@ -113,11 +115,45 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       _isLoading = true;
     });
     await _cargarReporte();
+    await _cargarGastosPorSalon();
     setState(() => _isLoading = false);
   }
 
-  String _formatearMoneda(double cantidad) {
-    return NumberFormat.currency(locale: 'es_MX', symbol: '\$').format(cantidad);
+  Future<void> _cargarGastosPorSalon() async {
+    if (_clienteId == null) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final idToken = await user.getIdToken();
+      final url = Uri.parse(
+        '$apiBaseUrl/api/reportes/cliente/$_clienteId/gastos-por-salon',
+      );
+
+      print('🔍 Cargando gastos por salón: $url');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _datosGastosPorSalon = json.decode(response.body) as Map<String, dynamic>;
+          print('✅ Gastos por salón cargados: $_datosGastosPorSalon');
+        });
+      }
+    } catch (e) {
+      print('❌ Error cargando gastos por salón: $e');
+    }
+  }
+
+  String _formatearMoneda(num cantidad) {
+    return NumberFormat.currency(locale: 'es_MX', symbol: '\$').format(cantidad.toDouble());
   }
 
   Future<void> _descargarResumenGeneral() async {
@@ -132,6 +168,8 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       final citasCompletadas = _datosReporte!['citasCompletadas'] ?? 0;
       final citasCanceladas = _datosReporte!['citasCanceladas'] ?? 0;
       final salonesVisitados = _datosReporte!['salonesVisitados'] ?? 0;
+      final serviciosFrecuentes = _datosReporte!['serviciosFrecuentes'] as List? ?? [];
+      final salones = _datosReporte!['salones'] as List? ?? [];
 
       pdf.addPage(
         pw.Page(
@@ -143,12 +181,44 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
               pw.Text('$_nombreCliente - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
-              pw.Text('Gasto Total: ${_formatearMoneda(gastoTotal)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              
+              // Estadísticas principales
+              pw.Text('ESTADISTICAS GENERALES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
+              pw.Text('Gasto Total: ${_formatearMoneda(gastoTotal)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
               pw.Text('Total de Citas: $totalCitas'),
               pw.Text('Citas Completadas: $citasCompletadas'),
               pw.Text('Citas Canceladas: $citasCanceladas'),
               pw.Text('Salones Visitados: $salonesVisitados'),
+              
+              pw.SizedBox(height: 20),
+              pw.Divider(),
+              
+              // Salones más visitados
+              if (salones.isNotEmpty) ...[
+                pw.SizedBox(height: 10),
+                pw.Text('SALONES MAS VISITADOS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 8),
+                ...salones.take(3).map((salon) => pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 4),
+                  child: pw.Text('${salon['nombre']} - ${salon['visitas']} visitas - ${_formatearMoneda(salon['gasto_total'])}'),
+                )).toList(),
+              ],
+              
+              pw.SizedBox(height: 15),
+              pw.Divider(),
+              
+              // Servicios frecuentes
+              if (serviciosFrecuentes.isNotEmpty) ...[
+                pw.SizedBox(height: 10),
+                pw.Text('SERVICIOS MAS FRECUENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 8),
+                ...serviciosFrecuentes.map((servicio) => pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 4),
+                  child: pw.Text('${servicio['nombre']} (${servicio['cantidad']} veces)'),
+                )).toList(),
+              ],
             ],
           ),
         ),
@@ -297,6 +367,73 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
     }
   }
 
+  Future<void> _descargarGastosPorSalon() async {
+    if (_datosGastosPorSalon == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final pdf = pw.Document();
+      final salones = _datosGastosPorSalon!['salones'] as List? ?? [];
+      final resumen = _datosGastosPorSalon!['resumen'] as Map<String, dynamic>?;
+
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Mis Gastos por Salon', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text('Comparativo para ayudarte a decidir', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 10),
+              
+              // Resumen general
+              if (resumen != null) ...[
+                pw.Text('RESUMEN GENERAL', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 8),
+                pw.Text('Gasto Total: ${_formatearMoneda((resumen['gasto_total_general'] ?? 0).toDouble())}'),
+                pw.Text('Gasto este Mes: ${_formatearMoneda((resumen['gasto_mes_general'] ?? 0).toDouble())}'),
+                pw.Text('Gasto este Ano: ${_formatearMoneda((resumen['gasto_anio_general'] ?? 0).toDouble())}'),
+                pw.SizedBox(height: 15),
+                pw.Divider(),
+                pw.SizedBox(height: 10),
+              ],
+              
+              // Detalle por salón
+              pw.Text('DETALLE POR SALON', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
+              ...salones.map((salon) {
+                final s = salon as Map<String, dynamic>;
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 12),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(s['nombre'], style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Total (${s['citas_total']} citas): ${_formatearMoneda((s['gasto_total'] ?? 0).toDouble())}'),
+                      pw.Text('Este mes (${s['citas_mes']} citas): ${_formatearMoneda((s['gasto_mes'] ?? 0).toDouble())}'),
+                      pw.Text('Este ano (${s['citas_anio']} citas): ${_formatearMoneda((s['gasto_anio'] ?? 0).toDouble())}'),
+                      pw.Divider(),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      );
+
+      await _compartirPDF(pdf, 'mis_gastos_por_salon');
+    } catch (e) {
+      print('Error: $e');
+      _mostrarError('Error al generar el reporte');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _compartirPDF(pw.Document pdf, String nombreBase) async {
     try {
       final bytes = await pdf.save();
@@ -369,9 +506,9 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
                   child: Row(
                     children: [
                       _PeriodoChip(
-                        label: 'Semana',
-                        isSelected: _periodoSeleccionado == 'Semana',
-                        onTap: () => _cambiarPeriodo('Semana'),
+                        label: 'Todos',
+                        isSelected: _periodoSeleccionado == 'Todos',
+                        onTap: () => _cambiarPeriodo('Todos'),
                       ),
                       const SizedBox(width: 12),
                       _PeriodoChip(
@@ -381,9 +518,9 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
                       ),
                       const SizedBox(width: 12),
                       _PeriodoChip(
-                        label: 'Ano',
-                        isSelected: _periodoSeleccionado == 'Ano',
-                        onTap: () => _cambiarPeriodo('Ano'),
+                        label: 'Año',
+                        isSelected: _periodoSeleccionado == 'Año',
+                        onTap: () => _cambiarPeriodo('Año'),
                       ),
                     ],
                   ),
@@ -453,6 +590,14 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
                         backgroundColor: const Color(0xFF2A1F1A),
                         titulo: 'Mi Historial de Citas',
                         onDownload: hayDatos ? _descargarHistorialCitas : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _ReporteCard(
+                        icon: Icons.analytics_rounded,
+                        iconColor: const Color(0xFFFF3B30),
+                        backgroundColor: const Color(0xFF3B1614),
+                        titulo: 'Gastos por Salon',
+                        onDownload: (_datosGastosPorSalon != null) ? _descargarGastosPorSalon : null,
                       ),
                       const SizedBox(height: 24),
                     ],

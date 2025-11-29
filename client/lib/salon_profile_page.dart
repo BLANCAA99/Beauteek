@@ -24,6 +24,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
   Map<String, dynamic>? _comercioData;
   List<Map<String, dynamic>> _servicios = [];
   List<Map<String, dynamic>> _resenas = [];
+  List<Map<String, dynamic>> _promociones = [];
   bool _isFavorite = false;
   String? _favoritoId;
 
@@ -32,6 +33,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     super.initState();
     _cargarDatosComercio();
     _verificarFavorito();
+    _cargarPromociones();
   }
 
   // ===================== LÓGICA (NO TOCADA) =====================
@@ -244,6 +246,64 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     }
   }
 
+  Future<void> _cargarPromociones() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final idToken = await user.getIdToken();
+      final url = Uri.parse('$apiBaseUrl/api/promociones/comercio/${widget.comercioId}');
+
+      print('🎁 Cargando promociones del salón: $url');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        print('📊 Promociones recibidas: ${data.length}');
+        
+        // Filtrar promociones activas y vigentes
+        final now = DateTime.now();
+        final promocionesActivas = data.where((promo) {
+          if (promo['activo'] != true) return false;
+          
+          try {
+            dynamic fechaFinData = promo['fecha_fin'];
+            DateTime fechaFin;
+            
+            if (fechaFinData is Map && fechaFinData.containsKey('_seconds')) {
+              final seconds = fechaFinData['_seconds'] as int;
+              fechaFin = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+            } else if (fechaFinData is String) {
+              fechaFin = DateTime.parse(fechaFinData);
+            } else {
+              return false;
+            }
+            
+            return fechaFin.isAfter(now);
+          } catch (e) {
+            print('⚠️ Error parseando fecha de promoción: $e');
+            return false;
+          }
+        }).toList();
+
+        setState(() {
+          _promociones = promocionesActivas.cast<Map<String, dynamic>>();
+        });
+
+        print('✅ Promociones activas del salón: ${_promociones.length}');
+      }
+    } catch (e) {
+      print('❌ Error cargando promociones: $e');
+    }
+  }
+
   void _mostrarFotoCompleta(String fotoUrl) {
     showDialog(
       context: context,
@@ -401,6 +461,10 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               children: [
                 _buildInfo(),
                 const SizedBox(height: 24),
+                if (_promociones.isNotEmpty) ...[
+                  _buildPromociones(),
+                  const SizedBox(height: 24),
+                ],
                 _buildServicios(),
                 const SizedBox(height: 24),
                 _buildResenas(),
@@ -722,6 +786,67 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
     );
   }
 
+  Widget _buildPromociones() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Promociones Activas',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _promociones.length,
+            itemBuilder: (context, index) {
+              final promo = _promociones[index];
+              return _PromocionCard(
+                promocion: promo,
+                onTap: () => _navegarACalendarioConPromocion(promo),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _navegarACalendarioConPromocion(Map<String, dynamic> promo) {
+    // Crear el objeto de servicio con el descuento aplicado
+    final servicioConDescuento = {
+      'id': promo['servicio_id'],
+      'nombre': promo['servicio_nombre'],
+      'precio': promo['precio_con_descuento'],
+      'precio_original': promo['precio_original'],
+      'duracion': promo['duracion'] ?? 60,
+      'descuento': promo['valor'],
+      'promocion_id': promo['id'],
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CalendarPage(
+          mode: 'booking',
+          comercioId: widget.comercioId,
+          salonName: _comercioData?['nombre'] ?? 'Salón',
+          servicioId: promo['servicio_id'],
+          servicios: [servicioConDescuento],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResenas() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1023,6 +1148,143 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Widget para mostrar cada promoción en horizontal scroll
+class _PromocionCard extends StatelessWidget {
+  final Map<String, dynamic> promocion;
+  final VoidCallback onTap;
+
+  const _PromocionCard({
+    required this.promocion,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final descuento = promocion['valor'] ?? 0;
+    final fotoUrl = promocion['foto_url'] as String?;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Imagen con badge de descuento
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: fotoUrl != null && fotoUrl.isNotEmpty
+                      ? Image.network(
+                          fotoUrl,
+                          width: double.infinity,
+                          height: 140,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: double.infinity,
+                              height: 140,
+                              color: const Color(0xFF2C2C2E),
+                              child: const Icon(
+                                Icons.image_outlined,
+                                size: 40,
+                                color: Color(0xFF9E9E9E),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          width: double.infinity,
+                          height: 140,
+                          color: const Color(0xFF2C2C2E),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            size: 40,
+                            color: Color(0xFF9E9E9E),
+                          ),
+                        ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B9D), Color(0xFFEA963A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '-$descuento%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            // Información
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    promocion['servicio_nombre'] ?? 'Servicio',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      if (promocion['precio_original'] != null)
+                        Text(
+                          'L ${promocion['precio_original']}',
+                          style: const TextStyle(
+                            color: Color(0xFF9E9E9E),
+                            fontSize: 12,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'L ${promocion['precio_con_descuento'] ?? '0.00'}',
+                        style: const TextStyle(
+                          color: Color(0xFFFF9500),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
