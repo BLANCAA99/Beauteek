@@ -26,6 +26,11 @@ import promocionRoutes from './routes/promocion.routes';
 import reseñaRoutes from './routes/reseña.routes';
 import tarjetaRoutes from './routes/tarjeta.routes';
 import citaRoutes from './routes/cita.routes';
+import galeriaFotoRoutes from './routes/galeria_foto.routes';
+import ubicacionRoutes from './routes/ubicacion.routes';
+import suscripcionRoutes from './routes/suscripcion.routes';
+import reporteRoutes from './routes/reporte.routes';
+import soporteRoutes from './routes/soporte.routes';
 
 const app = express();
 
@@ -51,8 +56,13 @@ app.use('/api/favoritos', favoritoRoutes);
 app.use('/api/promociones', promocionRoutes);
 app.use('/api/resenas', reseñaRoutes);
 app.use('/citas', citaRoutes);
+app.use('/api/galeria-fotos', galeriaFotoRoutes);
+app.use('/api/ubicaciones', ubicacionRoutes);
+app.use('/api/suscripciones', suscripcionRoutes);
+app.use('/api/reportes', reporteRoutes);
+app.use('/soporte', soporteRoutes);
 
-console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/sucursales, /citas');
+console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /soporte');
 
 export const api = onRequest(
   { region: "us-central1" },

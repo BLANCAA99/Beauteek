@@ -127,7 +127,7 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const { comercioId, direccion, ubicacion } = parsed.data;
+    const { comercioId, ubicacion } = parsed.data;
     const uidPropietario = (req as any).user?.uid;
     const comercioDoc = await db.collection("comercios").doc(comercioId).get();
 
@@ -149,8 +149,6 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
     console.log('📍 GeoPoint creado:', geoPoint);
 
     await db.collection("comercios").doc(comercioId).update({
-      direccion,
-      ubicacion: geoPoint,
       estado: "paso2_completado",
       fecha_actualizacion: new Date(),
     });
@@ -493,6 +491,92 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
     res.json(comerciosCercanos);
   } catch (error: any) {
     console.error('❌ Error en getComercioscerca:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/* =========================
+   Búsqueda por país
+   ========================= */
+
+export const getComerciosPorPais = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { pais } = req.params;
+    
+    if (!pais) {
+      res.status(400).json({ error: 'País requerido' });
+      return;
+    }
+    
+    console.log(`🌍 Buscando comercios en: ${pais}`);
+
+    // Obtener todos los comercios activos
+    const comerciosSnapshot = await db
+      .collection('comercios')
+      .where('estado', '==', 'activo')
+      .get();
+
+    const comerciosPorPais: any[] = [];
+
+    for (const comercioDoc of comerciosSnapshot.docs) {
+      const comercio = comercioDoc.data() as Comercio;
+      const comercioId = comercioDoc.id;
+
+      // Obtener el usuario del negocio para verificar su país
+      const uidNegocio = comercio.uid_negocio;
+      if (!uidNegocio) continue;
+
+      const usuarioDoc = await db.collection('usuarios').doc(uidNegocio).get();
+      if (!usuarioDoc.exists) continue;
+
+      const usuarioData = usuarioDoc.data();
+      const paisNegocio = usuarioData?.pais;
+
+      // Filtrar por país (comparación case-insensitive)
+      if (paisNegocio && paisNegocio.toLowerCase() === pais.toLowerCase()) {
+        // Obtener servicios del comercio
+        const serviciosSnapshot = await db
+          .collection('servicios')
+          .where('comercio_id', '==', comercioId)
+          .where('activo', '==', true)
+          .get();
+
+        const servicios = serviciosSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        let lat, lng;
+        if (comercio.ubicacion) {
+          if (comercio.ubicacion._latitude !== undefined && comercio.ubicacion._longitude !== undefined) {
+            lat = comercio.ubicacion._latitude;
+            lng = comercio.ubicacion._longitude;
+          } else if ((comercio.ubicacion as any).latitude !== undefined && (comercio.ubicacion as any).longitude !== undefined) {
+            lat = (comercio.ubicacion as any).latitude;
+            lng = (comercio.ubicacion as any).longitude;
+          }
+        }
+
+        comerciosPorPais.push({
+          id: comercioId,
+          nombre: comercio.nombre || 'Sin nombre',
+          telefono: comercio.telefono || '',
+          email: comercio.email || '',
+          foto_url: comercio.foto_url || '',
+          descripcion: comercio.descripcion || '',
+          calificacion: comercio.calificacion || 4.5,
+          direccion: comercio.direccion || '',
+          ubicacion: lat && lng ? { lat, lng } : null,
+          servicios: servicios,
+          pais: paisNegocio,
+        });
+      }
+    }
+
+    console.log(`✅ ${comerciosPorPais.length} comercios encontrados en ${pais}`);
+    res.json(comerciosPorPais);
+  } catch (error: any) {
+    console.error('❌ Error en getComerciosPorPais:', error);
     res.status(500).json({ error: error.message });
   }
 };

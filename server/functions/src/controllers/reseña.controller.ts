@@ -8,9 +8,12 @@ import { FieldValue } from "firebase-admin/firestore";
 const resenaSchema = z.object({
   usuario_salon_id: z.string().min(1),
   usuario_cliente_id: z.string().min(1),
+  comercio_id: z.string().min(1),
   servicio_id: z.string().min(1),
+  cita_id: z.string().optional(),
   calificacion: z.coerce.number().min(1).max(5),
   comentario: z.string().optional(),
+  foto_url: z.string().optional(),
   fecha: z.string().optional(),
 });
 

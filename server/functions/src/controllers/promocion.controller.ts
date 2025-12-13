@@ -3,19 +3,23 @@ import { db } from "../config/firebase";
 import { Promocion } from "../modelos/promocion.model";
 import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendPushNotificationByRole } from "../services/notification.service";
 
 // Esquema robusto
 const promocionSchema = z.object({
-  usuario_id: z.string().min(1),
-  nombre: z.string().min(1),
+  comercio_id: z.string().min(1),
+  servicio_id: z.string().min(1),
+  servicio_nombre: z.string().min(1),
+  foto_url: z.string().optional(),
   descripcion: z.string().optional(),
-  tipo_descuento: z.enum(["porcentaje", "monto"]), // restringe valores
-  valor: z.coerce.number().min(0),                 // coerce para aceptar "10" -> 10
-  fecha_inicio: z.coerce.date(),                   // acepta ISO/fecha-string
+  tipo_descuento: z.enum(["porcentaje", "monto"]),
+  valor: z.coerce.number().min(0),
+  precio_original: z.coerce.number().min(0).optional(),
+  precio_con_descuento: z.coerce.number().min(0).optional(),
+  fecha_inicio: z.coerce.date(),
   fecha_fin: z.coerce.date(),
   activo: z.coerce.boolean(),
 }).superRefine((data, ctx) => {
-  // porcentaje debe estar entre 0 y 100
   if (data.tipo_descuento === "porcentaje" && (data.valor < 0 || data.valor > 100)) {
     ctx.addIssue({
       code: "custom",
@@ -23,7 +27,6 @@ const promocionSchema = z.object({
       message: "Para 'porcentaje', el valor debe estar entre 0 y 100.",
     });
   }
-  // Rango de fechas válido
   if (data.fecha_fin < data.fecha_inicio) {
     ctx.addIssue({
       code: "custom",
@@ -52,6 +55,29 @@ export const createPromocion = async (req: Request, res: Response): Promise<void
     };
 
     const docRef = await db.collection("promociones").add(payload);
+
+    // 🔔 Enviar notificación a todos los clientes sobre la nueva promoción
+    try {
+      // Obtener información del comercio
+      const comercioDoc = await db.collection("comercios").doc(data.comercio_id).get();
+      const comercioNombre = comercioDoc.data()?.nombre || 'Un salón';
+
+      await sendPushNotificationByRole(
+        'cliente',
+        {
+          title: '🎉 Nueva Promoción Disponible',
+          body: `${comercioNombre} tiene una nueva oferta en ${data.servicio_nombre}. ¡Aprovecha!`,
+        },
+        {
+          type: 'nueva_promocion',
+          entityId: docRef.id,
+        }
+      );
+      console.log(`✅ Notificación de nueva promoción enviada a todos los clientes`);
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificaciones de promoción:', notifError);
+    }
+
     res.status(201).json({ id: docRef.id, ...data });
     return;
   } catch (error: any) {
@@ -67,9 +93,16 @@ export const getPromociones = async (_req: Request, res: Response): Promise<void
     const promociones: Promocion[] = snapshot.docs.map(
       (doc) => ({ id: doc.id, ...doc.data() } as Promocion)
     );
+    
+    console.log(`📊 Total promociones en Firestore: ${promociones.length}`);
+    if (promociones.length > 0) {
+      console.log(`📊 Primera promoción:`, JSON.stringify(promociones[0]));
+    }
+    
     res.json(promociones);
     return;
   } catch (error: any) {
+    console.error('❌ Error obteniendo promociones:', error);
     res.status(500).json({ error: error.message });
     return;
   }

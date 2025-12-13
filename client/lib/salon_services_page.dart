@@ -21,19 +21,34 @@ class SalonServicesPage extends StatefulWidget {
 }
 
 class _SalonServicesPageState extends State<SalonServicesPage> {
+  // 🎨 Colores de tema Beauteek
+  static const Color _backgroundColor = Color(0xFF101013);
+  static const Color _cardColor = Color(0xFF1B1F2A);
+  static const Color _cardSoftColor = Color(0xFF171A23);
+  static const Color _primaryOrange = Color(0xFFEA963A);
+  static const Color _secondaryOrange = Color(0xFFFFB15C);
+  static const Color _textPrimary = Colors.white;
+  static const Color _textSecondary = Color(0xFFB8C0CC);
+
   bool _isLoading = true;
   List<Map<String, dynamic>> _categorias = [];
   List<Map<String, dynamic>> _serviciosAgregados = [];
-  
+
   List<Map<String, dynamic>> _horarios = List.generate(7, (index) => {
-    'dia_semana': index,
-    'hora_inicio': const TimeOfDay(hour: 9, minute: 0),
-    'hora_fin': const TimeOfDay(hour: 18, minute: 0),
-    'activo': index >= 1 && index <= 5,
-  });
+        'dia_semana': index,
+        'hora_inicio': const TimeOfDay(hour: 9, minute: 0),
+        'hora_fin': const TimeOfDay(hour: 18, minute: 0),
+        'activo': index >= 1 && index <= 5,
+      });
 
   final List<String> _diasSemana = [
-    'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'
+    'Domingo',
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado'
   ];
 
   @override
@@ -57,7 +72,8 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
             'id': doc.id,
             'nombre': data['nombre'] ?? '',
             'icon': data['icon'] ?? '📋',
-            'servicios_sugeridos': List<String>.from(data['servicios_sugeridos'] ?? []),
+            'servicios_sugeridos':
+                List<String>.from(data['servicios_sugeridos'] ?? []),
           };
         }).toList();
         _isLoading = false;
@@ -80,130 +96,157 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
     final duracionController = TextEditingController(text: '30');
     final precioController = TextEditingController();
 
-    final serviciosSugeridos = List<String>.from(categoria['servicios_sugeridos'] ?? []);
+    final serviciosSugeridos =
+        List<String>.from(categoria['servicios_sugeridos'] ?? []);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: _cardSoftColor,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
                 Row(
                   children: [
-                    Text(
-                      categoria['icon'],
-                      style: const TextStyle(fontSize: 32),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _primaryOrange.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          categoria['icon'],
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.category,
+                              color: _primaryOrange,
+                              size: 40,
+                            );
+                          },
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Agregar servicio de ${categoria['nombre']}',
                         style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: _textPrimary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                
+                const SizedBox(height: 18),
+
                 // Servicios sugeridos
                 if (serviciosSugeridos.isNotEmpty) ...[
                   const Text(
-                    'Servicios sugeridos:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    'Servicios sugeridos',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 6,
                     children: serviciosSugeridos.map((servicio) {
                       return ActionChip(
                         label: Text(servicio),
-                        backgroundColor: const Color(0xFFEA963A).withOpacity(0.1),
+                        labelStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                        backgroundColor: _primaryOrange,
                         onPressed: () {
                           nombreController.text = servicio;
                         },
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                 ],
-                
+
                 // Nombre del servicio
-                TextField(
+                _buildBottomSheetField(
                   controller: nombreController,
-                  decoration: InputDecoration(
-                    labelText: 'Nombre del servicio *',
-                    hintText: serviciosSugeridos.isNotEmpty 
-                        ? 'Ej: ${serviciosSugeridos[0]}'
-                        : 'Nombre del servicio',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  label: 'Nombre del servicio *',
+                  hint: serviciosSugeridos.isNotEmpty
+                      ? 'Ej: ${serviciosSugeridos[0]}'
+                      : 'Nombre del servicio',
                 ),
-                const SizedBox(height: 16),
-                
+                const SizedBox(height: 14),
+
                 // Descripción
-                TextField(
+                _buildBottomSheetField(
                   controller: descripcionController,
+                  label: 'Descripción (opcional)',
+                  hint: 'Describe el servicio...',
                   maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Descripción (opcional)',
-                    hintText: 'Describe el servicio...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  isRequired: false,
                 ),
-                const SizedBox(height: 16),
-                
+                const SizedBox(height: 14),
+
                 // Duración y Precio
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: _buildBottomSheetField(
                         controller: duracionController,
+                        label: 'Duración (min) *',
+                        hint: '30',
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Duración (min) *',
-                          prefixIcon: const Icon(Icons.access_time),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                        icon: Icons.access_time,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
+                      child: _buildBottomSheetField(
                         controller: precioController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Precio (L) *',
-                          prefixIcon: const Icon(Icons.attach_money),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                        label: 'Precio (L) *',
+                        hint: '350',
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                                decimal: true),
+                        icon: Icons.attach_money,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                
+                const SizedBox(height: 20),
+
                 // Botones
                 Row(
                   children: [
@@ -211,24 +254,31 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: const BorderSide(
+                            color: Colors.white24,
+                          ),
+                          foregroundColor: _textSecondary,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         child: const Text('Cancelar'),
                       ),
                     ),
                     const SizedBox(width: 12),
+                    // 🔸 Botón con degradado
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
+                      child: GestureDetector(
+                        onTap: () {
                           if (nombreController.text.isEmpty ||
                               duracionController.text.isEmpty ||
                               precioController.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Completa todos los campos requeridos'),
+                                content: Text(
+                                    'Completa todos los campos requeridos'),
                               ),
                             );
                             return;
@@ -240,11 +290,14 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                               'categoria_nombre': categoria['nombre'],
                               'categoria_icon': categoria['icon'],
                               'nombre': nombreController.text,
-                              'descripcion': descripcionController.text.isEmpty 
-                                  ? null 
-                                  : descripcionController.text,
-                              'duracion_min': int.parse(duracionController.text),
-                              'precio': double.parse(precioController.text),
+                              'descripcion':
+                                  descripcionController.text.isEmpty
+                                      ? null
+                                      : descripcionController.text,
+                              'duracion_min':
+                                  int.parse(duracionController.text),
+                              'precio':
+                                  double.parse(precioController.text),
                               'moneda': 'HNL',
                               'activo': true,
                             });
@@ -253,24 +306,43 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('✅ Servicio agregado exitosamente'),
+                              content:
+                                  Text('✅ Servicio agregado exitosamente'),
                               backgroundColor: Colors.green,
                               duration: Duration(seconds: 2),
                             ),
                           );
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA963A),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFFF9A825), // un poco más claro
+                                Color(0xFFEF6C00), // más intenso
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                        ),
-                        child: const Text(
-                          'Agregar',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                          child: const Center(
+                            child: Text(
+                              'Agregar',
+                              style: TextStyle(
+                                color: _textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -285,6 +357,59 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
     );
   }
 
+  // Campo reutilizable para el bottom sheet
+  Widget _buildBottomSheetField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    TextInputType? keyboardType,
+    IconData? icon,
+    int maxLines = 1,
+    bool isRequired = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: _textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          style: const TextStyle(color: _textPrimary),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white38),
+            prefixIcon: icon != null
+                ? Icon(icon, color: Colors.white54, size: 20)
+                : null,
+            filled: true,
+            fillColor: _cardColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.white12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.white12),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _primaryOrange),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   String _formatearHora(TimeOfDay hora) {
     final h = hora.hour.toString().padLeft(2, '0');
     final m = hora.minute.toString().padLeft(2, '0');
@@ -293,19 +418,23 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
 
   Future<void> _seleccionarHora(int diaIndex, String tipo) async {
     final horario = _horarios[diaIndex];
-    final horaInicial = tipo == 'inicio' ? horario['hora_inicio'] as TimeOfDay : horario['hora_fin'] as TimeOfDay;
-    
+    final horaInicial = tipo == 'inicio'
+        ? horario['hora_inicio'] as TimeOfDay
+        : horario['hora_fin'] as TimeOfDay;
+
     final TimeOfDay? horaNueva = await showTimePicker(
       context: context,
       initialTime: horaInicial,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFEA963A),
+            colorScheme: const ColorScheme.dark(
+              primary: _primaryOrange,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              surface: _cardSoftColor,
+              onSurface: _textPrimary,
             ),
+            dialogBackgroundColor: _cardSoftColor,
           ),
           child: child!,
         );
@@ -314,7 +443,8 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
 
     if (horaNueva != null) {
       setState(() {
-        _horarios[diaIndex][tipo == 'inicio' ? 'hora_inicio' : 'hora_fin'] = horaNueva;
+        _horarios[diaIndex]
+            [tipo == 'inicio' ? 'hora_inicio' : 'hora_fin'] = horaNueva;
       });
     }
   }
@@ -337,19 +467,18 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
 
       // Preparar servicios sin los campos de UI
       final serviciosParaEnviar = _serviciosAgregados.map((s) => {
-        'categoria_id': s['categoria_id'],
-        'nombre': s['nombre'],
-        'descripcion': s['descripcion'],
-        'duracion_min': s['duracion_min'],
-        'precio': s['precio'],
-        'moneda': s['moneda'],
-        'activo': s['activo'],
-      }).toList();
+            'categoria_id': s['categoria_id'],
+            'nombre': s['nombre'],
+            'descripcion': s['descripcion'],
+            'duracion_min': s['duracion_min'],
+            'precio': s['precio'],
+            'moneda': s['moneda'],
+            'activo': s['activo'],
+          }).toList();
 
       // Convertir TimeOfDay a String para enviar al servidor
-      final horariosParaEnviar = _horarios
-          .where((h) => h['activo'] == true)
-          .map((h) {
+      final horariosParaEnviar =
+          _horarios.where((h) => h['activo'] == true).map((h) {
         final inicio = h['hora_inicio'] as TimeOfDay;
         final fin = h['hora_fin'] as TimeOfDay;
         return {
@@ -369,14 +498,16 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
       print('📤 Enviando servicios y horarios: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step4');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
@@ -388,41 +519,55 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
+            backgroundColor: _cardSoftColor,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
             ),
             title: const Column(
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 64),
+                Icon(Icons.check_circle,
+                    color: _primaryOrange, size: 64),
                 SizedBox(height: 16),
                 Text(
                   '¡Felicidades! 🎉',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
             content: const Text(
               'Tu salón está activo y listo para recibir clientes.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: _textSecondary),
             ),
+            actionsAlignment: MainAxisAlignment.center,
             actions: [
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => InicioPage()),
+                    MaterialPageRoute(
+                        builder: (context) => InicioPage()),
                     (route) => false,
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA963A),
+                  backgroundColor: _primaryOrange,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 child: const Text(
                   'Ir al inicio',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -446,13 +591,17 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
   Widget build(BuildContext context) {
     if (_isLoading && _categorias.isEmpty) {
       return const Scaffold(
+        backgroundColor: _backgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Color(0xFFEA963A)),
+              CircularProgressIndicator(color: _primaryOrange),
               SizedBox(height: 16),
-              Text('Cargando categorías...'),
+              Text(
+                'Cargando categorías...',
+                style: TextStyle(color: _textSecondary),
+              ),
             ],
           ),
         ),
@@ -460,102 +609,156 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _backgroundColor,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        leading: const BackButton(color: _textPrimary),
         title: const Text(
           'Servicios y Horarios',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: _textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               children: [
                 const Text(
                   'Selecciona una categoría',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: _textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Text(
                   'Agrega los servicios que ofrece tu salón',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
-                // Grid de categorías desde Firestore
+                // Grid de categorías
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.5,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 0.95,
                   ),
                   itemCount: _categorias.length,
                   itemBuilder: (context, index) {
                     final categoria = _categorias[index];
-                    final tieneServicios = _serviciosAgregados
-                        .any((s) => s['categoria_id'] == categoria['id']);
+                    final int cantidadServicios = _serviciosAgregados
+                        .where(
+                            (s) => s['categoria_id'] == categoria['id'])
+                        .length;
+                    final bool tieneServicios = cantidadServicios > 0;
 
                     return InkWell(
                       onTap: () => _mostrarFormularioServicio(categoria),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(22),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: tieneServicios
-                              ? const Color(0xFFEA963A).withOpacity(0.1)
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(16),
+                          color: _cardColor,
+                          borderRadius: BorderRadius.circular(22),
                           border: Border.all(
                             color: tieneServicios
-                                ? const Color(0xFFEA963A)
-                                : Colors.transparent,
-                            width: 2,
+                                ? _primaryOrange
+                                : Colors.white12,
+                            width: tieneServicios ? 1.4 : 1,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.35),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 14),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              categoria['icon'],
-                              style: const TextStyle(fontSize: 40),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _cardSoftColor,                 // o Colors.transparent
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white12),
                             ),
-                            const SizedBox(height: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.network(
+                                categoria['icon'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Center(
+                                    child: Icon(
+                                      Icons.category,
+                                      color: _primaryOrange,
+                                      size: 28,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+
+                            const SizedBox(height: 10),
                             Text(
                               categoria['nombre'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: _textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
-                            if (tieneServicios) ...[
-                              const SizedBox(height: 4),
+                            const SizedBox(height: 4),
+                            if (tieneServicios)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEA963A),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: _primaryOrange.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
-                                  '${_serviciosAgregados.where((s) => s['categoria_id'] == categoria['id']).length}',
+                                  '$cantidadServicios servicio${cantidadServicios == 1 ? '' : 's'}',
                                   style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    color: _secondaryOrange,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                              )
+                            else
+                              const Text(
+                                'Sin servicios aún',
+                                style: TextStyle(
+                                  color: _textSecondary,
+                                  fontSize: 11,
+                                ),
                               ),
-                            ],
                           ],
                         ),
                       ),
@@ -563,34 +766,68 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                   },
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
 
                 // Servicios agregados
                 if (_serviciosAgregados.isNotEmpty) ...[
                   const Text(
                     'Servicios agregados',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   ..._serviciosAgregados.asMap().entries.map((entry) {
                     final index = entry.key;
                     final servicio = entry.value;
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: _cardSoftColor,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: ListTile(
-                        leading: Text(
-                          servicio['categoria_icon'],
-                          style: const TextStyle(fontSize: 24),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            servicio['categoria_icon'],
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: _primaryOrange.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.category,
+                                  color: _primaryOrange,
+                                  size: 24,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         title: Text(
                           servicio['nombre'],
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _textPrimary,
+                          ),
                         ),
                         subtitle: Text(
                           '${servicio['duracion_min']} min • L${servicio['precio'].toStringAsFixed(2)}',
+                          style:
+                              const TextStyle(color: _textSecondary),
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.redAccent),
                           onPressed: () {
                             setState(() {
                               _serviciosAgregados.removeAt(index);
@@ -606,13 +843,17 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                       ),
                     );
                   }).toList(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
                 ],
 
-                // Horarios con TimePicker
+                // Horarios
                 const Text(
                   'Horarios de atención',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ..._horarios.map((horario) {
@@ -620,129 +861,71 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                   final activo = horario['activo'] as bool;
                   final inicio = horario['hora_inicio'] as TimeOfDay;
                   final fin = horario['hora_fin'] as TimeOfDay;
-                  
+
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: activo ? const Color(0xFFFFF3E0) : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(12),
+                      color: _cardSoftColor,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: activo
+                            ? _primaryOrange.withOpacity(0.5)
+                            : Colors.white10,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               _diasSemana[dia],
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: activo ? Colors.black : Colors.grey,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: activo
+                                    ? _textPrimary
+                                    : _textSecondary,
                               ),
                             ),
-                            MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Switch(
-                                value: activo,
-                                activeColor: const Color(0xFFEA963A),
-                                onChanged: (value) {
-                                  setState(() {
-                                    horario['activo'] = value;
-                                  });
-                                },
-                              ),
+                            Switch(
+                              value: activo,
+                              activeColor: _primaryOrange,
+                              inactiveTrackColor: Colors.white12,
+                              onChanged: (value) {
+                                setState(() {
+                                  horario['activo'] = value;
+                                });
+                              },
                             ),
                           ],
                         ),
                         if (activo) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: GestureDetector(
-                                    onTap: () => _seleccionarHora(dia, 'inicio'),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                        horizontal: 16,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: const Color(0xFFEA963A),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            inicio.format(context),
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.access_time,
-                                            color: Color(0xFFEA963A),
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      _seleccionarHora(dia, 'inicio'),
+                                  child: _buildTimeBox(
+                                    label: 'Desde',
+                                    value: inicio.format(context),
                                   ),
                                 ),
                               ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  '-',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
+                              const SizedBox(width: 10),
                               Expanded(
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: GestureDetector(
-                                    onTap: () => _seleccionarHora(dia, 'fin'),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                        horizontal: 16,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: const Color(0xFFEA963A),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            fin.format(context),
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.access_time,
-                                            color: Color(0xFFEA963A),
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      _seleccionarHora(dia, 'fin'),
+                                  child: _buildTimeBox(
+                                    label: 'Hasta',
+                                    value: fin.format(context),
                                   ),
                                 ),
                               ),
@@ -750,12 +933,12 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                           ),
                         ] else ...[
                           const SizedBox(height: 4),
-                          Text(
+                          const Text(
                             'Cerrado',
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: _textSecondary,
                               fontStyle: FontStyle.italic,
-                              fontSize: 14,
+                              fontSize: 13,
                             ),
                           ),
                         ],
@@ -767,42 +950,49 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
             ),
           ),
 
-          // Botón finalizar
+          // Botón finalizar registro
           Container(
-            padding: const EdgeInsets.all(24),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _backgroundColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, -6),
                 ),
               ],
             ),
             child: SafeArea(
+              top: false,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _finalizarRegistro,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA963A),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(999),
                   ),
+                  elevation: 0,
+                  backgroundColor: _primaryOrange,
                 ),
                 child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const CircularProgressIndicator(
+                        color: Colors.white,
+                      )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.check_circle, color: Colors.white),
+                          const Icon(Icons.check_circle,
+                              color: Colors.white),
                           const SizedBox(width: 8),
                           Text(
-                            'Finalizar registro (${_serviciosAgregados.length} ${_serviciosAgregados.length == 1 ? 'servicio' : 'servicios'})',
+                            'Finalizar registro (${_serviciosAgregados.length} '
+                            '${_serviciosAgregados.length == 1 ? 'servicio' : 'servicios'})',
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -810,6 +1000,44 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeBox({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: _textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const Icon(Icons.access_time, size: 18, color: _secondaryOrange),
         ],
       ),
     );

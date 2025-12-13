@@ -7,6 +7,8 @@ import {
   deleteUser,
   getSalonsNearby,
   registerUserComplete,
+  updateFCMToken,
+  deleteFCMToken,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -17,5 +19,9 @@ router.get("/uid/:uid", getUserByUid);
 router.put("/:uid", updateUser);
 router.delete("/:uid", deleteUser);
 router.get("/salons/nearby", getSalonsNearby);
+
+// FCM Token routes
+router.put("/fcm-token", updateFCMToken);
+router.delete("/fcm-token", deleteFCMToken);
 
 export default router;

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math' show cos, sqrt, asin;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'api_constants.dart';
 import 'salon_profile_page.dart';
+import 'theme/app_theme.dart';
+import 'comparar_servicios_page.dart';
 
 class SearchPage extends StatefulWidget {
   final String mode;
@@ -39,30 +41,37 @@ class _SearchPageState extends State<SearchPage> {
   GoogleMapController? _mapController;
   Set<Marker> _markers = {};
   Set<Circle> _circles = {};
-  bool _showMap = true;
+  bool _showMap = true; // Mostrar mapa por defecto
+
+  // UI: pestañas "Salones / Servicios"
+  int _indicePestana = 0;
+  
+  // Búsqueda
+  final TextEditingController _busquedaController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    print('🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
-    
+    print(
+        '🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
+
     if (widget.mode == 'search') {
-      // ✅ Cargar salones cercanos automáticamente
-      _cargarSalonesCercanos();
+      _cargarSalonesPorPais();
     } else if (widget.mode == 'category' && widget.salonesFiltrados != null) {
       _resultados = widget.salonesFiltrados!;
-      _cargarSalonesCercanos();
+      _cargarSalonesPorPais();
     }
   }
 
   @override
   void dispose() {
     _mapController?.dispose();
+    _busquedaController.dispose();
     super.dispose();
   }
 
-  // ✅ IGUAL QUE EN INICIO.DART
-  Future<void> _cargarSalonesCercanos() async {
+  // ✅ NUEVO: Cargar salones usando la colección ubicaciones
+  Future<void> _cargarSalonesPorPais() async {
     try {
       if (widget.userId == null) {
         print('⚠️ userId es null');
@@ -70,134 +79,245 @@ class _SearchPageState extends State<SearchPage> {
         return;
       }
 
+      // NUEVO: Obtener ubicación principal del cliente desde colección ubicaciones
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('⚠️ No hay usuario autenticado');
         setState(() => _isLoading = false);
         return;
       }
-
+      
       final idToken = await user.getIdToken();
-      if (idToken == null) {
-        print('⚠️ No se pudo obtener el token');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Primero obtener ubicación del usuario
-      await _obtenerUbicacionUsuario(idToken);
-
-      if (_userLat == null || _userLng == null) {
-        print('⚠️ No se pudo obtener ubicación del usuario');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      print('🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 10 km');
-
-      // ✅ Usar apiBaseUrl de api_constants.dart
-      final url = Uri.parse(
-        '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=10'
-      );
-
-      print('📍 URL completa: $url');
-
-      final response = await http.get(
-        url,
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${widget.userId}?tipo=cliente');
+      final ubicacionResponse = await http.get(
+        ubicacionUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final List<dynamic> saloneData = json.decode(response.body);
-
-        print('📊 Salones encontrados: ${saloneData.length}');
-        for (var salon in saloneData) {
-          print('  - ${salon['nombre']}: ${salon['distancia']} km');
-        }
-
-        setState(() {
-          _resultados = List<Map<String, dynamic>>.from(
-            saloneData.map((s) => s as Map<String, dynamic>)
+      ).timeout(const Duration(seconds: 30));
+      
+      if (ubicacionResponse.statusCode != 200) {
+        print('⚠️ Cliente sin ubicación principal');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Configura tu ubicación primero'),
+              backgroundColor: Colors.orange,
+            ),
           );
-          _isLoading = false;
-        });
-
-        print('✅ ${_resultados.length} salones cargados');
-        _actualizarMarcadores();
-      } else {
-        print('❌ Error HTTP: ${response.statusCode}');
-        print('📝 Response: ${response.body}');
+        }
         setState(() => _isLoading = false);
+        return;
       }
+
+      final ubicacionData = json.decode(ubicacionResponse.body);
+      final pais = ubicacionData['pais'];
+      final userLat = (ubicacionData['lat'] as num).toDouble();
+      final userLng = (ubicacionData['lng'] as num).toDouble();
+
+      setState(() {
+        _userLat = userLat;
+        _userLng = userLng;
+      });
+
+      print('🌍 País del cliente: $pais');
+      print('📍 Ubicación del cliente: ($userLat, $userLng)');
+
+      // NUEVO: Buscar salones por país desde colección ubicaciones
+      final salonesUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/salones/pais/$pais');
+      final salonesResponse = await http.get(
+        salonesUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 30));
+      
+      final List<dynamic> salones = salonesResponse.statusCode == 200 
+          ? json.decode(salonesResponse.body) 
+          : [];
+
+      print('📊 Salones encontrados en $pais: ${salones.length}');
+
+      // Calcular distancia para cada salón
+      final salonesConDistancia = salones.map<Map<String, dynamic>>((salon) {
+        final salonMap = salon as Map<String, dynamic>;
+        final ubicacionSalon = salonMap['ubicacion'] as Map<String, dynamic>?;
+        
+        if (ubicacionSalon != null) {
+          final salonLat = (ubicacionSalon['lat'] as num?)?.toDouble();
+          final salonLng = (ubicacionSalon['lng'] as num?)?.toDouble();
+          
+          if (salonLat != null && salonLng != null) {
+            final distancia = _calcularDistancia(
+              userLat, userLng, salonLat, salonLng,
+            );
+            salonMap['distancia'] = distancia;
+            salonMap['distancia_km'] = distancia;
+          } else {
+            salonMap['distancia'] = 999999.0;
+            salonMap['distancia_km'] = 999999.0;
+          }
+        }
+        
+        return salonMap;
+      }).toList();
+
+      // Ordenar por distancia (los más cercanos primero)
+      salonesConDistancia.sort((a, b) {
+        final distA = a['distancia_km'] as double? ?? double.infinity;
+        final distB = b['distancia_km'] as double? ?? double.infinity;
+        return distA.compareTo(distB);
+      });
+
+      setState(() {
+        _resultados = salonesConDistancia;
+        _isLoading = false;
+      });
+
+      print('✅ ${_resultados.length} salones cargados en $pais (ordenados por distancia)');
+      
+      // Actualizar marcadores inmediatamente al cargar los salones
+      _actualizarMarcadores();
     } catch (e) {
       print('❌ Error: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  // ✅ IGUAL QUE EN INICIO.DART
-  Future<void> _obtenerUbicacionUsuario(String idToken) async {
+  // Calcular distancia usando fórmula de Haversine
+  double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371; // Radio de la Tierra en km
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
+        sin(dLon / 2) * sin(dLon / 2);
+    
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return R * c;
+  }
+
+  double _toRadians(double degree) {
+    return degree * pi / 180;
+  }
+
+  String _formatearDistancia(double? distancia) {
+    if (distancia == null || distancia == double.infinity) {
+      return '';
+    }
+    if (distancia < 1) {
+      return '${(distancia * 1000).toStringAsFixed(0)} m';
+    }
+    return '${distancia.toStringAsFixed(1)} km';
+  }
+
+  // Función para abrir Google Maps con direcciones
+  Future<void> _abrirGoogleMaps(double lat, double lng, String nombreSalon) async {
+    // URL para Google Maps con direcciones desde la ubicación actual
+    final url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    
     try {
-      final uid = widget.userId;
-      if (uid == null) return;
-
-      // ✅ Usar EXACTAMENTE el mismo endpoint que inicio.dart
-      final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
-      print('🔍 Obteniendo usuario: $url');
-
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final userData = json.decode(response.body) as Map<String, dynamic>;
-
-        print('👤 Datos del usuario obtenidos');
-        print('📍 Ubicación RAW: ${userData['ubicacion']}');
-
-        final ubicacion = userData['ubicacion'];
-        double? lat, lng;
-
-        // ✅ Manejo de múltiples formatos (igual que inicio.dart)
-        if (ubicacion is Map) {
-          lat = (ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
-          lng = (ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
-          print('📍 Formato: Map');
-        } else if (ubicacion is List && ubicacion.length >= 2) {
-          lat = (ubicacion[0] as num?)?.toDouble();
-          lng = (ubicacion[1] as num?)?.toDouble();
-          print('📍 Formato: List/Array');
-        }
-
-        print('📍 Lat parseada: $lat');
-        print('📍 Lng parseada: $lng');
-
-        if (lat != null && lng != null) {
-          setState(() {
-            _userLat = lat;
-            _userLng = lng;
-          });
-          print('✅ Ubicación del usuario: $_userLat, $_userLng');
-        }
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+        print('📍 Abriendo Google Maps para: $nombreSalon');
       } else {
-        print('❌ Error obteniendo usuario: ${response.statusCode}');
-        print('📝 Response: ${response.body}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo abrir Google Maps'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      print('❌ Error obteniendo ubicación: $e');
+      print('❌ Error abriendo Google Maps: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al abrir el mapa'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+
+  void _toggleMapa() {
+    setState(() {
+      _showMap = !_showMap;
+      if (_showMap) {
+        _actualizarMarcadores();
+      }
+    });
+  }
+
+  void _mostrarOpcionesSalon(Map<String, dynamic> salon, double lat, double lng) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                salon['nombre'] ?? 'Salón',
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.store, color: AppTheme.primaryOrange),
+                title: const Text(
+                  'Ver perfil del salón',
+                  style: TextStyle(color: AppTheme.textPrimary),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SalonProfilePage(
+                        comercioId: salon['id'],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const Divider(color: AppTheme.dividerColor),
+              ListTile(
+                leading: const Icon(Icons.directions, color: AppTheme.primaryOrange),
+                title: const Text(
+                  '¿Cómo llegar?',
+                  style: TextStyle(color: AppTheme.textPrimary),
+                ),
+                subtitle: const Text(
+                  'Abrir en Google Maps',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirGoogleMaps(lat, lng, salon['nombre'] ?? 'Salón');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _actualizarMarcadores() {
@@ -228,8 +348,6 @@ class _SearchPageState extends State<SearchPage> {
 
     for (int i = 0; i < _resultados.length; i++) {
       final salon = _resultados[i];
-      
-      // ✅ CAMBIO: Leer ubicacion del comercio (no geo de sucursal)
       final ubicacion = salon['ubicacion'] as Map<String, dynamic>?;
 
       if (ubicacion != null) {
@@ -243,7 +361,7 @@ class _SearchPageState extends State<SearchPage> {
               position: LatLng(lat, lng),
               infoWindow: InfoWindow(
                 title: salon['nombre'],
-                snippet: '${(salon['distancia'] as double).toStringAsFixed(1)} km',
+                snippet: 'Toca para ver perfil • ${(salon['distancia'] as double).toStringAsFixed(1)} km',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -256,6 +374,10 @@ class _SearchPageState extends State<SearchPage> {
                 },
               ),
               icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+              onTap: () {
+                // Mostrar diálogo con opciones
+                _mostrarOpcionesSalon(salon, lat, lng);
+              },
             ),
           );
         }
@@ -263,31 +385,375 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     setState(() {});
-    print('📍 ${_markers.length} marcadores actualizados');
   }
 
-  String _formatearDistancia(double? distancia) {
-    if (distancia == null || distancia == double.infinity) {
-      return '';
-    }
-    if (distancia < 1) {
-      return '${(distancia * 1000).toStringAsFixed(0)}m';
-    }
-    return '${distancia.toStringAsFixed(1)}km';
+  // ========= UI NUEVA PARA LA LISTA =========
+
+  Widget _construirBuscadorYFiltros() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        children: [
+          // Barra de búsqueda
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.search, color: Color(0xFFB0B0B0), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _busquedaController,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    cursorColor: AppTheme.primaryOrange,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Buscar salones, servicios...',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF8E8E93),
+                        fontSize: 16,
+                      ),
+                    ),
+                    onSubmitted: (value) {
+                      if (value.trim().isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CompararServiciosPage(
+                              servicioNombre: value.trim(),
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Filtros (solo Ordenar, sin distancia ni precio)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _chipFiltro(
+              icono: Icons.tune_rounded,
+              texto: 'Ordenar',
+              onTap: () {
+                // Aquí luego puedes abrir bottom sheet de ordenamiento
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _toggleMapa() {
-    setState(() {
-      _showMap = !_showMap;
-      if (_showMap) {
-        _actualizarMarcadores();
-      }
-    });
+  Widget _chipFiltro({
+    required IconData icono,
+    required String texto,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, color: Colors.white, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              texto,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 👉 Tabs centradas + línea gris como en el diseño
+  Widget _construirPestanas() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _pestana('Salones', 0),
+            _pestana('Servicios', 1),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 1,
+          color: AppTheme.dividerColor.withOpacity(0.6),
+        ),
+      ],
+    );
+  }
+
+  Widget _pestana(String titulo, int indice) {
+    final bool seleccionado = _indicePestana == indice;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _indicePestana = indice;
+        });
+      },
+      child: Column(
+        children: [
+          Text(
+            titulo,
+            style: TextStyle(
+              color:
+                  seleccionado ? AppTheme.primaryOrange : AppTheme.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: 3,
+            width: 80,
+            decoration: BoxDecoration(
+              color: seleccionado ? AppTheme.primaryOrange : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _descripcionSalon(Map<String, dynamic> salon, double? distancia) {
+    final partes = <String>[];
+
+    final categoria =
+        salon['categoria'] ?? salon['tipo'] ?? salon['categoriaPrincipal'];
+
+    if (categoria != null && categoria.toString().isNotEmpty) {
+      partes.add(categoria.toString());
+    }
+
+    if (distancia != null && distancia != double.infinity) {
+      partes.add(_formatearDistancia(distancia));
+    }
+
+    final rangoPrecios = salon['rango_precios'] ?? salon['price_level'];
+    if (rangoPrecios != null && rangoPrecios.toString().isNotEmpty) {
+      partes.add(rangoPrecios.toString());
+    }
+
+    return partes.join(' • ');
+  }
+
+  Widget _construirListaSalones() {
+    if (_indicePestana == 1) {
+      // Pestaña "Servicios" (por ahora placeholder)
+      return const Center(
+        child: Text(
+          'Próximamente servicios',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      itemCount: _resultados.length,
+      physics: const BouncingScrollPhysics(),
+      itemBuilder: (context, index) {
+        final salon = _resultados[index];
+        final distancia = salon['distancia'] as double?;
+
+        final calificacion = (salon['calificacion'] ?? 4.8).toDouble();
+        final descripcion = _descripcionSalon(salon, distancia);
+
+        return GestureDetector(
+          onTap: () {
+            print('🔍 Navegando a salon: ${salon['nombre']}');
+            print('   comercioId: ${salon['id']}');
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SalonProfilePage(
+                  comercioId: salon['id'],
+                ),
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Texto
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Rating
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFEA963A),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              calificacion.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Nombre
+                        Text(
+                          salon['nombre'] ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Descripción (categoría • distancia • precio)
+                        if (descripcion.isNotEmpty)
+                          Text(
+                            descripcion,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFFB0B0B0),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Imagen
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: salon['foto_url'] != null
+                        ? Image.network(
+                            salon['foto_url']!,
+                            width: 110,
+                            height: 110,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _placeholderImagen();
+                            },
+                          )
+                        : _placeholderImagen(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _placeholderImagen() {
+    return Container(
+      width: 110,
+      height: 110,
+      color: AppTheme.primaryOrange.withOpacity(0.2),
+      child: const Icon(
+        Icons.store,
+        color: AppTheme.primaryOrange,
+        size: 36,
+      ),
+    );
+  }
+
+  // 👉 Botón tipo pastilla centrado con sombra (como la referencia)
+  Widget _botonVerEnMapa() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Center(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: 260,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _toggleMapa,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.map),
+                label: const Text(
+                  'Ver en mapa',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CAMBIO: Mostrar mapa selector cuando mode == 'select'
+    // ✅ Modo selector de ubicación
     if (widget.mode == 'select') {
       return _MapLocationSelector(
         onLocationSelected: widget.onLocationSelected,
@@ -295,41 +761,26 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.darkBackground,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF111418)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Salones cercanos',
-          style: TextStyle(
-            color: Color(0xFF111418),
-            fontWeight: FontWeight.bold,
-          ),
+        title: Text(
+          'Buscar',
+          style: AppTheme.heading3,
         ),
-        actions: [
-          if (_resultados.isNotEmpty && _userLat != null)
-            Tooltip(
-              message: _showMap ? 'Ver lista' : 'Ver mapa',
-              child: IconButton(
-                icon: Icon(
-                  _showMap ? Icons.list : Icons.map,
-                  color: const Color(0xFFEA963A),
-                  size: 28,
-                ),
-                onPressed: _toggleMapa,
-              ),
-            ),
-        ],
+        // sin icono de mapa aquí, el toggle se hace con los botones inferiores
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFEA963A)),
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange),
             )
           : _showMap && _userLat != null
+              // ===== VISTA MAPA =====
               ? Column(
                   children: [
                     Expanded(
@@ -348,24 +799,28 @@ class _SearchPageState extends State<SearchPage> {
                         zoomControlsEnabled: true,
                       ),
                     ),
+                    // Botón que te lleva a la lista
                     Container(
                       padding: const EdgeInsets.all(16),
-                      color: Colors.white,
+                      color: AppTheme.cardBackground,
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _toggleMapa,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA963A),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: AppTheme.primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            shape: const StadiumBorder(),
+                            elevation: 0,
                           ),
                           icon: const Icon(Icons.list),
                           label: Text(
-                            '${_resultados.length} Salones',
+                            '${_resultados.length} salones',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -373,6 +828,7 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ],
                 )
+              // ===== VISTA LISTA =====
               : _resultados.isEmpty
                   ? Center(
                       child: Column(
@@ -380,161 +836,32 @@ class _SearchPageState extends State<SearchPage> {
                         children: [
                           Icon(
                             Icons.store_outlined,
-                            color: const Color(0xFF637588),
+                            color: AppTheme.textSecondary,
                             size: 64,
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'No hay salones cercanos',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Color(0xFF111418),
-                            ),
+                            style: AppTheme.bodyLarge,
                           ),
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: _resultados.length,
-                      itemBuilder: (context, index) {
-                        final salon = _resultados[index];
-                        final distancia = salon['distancia'] as double?;
-
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                          child: InkWell(
-                            onTap: () {
-                              print('🔍 Navegando a salon: ${salon['nombre']}');
-                              print('   comercioId: ${salon['id']}');
-                              
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SalonProfilePage(
-                                    comercioId: salon['id'],
-                                  ),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: salon['foto_url'] != null
-                                        ? Image.network(
-                                            salon['foto_url']!,
-                                            width: 80,
-                                            height: 80,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return Container(
-                                                width: 80,
-                                                height: 80,
-                                                color: Colors.grey.shade200,
-                                                child: Icon(
-                                                  Icons.store,
-                                                  color: Colors.grey.shade400,
-                                                  size: 32,
-                                                ),
-                                              );
-                                            },
-                                          )
-                                        : Container(
-                                            width: 80,
-                                            height: 80,
-                                            color: Colors.grey.shade200,
-                                            child: Icon(
-                                              Icons.store,
-                                              color: Colors.grey.shade400,
-                                              size: 32,
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                salon['nombre']!,
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF111418),
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            if (distancia != null && distancia != double.infinity) ...[
-                                              Text(
-                                                _formatearDistancia(distancia),
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Color(0xFF637588),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              const Icon(
-                                                Icons.location_on,
-                                                color: Color(0xFFEA963A),
-                                                size: 16,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.star,
-                                              color: Color(0xFFEA963A),
-                                              size: 16,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              "${salon['calificacion'] ?? 4.5} • ${salon['reviews'] ?? 0} reviews",
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF637588),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: Color(0xFF637588),
-                                    size: 24,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                  : Column(
+                      children: [
+                        _construirBuscadorYFiltros(),
+                        _construirPestanas(),
+                        const SizedBox(height: 12),
+                        Expanded(child: _construirListaSalones()),
+                        _botonVerEnMapa(),
+                      ],
                     ),
     );
   }
 }
 
-// Widget para selector de ubicación
+// ================== _MapLocationSelector (SIN CAMBIOS DE LÓGICA) ==================
+
 class _MapLocationSelector extends StatefulWidget {
   final Function(LatLng position, String address)? onLocationSelected;
 
@@ -548,11 +875,21 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   GoogleMapController? _mapController;
   LatLng _selectedPosition = const LatLng(14.0723, -87.1921);
   bool _isLoadingLocation = false;
-  final Set<Marker> _markers = {};
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
     super.initState();
+    // Crear marcador inicial inmediatamente
+    _markers = {
+      Marker(
+        markerId: const MarkerId('selected_location'),
+        position: _selectedPosition,
+        draggable: true,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        onDragEnd: _onMarkerDragEnd,
+      ),
+    };
     _initializeLocation();
   }
 
@@ -564,12 +901,13 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   Future<void> _requestLocationPermissions() async {
     try {
       final permission = await Geolocator.checkPermission();
-      
+
       if (permission == LocationPermission.denied) {
         await Geolocator.requestPermission();
       } else if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          _showSnackBar('Abre Configuración > Aplicaciones > Beauteek > Permisos > Ubicación');
+          _showSnackBar(
+              'Abre Configuración > Aplicaciones > Beauteek > Permisos > Ubicación');
         }
       }
     } catch (e) {
@@ -583,12 +921,13 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
 
     try {
       LocationPermission permission = await Geolocator.checkPermission();
-      
-      if (permission == LocationPermission.denied || 
+
+      if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         print('⚠️ Permiso de ubicación denegado');
         if (mounted) {
-          _showSnackBar('Permiso de ubicación denegado. Usando ubicación por defecto.');
+          _showSnackBar(
+              'Permiso de ubicación denegado. Usando ubicación por defecto.');
         }
         if (mounted) {
           setState(() => _isLoadingLocation = false);
@@ -602,7 +941,8 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
       ).timeout(
         const Duration(seconds: 12),
         onTimeout: () {
-          print('⏱️ Timeout obteniendo ubicación, usando coordenadas por defecto');
+          print(
+              '⏱️ Timeout obteniendo ubicación, usando coordenadas por defecto');
           return Position(
             latitude: 14.0723,
             longitude: -87.1921,
@@ -645,16 +985,20 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
   }
 
   void _updateMarker(LatLng position) {
-    _markers.clear();
-    _markers.add(
-      Marker(
-        markerId: const MarkerId('selected_location'),
-        position: position,
-        draggable: true,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-        onDragEnd: _onMarkerDragEnd,
-      ),
-    );
+    if (mounted) {
+      setState(() {
+        _markers = {
+          Marker(
+            markerId: const MarkerId('selected_location'),
+            position: position,
+            draggable: true,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+            onDragEnd: _onMarkerDragEnd,
+          ),
+        };
+      });
+      print('📍 Marcador actualizado en: $position');
+    }
   }
 
   void _onMarkerDragEnd(LatLng newPosition) {
@@ -705,11 +1049,7 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
             ),
             onMapCreated: (controller) {
               _mapController = controller;
-              if (mounted) {
-                setState(() {
-                  _updateMarker(_selectedPosition);
-                });
-              }
+              print('📍 Mapa creado. Marcadores actuales: ${_markers.length}');
             },
             onTap: _onMapTap,
             markers: _markers,
@@ -718,7 +1058,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
           ),
-
           Positioned(
             top: 0,
             left: 0,
@@ -739,7 +1078,8 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Color(0xFF111418)),
+                      icon: const Icon(Icons.arrow_back,
+                          color: Color(0xFF111418)),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
@@ -770,7 +1110,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
               ),
             ),
           ),
-
           Positioned(
             right: 16,
             bottom: 120,
@@ -792,7 +1131,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                     ),
             ),
           ),
-
           Positioned(
             bottom: 0,
             left: 0,
@@ -857,7 +1195,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

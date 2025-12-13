@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { db } from "../config/firebase";
 import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendPushNotificationToUser } from "../services/notification.service";
 
 // Esquema de validación para las citas
 const citaSchema = z.object({
@@ -46,6 +47,45 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
       estado_pago: data.estado_pago ?? "pendiente",
       fecha_creacion: FieldValue.serverTimestamp(),
     });
+
+    // 🔔 Enviar notificación al salón sobre la nueva cita
+    try {
+      const comercioDoc = await db.collection("comercios").doc(data.comercio_id).get();
+      const comercioData = comercioDoc.data();
+      const uidSalon = comercioData?.uid_negocio || comercioData?.usuario_id;
+      
+      if (uidSalon) {
+        await sendPushNotificationToUser(
+          uidSalon,
+          {
+            title: '🗓️ Nueva Cita Agendada',
+            body: `Tienes una nueva cita para ${data.servicio_nombre || 'un servicio'} el ${data.fecha_hora}`,
+          },
+          {
+            type: 'nueva_cita',
+            entityId: citaRef.id,
+          }
+        );
+        console.log(`✅ Notificación de nueva cita enviada al salón ${uidSalon}`);
+      }
+
+      // 🔔 Enviar notificación al cliente confirmando la cita
+      await sendPushNotificationToUser(
+        data.usuario_cliente_id,
+        {
+          title: '✅ Cita Confirmada',
+          body: `Tu cita para ${data.servicio_nombre || 'un servicio'} ha sido agendada para el ${data.fecha_hora}`,
+        },
+        {
+          type: 'cita_confirmada',
+          entityId: citaRef.id,
+        }
+      );
+      console.log(`✅ Notificación de confirmación enviada al cliente ${data.usuario_cliente_id}`);
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificaciones:', notifError);
+      // No fallar la creación de la cita si falla la notificación
+    }
 
     res.status(201).json({ id: citaRef.id, ...data });
   } catch (error: any) {
@@ -100,10 +140,74 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    await db.collection("citas").doc(req.params.id).update({
-      ...parsed.data,
+    const citaId = req.params.id;
+    const citaDoc = await db.collection("citas").doc(citaId).get();
+    
+    if (!citaDoc.exists) {
+      res.status(404).json({ error: "Cita no encontrada" });
+      return;
+    }
+
+    const citaDataAnterior = citaDoc.data();
+    const dataActualizada = parsed.data;
+
+    await db.collection("citas").doc(citaId).update({
+      ...dataActualizada,
       fecha_actualizacion: FieldValue.serverTimestamp(),
     });
+
+    // 🔔 Enviar notificaciones según el cambio
+    try {
+      // Si se canceló la cita
+      if (dataActualizada.estado === 'cancelada' && citaDataAnterior?.estado !== 'cancelada') {
+        // Notificar al cliente
+        await sendPushNotificationToUser(
+          citaDataAnterior?.usuario_cliente_id,
+          {
+            title: '❌ Cita Cancelada',
+            body: `Tu cita para ${citaDataAnterior?.servicio_nombre || 'un servicio'} ha sido cancelada`,
+          },
+          {
+            type: 'cita_cancelada',
+            entityId: citaId,
+          }
+        );
+
+        // Notificar al salón
+        const comercioDoc = await db.collection("comercios").doc(citaDataAnterior?.comercio_id).get();
+        const uidSalon = comercioDoc.data()?.uid_negocio || comercioDoc.data()?.usuario_id;
+        if (uidSalon) {
+          await sendPushNotificationToUser(
+            uidSalon,
+            {
+              title: '❌ Cita Cancelada',
+              body: `La cita de ${citaDataAnterior?.servicio_nombre || 'un servicio'} ha sido cancelada`,
+            },
+            {
+              type: 'cita_cancelada',
+              entityId: citaId,
+            }
+          );
+        }
+      }
+
+      // Si se cambió la fecha/hora
+      if (dataActualizada.fecha_hora && dataActualizada.fecha_hora !== citaDataAnterior?.fecha_hora) {
+        await sendPushNotificationToUser(
+          citaDataAnterior?.usuario_cliente_id,
+          {
+            title: '🔄 Cita Reprogramada',
+            body: `Tu cita ha sido movida al ${dataActualizada.fecha_hora}`,
+          },
+          {
+            type: 'nueva_cita',
+            entityId: citaId,
+          }
+        );
+      }
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificaciones de actualización:', notifError);
+    }
 
     res.json({ message: "Cita actualizada" });
   } catch (error: any) {

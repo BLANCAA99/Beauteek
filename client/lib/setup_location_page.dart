@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'search_page.dart';
 import 'inicio.dart';
+import 'api_constants.dart';
 
 class SetupLocationPage extends StatefulWidget {
   const SetupLocationPage({Key? key}) : super(key: key);
@@ -49,17 +52,61 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('No hay usuario autenticado');
 
-      final geoPoint = GeoPoint(
-        _selectedLocation!.latitude,
-        _selectedLocation!.longitude,
-      );
+      // Obtener país y ciudad desde las coordenadas usando geocoding
+      String? pais;
+      String? ciudad;
+      String? direccionCompleta;
+      
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          _selectedLocation!.latitude,
+          _selectedLocation!.longitude,
+        );
+        
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          pais = place.country;
+          ciudad = place.locality ?? place.administrativeArea;
+          direccionCompleta = '${place.street ?? ''}, ${place.locality ?? ''}, ${place.country ?? ''}'.trim();
+          print('🌍 País detectado: $pais, Ciudad: $ciudad');
+        }
+      } catch (e) {
+        print('⚠️ Error obteniendo país: $e');
+        pais = 'Honduras'; // Fallback
+      }
 
-      await FirebaseFirestore.instance.collection('usuarios').doc(uid).update({
-        'ubicacion': geoPoint,
-        'fecha_actualizacion': FieldValue.serverTimestamp(),
-      });
+      if (pais == null || pais.isEmpty) {
+        throw Exception('No se pudo detectar el país');
+      }
 
-      print('✅ Ubicación guardada para el usuario: $uid');
+      // Guardar SOLO en colección ubicaciones
+      final idToken = await FirebaseAuth.instance.currentUser!.getIdToken();
+      final url = Uri.parse('$apiBaseUrl/api/ubicaciones');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode({
+          'uid_usuario': uid,
+          'tipo_entidad': 'cliente',
+          'pais': pais,
+          'lat': _selectedLocation!.latitude,
+          'lng': _selectedLocation!.longitude,
+          'es_principal': true,
+          'ciudad': ciudad,
+          'direccion_completa': direccionCompleta,
+          'alias': 'Mi ubicación',
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 201) {
+        throw Exception('Error al guardar ubicación');
+      }
+
+      print('✅ Ubicación guardada en colección ubicaciones');
 
       if (!mounted) return;
 
@@ -83,14 +130,25 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+    return WillPopScope(
+      // Evitar que el usuario pueda salir sin guardar ubicación
+      onWillPop: () async {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Debes configurar tu ubicación para continuar'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return false; // No permite salir
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
               // Icono principal
               Container(
                 padding: const EdgeInsets.all(24),
@@ -260,6 +318,7 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
           ),
         ),
       ),
+    ),
     );
   }
 }

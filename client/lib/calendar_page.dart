@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,19 +7,24 @@ import 'payment_screen.dart';
 import 'review_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'theme/app_theme.dart';
 
 class CalendarPage extends StatefulWidget {
   final String mode;
-  final String? comercioId; // ✅ CAMBIO: Renombrado de salonId
+  final String? comercioId;
   final String? salonName;
   final List<Map<String, dynamic>>? servicios;
+  final String? servicioId;
+  final String? promocionId;
 
   const CalendarPage({
     Key? key,
     this.mode = 'view',
-    this.comercioId, // ✅ CAMBIO
+    this.comercioId,
     this.salonName,
     this.servicios,
+    this.servicioId,
+    this.promocionId,
   }) : super(key: key);
 
   @override
@@ -33,23 +37,23 @@ class _CalendarPageState extends State<CalendarPage> {
   String? _userRole;
   String? _userId;
   bool _isLoading = true;
-  
+
   // Para modo booking
   String? _selectedServicioId;
   TimeOfDay? _selectedTime;
   List<String> _horasDisponibles = [];
-  
-  // Citas reales desde Firestore
-  List<Map<String, dynamic>> _citas = []; // <-- CAMBIO: ahora se cargan de Firestore
+
+  // Citas reales desde API
+  List<Map<String, dynamic>> _citas = [];
 
   @override
   void initState() {
     super.initState();
-    _initializeLocale(); // <-- CAMBIO: inicializar locale primero
+    _initializeLocale();
   }
 
   Future<void> _initializeLocale() async {
-    await initializeDateFormatting('es_ES', null); // <-- ARREGLA EL ERROR DE LOCALE
+    await initializeDateFormatting('es_ES', null);
     await _loadUserData();
   }
 
@@ -98,7 +102,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
       // Cargar citas reales
       await _cargarCitasReales();
-      
+
       setState(() => _isLoading = false);
     } catch (e) {
       print('Error cargando datos del usuario: $e');
@@ -124,10 +128,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final idToken = await user.getIdToken();
 
-      // ✅ Usar API en lugar de Firestore
-      final url = Uri.parse('$apiBaseUrl/citas/usuario/$_userId');
+      final url = Uri.parse('$apiBaseUrl/citas/usuario/${_userId}');
       print('📡 Llamando a API: $url');
-      
+
       final response = await http.get(
         url,
         headers: {
@@ -153,13 +156,16 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final citasTemp = await Future.wait(citasData.map((data) async {
         print('📄 Procesando cita: ${data['id']}');
-        
-        // Obtener nombre de la otra persona según el rol
+
         String nombreOtraPersona = 'Desconocido';
-        
+
+        final user = FirebaseAuth.instance.currentUser;
+        final idToken = await user!.getIdToken();
+
         if (_userRole == 'cliente' && data['comercio_id'] != null) {
           try {
-            final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${data['comercio_id']}');
+            final comercioUrl =
+                Uri.parse('$apiBaseUrl/comercios/${data['comercio_id']}');
             final comercioResponse = await http.get(
               comercioUrl,
               headers: {
@@ -167,7 +173,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 'Authorization': 'Bearer $idToken',
               },
             );
-            
+
             if (comercioResponse.statusCode == 200) {
               final comercioData = json.decode(comercioResponse.body);
               nombreOtraPersona = comercioData['nombre'] ?? 'Salón sin nombre';
@@ -177,7 +183,8 @@ class _CalendarPageState extends State<CalendarPage> {
           }
         } else if (_userRole == 'salon' && data['usuario_cliente_id'] != null) {
           try {
-            final clienteUrl = Uri.parse('$apiBaseUrl/api/users/uid/${data['usuario_cliente_id']}');
+            final clienteUrl = Uri.parse(
+                '$apiBaseUrl/api/users/uid/${data['usuario_cliente_id']}');
             final clienteResponse = await http.get(
               clienteUrl,
               headers: {
@@ -185,7 +192,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 'Authorization': 'Bearer $idToken',
               },
             );
-            
+
             if (clienteResponse.statusCode == 200) {
               final clienteData = json.decode(clienteResponse.body);
               nombreOtraPersona = clienteData['nombre_completo'] ?? 'Cliente';
@@ -195,7 +202,6 @@ class _CalendarPageState extends State<CalendarPage> {
           }
         }
 
-        // Parsear fecha_hora
         DateTime fechaHora;
         try {
           if (data['fecha_hora'] is String) {
@@ -204,8 +210,8 @@ class _CalendarPageState extends State<CalendarPage> {
               fechaStr += ':00';
             }
             fechaHora = DateTime.parse(fechaStr);
-          } else if (data['fecha_hora'] is Map && data['fecha_hora']['_seconds'] != null) {
-            // Timestamp de Firestore serializado
+          } else if (data['fecha_hora'] is Map &&
+              data['fecha_hora']['_seconds'] != null) {
             fechaHora = DateTime.fromMillisecondsSinceEpoch(
               data['fecha_hora']['_seconds'] * 1000,
             );
@@ -251,7 +257,6 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _generarHorasDisponibles() {
-    // Generar horas de 9:00 AM a 6:00 PM cada 30 minutos
     _horasDisponibles = [];
     for (int hora = 9; hora < 18; hora++) {
       _horasDisponibles.add('${hora.toString().padLeft(2, '0')}:00');
@@ -269,7 +274,6 @@ class _CalendarPageState extends State<CalendarPage> {
       int.parse(hora.split(':')[1]),
     );
 
-    // Buscar en citas reales
     final citaExistente = _citas.any((cita) {
       final citaFecha = cita['fecha_hora'] as DateTime;
       return citaFecha.year == fechaHoraCompleta.year &&
@@ -282,6 +286,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return !citaExistente;
   }
 
+  // 🔹 DIÁLOGO "CONFIRMAR CITA" CON DISEÑO IGUAL A LA IMAGEN
   Future<void> _confirmarCita() async {
     if (_selectedServicioId == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -293,7 +298,8 @@ class _CalendarPageState extends State<CalendarPage> {
       return;
     }
 
-    final horaStr = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+    final horaStr =
+        '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
     final disponible = await _verificarDisponibilidad(_selectedDate, horaStr);
 
     if (!disponible) {
@@ -316,7 +322,6 @@ class _CalendarPageState extends State<CalendarPage> {
       return;
     }
 
-    // Mostrar confirmación
     if (!mounted) return;
     final servicio = widget.servicios?.firstWhere(
       (s) => s['id'] == _selectedServicioId,
@@ -325,38 +330,120 @@ class _CalendarPageState extends State<CalendarPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar cita'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Servicio: ${servicio?['nombre'] ?? 'N/A'}'),
-            Text('Fecha: ${_formatDate(_selectedDate)}'),
-            Text('Hora: $horaStr'),
-            Text('Precio: L${servicio?['precio']?.toStringAsFixed(2) ?? '0.00'}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _guardarCita(servicio);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA963A),
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF5EE),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            child: const Text(
-              'Confirmar',
-              style: TextStyle(color: Colors.white),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Text(
+                    'Confirmar cita',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Servicio: ${servicio?['nombre'] ?? 'N/A'}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Fecha: ${_formatDate(_selectedDate)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Hora: $horaStr',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Precio: L${(servicio?['precio'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF5F5F5F),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await _guardarCita(servicio);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryOrange,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirmar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -379,13 +466,12 @@ class _CalendarPageState extends State<CalendarPage> {
         _selectedTime!.minute,
       );
 
-      // ✅ CAMBIO: Simplificado, solo enviar comercio_id y usuario_cliente_id
       final payload = {
         'comercio_id': widget.comercioId,
         'servicio_id': servicio['id'],
         'usuario_cliente_id': _userId,
         'fecha_hora': fechaHora.toIso8601String().substring(0, 16),
-        'duracion_min': servicio['duracion_min'],
+        'duracion_min': servicio['duracion_min'] ?? servicio['duracion'] ?? 60,
         'precio': servicio['precio'],
         'servicio_nombre': servicio['nombre'],
         'estado': 'pendiente',
@@ -394,23 +480,25 @@ class _CalendarPageState extends State<CalendarPage> {
       print('📤 Enviando cita: ${json.encode(payload)}');
 
       final url = Uri.parse('$apiBaseUrl/citas');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Status: ${response.statusCode}');
       print('📥 Response: ${response.body}');
 
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
-        
+
         String? citaId;
-        
+
         if (responseData.containsKey('citaId')) {
           citaId = responseData['citaId']?.toString();
         } else if (responseData.containsKey('id')) {
@@ -420,107 +508,175 @@ class _CalendarPageState extends State<CalendarPage> {
         } else if (responseData is Map && responseData.containsKey('cita')) {
           citaId = responseData['cita']?['id']?.toString();
         }
-        
+
         print('🆔 Cita ID extraído: $citaId');
-        
+
         if (citaId == null || citaId.isEmpty) {
           print('⚠️ Estructura de respuesta: ${responseData.keys.toList()}');
-          throw Exception('No se pudo obtener el ID de la cita de la respuesta');
+          throw Exception(
+              'No se pudo obtener el ID de la cita de la respuesta');
         }
 
-        // ✅ Capturar todas las variables necesarias ANTES del diálogo
         final citaIdFinal = citaId;
         final montoFinal = (servicio['precio'] as num?)?.toDouble() ?? 0.0;
         final salonNameFinal = widget.salonName ?? 'Salón de belleza';
-        
-        print('💰 Datos para pago: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal');
-        
+        final precioOriginal = servicio['precio_original'] as num?;
+        final descuento = servicio['descuento'] as num?;
+
+        print(
+            '💰 Datos para pago: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal, precioOriginal=$precioOriginal, descuento=$descuento');
+
         await _cargarCitasReales();
         setState(() => _isLoading = false);
 
         if (!mounted) return;
 
+        // 🔹 DIÁLOGO DE ÉXITO CON MISMO DISEÑO
         await showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 32),
-                SizedBox(width: 12),
-                Text('¡Cita agendada!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Tu cita ha sido agendada exitosamente.'),
-                const SizedBox(height: 16),
-                const Text(
-                  '¿Cómo deseas pagar?',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+          builder: (context) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF5EE),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Valor del servicio: L${montoFinal.toStringAsFixed(2)}',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('Pagar en el local'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // ✅ Agregar try-catch para capturar el error exacto
-                  try {
-                    print('🚀 Navegando a PaymentScreen con: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal');
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PaymentScreen(
-                          citaId: citaIdFinal,
-                          monto: montoFinal,
-                          salonName: salonNameFinal,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Text(
+                        '¡Cita agendada!',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
                         ),
                       ),
-                    ).then((pagado) {
-                      if (pagado == true) {
-                        Navigator.pop(context);
-                      }
-                    });
-                  } catch (e, stackTrace) {
-                    print('❌ Error al navegar a PaymentScreen: $e');
-                    print('Stack: $stackTrace');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error al abrir pantalla de pago: $e'),
-                        backgroundColor: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Tu cita ha sido agendada exitosamente.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
                       ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA963A),
-                ),
-                child: const Text(
-                  'Pagar en la app',
-                  style: TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '¿Cómo deseas pagar?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Valor del servicio: L${montoFinal.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context); // cierra diálogo
+                            Navigator.pop(context); // vuelve atrás
+                          },
+                          child: const Text(
+                            'Pagar en el local',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF5F5F5F),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context); // cierra diálogo
+                            try {
+                              print(
+                                  '🚀 Navegando a PaymentScreen con: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PaymentScreen(
+                                    citaId: citaIdFinal,
+                                    monto: montoFinal,
+                                    salonName: salonNameFinal,
+                                    precioOriginal: precioOriginal?.toDouble(),
+                                    descuento: descuento?.toDouble(),
+                                  ),
+                                ),
+                              ).then((pagado) {
+                                if (pagado == true) {
+                                  Navigator.pop(context);
+                                }
+                              });
+                            } catch (e, stackTrace) {
+                              print('❌ Error al navegar a PaymentScreen: $e');
+                              print('Stack: $stackTrace');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Error al abrir pantalla de pago: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryOrange,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text(
+                            'Pagar en la app',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       } else if (response.statusCode == 409) {
         setState(() => _isLoading = false);
-        
+
         final data = json.decode(response.body);
         if (!mounted) return;
 
@@ -577,7 +733,7 @@ class _CalendarPageState extends State<CalendarPage> {
   void _selectDate(DateTime date) {
     setState(() {
       _selectedDate = date;
-      _selectedTime = null; // Reset hora seleccionada
+      _selectedTime = null;
     });
   }
 
@@ -586,25 +742,31 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF2B7FDB)),
+          child: CircularProgressIndicator(color: AppTheme.primaryOrange),
         ),
       );
     }
 
+    final bgColor = const Color(0xFFF7F3EE);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: bgColor,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.mode == 'booking' ? 'Agendar Cita' : (_userRole == 'salon' ? 'Mis Clientes Agendados' : 'Mis Citas'),
+          widget.mode == 'booking'
+              ? 'Agendar Cita'
+              : (_userRole == 'salon' ? 'Mis Clientes Agendados' : 'Mis Citas'),
           style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
         ),
@@ -612,7 +774,7 @@ class _CalendarPageState extends State<CalendarPage> {
       body: Column(
         children: [
           _buildCalendar(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Expanded(
             child: widget.mode == 'booking'
                 ? _buildBookingForm()
@@ -623,44 +785,55 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  TextStyle get _sectionTitleStyle => const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        color: Colors.black87,
+      );
+
   Widget _buildBookingForm() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fecha seleccionada
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF2B7FDB).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.primaryOrange.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, color: Color(0xFF2B7FDB)),
+                const Icon(Icons.calendar_today,
+                    color: AppTheme.primaryOrange, size: 20),
                 const SizedBox(width: 12),
-                Text(
-                  _formatDate(_selectedDate),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Fecha seleccionada',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF7C7C7C),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(_selectedDate),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
-          // Seleccionar servicio
-          const Text(
-            'Selecciona un servicio',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text('Selecciona un servicio', style: _sectionTitleStyle),
           const SizedBox(height: 12),
           if (widget.servicios == null || widget.servicios!.isEmpty)
             Text(
@@ -668,80 +841,60 @@ class _CalendarPageState extends State<CalendarPage> {
               style: TextStyle(color: Colors.grey.shade600),
             )
           else
-            ...widget.servicios!.map((servicio) {
-              final isSelected = _selectedServicioId == servicio['id'];
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedServicioId = servicio['id'];
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFFEA963A).withOpacity(0.1)
-                        : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: widget.servicios!.map((servicio) {
+                final isSelected = _selectedServicioId == servicio['id'];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedServicioId = servicio['id'];
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFFEA963A)
-                          : Colors.grey.shade200,
-                      width: 2,
+                          ? AppTheme.primaryOrange.withOpacity(0.12)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppTheme.primaryOrange
+                            : Colors.grey.shade300,
+                        width: 1.6,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          servicio['nombre'] ?? '',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isSelected
+                                ? AppTheme.primaryOrange
+                                : Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      if (isSelected)
-                        const Icon(
-                          Icons.check_circle,
-                          color: Color(0xFFEA963A),
-                          size: 24,
-                        ),
-                      if (isSelected) const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              servicio['nombre'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${servicio['duracion_min']} min • L${servicio['precio']?.toStringAsFixed(2) ?? '0.00'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-
-          const SizedBox(height: 24),
-
-          // Seleccionar hora
-          const Text(
-            'Selecciona una hora',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+                );
+              }).toList(),
             ),
-          ),
+          const SizedBox(height: 28),
+          Text('Horarios disponibles', style: _sectionTitleStyle),
           const SizedBox(height: 12),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             children: _horasDisponibles.map((hora) {
               final horaTime = TimeOfDay(
                 hour: int.parse(hora.split(':')[0]),
@@ -756,57 +909,57 @@ class _CalendarPageState extends State<CalendarPage> {
                   });
                 },
                 child: Container(
+                  width: 100,
+                  alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF2B7FDB)
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
+                        ? AppTheme.primaryOrange.withOpacity(0.12)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
-                          ? const Color(0xFF2B7FDB)
+                          ? AppTheme.primaryOrange
                           : Colors.grey.shade300,
+                      width: 1.6,
                     ),
                   ),
                   child: Text(
                     hora,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          isSelected ? AppTheme.primaryOrange : Colors.black87,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
                 ),
               );
             }).toList(),
           ),
-
           const SizedBox(height: 32),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _confirmarCita,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA963A),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              style: AppTheme.primaryButtonStyle().copyWith(
+                minimumSize:
+                    MaterialStateProperty.all(const Size(double.infinity, 56)),
+                shape: MaterialStateProperty.all(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
               ),
               child: const Text(
-                'Confirmar cita',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                'Confirmar Cita',
               ),
             ),
           ),
-
           const SizedBox(height: 32),
         ],
       ),
@@ -814,65 +967,93 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildCalendar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Navegación de mes
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => _changeMonth(-1),
-              ),
-              Text(
-                _formatMonth(_currentMonth),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.black87),
+                  onPressed: () => _changeMonth(-1),
+                ),
+                Text(
+                  _formatMonth(_currentMonth),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right, color: Colors.black87),
+                  onPressed: () => _changeMonth(1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (widget.mode == 'booking') ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Elige una fecha',
+                  style: _sectionTitleStyle.copyWith(fontSize: 18),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => _changeMonth(1),
-              ),
+              const SizedBox(height: 12),
             ],
-          ),
-          const SizedBox(height: 16),
-          // Días de la semana
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: ['D', 'L', 'M', 'M', 'J', 'V', 'S']
-                .map((day) => SizedBox(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO']
+                  .map(
+                    (day) => SizedBox(
                       width: 40,
                       child: Center(
                         child: Text(
                           day,
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey,
+                            color: Color(0xFFB0B0B0),
+                            fontSize: 12,
                           ),
                         ),
                       ),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 8),
-          _buildDaysGrid(),
-        ],
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            _buildDaysGrid(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDaysGrid() {
-    final firstDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month, 1);
-    final lastDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final firstDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final lastDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
     final daysInMonth = lastDayOfMonth.day;
     final startingWeekday = firstDayOfMonth.weekday % 7;
-    
-    // ✅ CAMBIO: Normalizar fecha actual (sin hora) para comparaciones
-    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+    final today =
+        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     return GridView.builder(
       shrinkWrap: true,
@@ -891,25 +1072,28 @@ class _CalendarPageState extends State<CalendarPage> {
         final date = DateTime(_currentMonth.year, _currentMonth.month, day);
         final isSelected = _isSameDay(date, _selectedDate);
         final isToday = _isSameDay(date, DateTime.now());
-        // ✅ CAMBIO: Un día es pasado solo si es ANTES de hoy (no incluye hoy)
         final isPast = date.isBefore(today);
         final citasCount = _getCitasCount(date);
         final hasCitas = citasCount > 0;
-        
-        // ✅ CAMBIO: Solo bloquear días pasados en modo booking
+
         final isDisabled = widget.mode == 'booking' && isPast;
+
+        final baseTextColor = isDisabled
+            ? Colors.grey.shade300
+            : (isSelected ? Colors.white : Colors.black87);
 
         return InkWell(
           onTap: isDisabled ? null : () => _selectDate(date),
           child: Container(
             margin: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF2B7FDB)
-                  : (isToday ? const Color(0xFF2B7FDB).withOpacity(0.1) : Colors.transparent),
+              color: isSelected ? AppTheme.primaryOrange : Colors.transparent,
               shape: BoxShape.circle,
-              border: hasCitas && !isSelected && widget.mode == 'view'
-                  ? Border.all(color: const Color(0xFF2B7FDB), width: 2)
+              border: isToday && !isSelected
+                  ? Border.all(
+                      color: AppTheme.primaryOrange.withOpacity(0.5),
+                      width: 1.8,
+                    )
                   : null,
             ),
             child: Stack(
@@ -918,24 +1102,23 @@ class _CalendarPageState extends State<CalendarPage> {
                   child: Text(
                     '$day',
                     style: TextStyle(
-                      color: (widget.mode == 'booking' && isPast) 
-                          ? Colors.grey.shade400 
-                          : (isSelected ? Colors.white : Colors.black),
-                      fontWeight: hasCitas ? FontWeight.bold : FontWeight.normal,
+                      color: baseTextColor,
+                      fontWeight: hasCitas ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
                 ),
                 if (hasCitas && !isSelected && widget.mode == 'view')
                   Positioned(
-                    bottom: 4,
+                    bottom: 6,
                     right: 0,
                     left: 0,
                     child: Center(
                       child: Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF2B7FDB),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryOrange,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -984,18 +1167,25 @@ class _CalendarPageState extends State<CalendarPage> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       itemCount: citasDelDia.length,
       itemBuilder: (context, index) {
         final cita = citasDelDia[index];
         final fechaHora = cita['fecha_hora'] as DateTime;
         final hora = DateFormat('HH:mm').format(fechaHora);
 
-        return Card(
+        return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
@@ -1003,8 +1193,8 @@ class _CalendarPageState extends State<CalendarPage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: const Color(0xFF2B7FDB).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: AppTheme.primaryOrange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1014,14 +1204,14 @@ class _CalendarPageState extends State<CalendarPage> {
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF2B7FDB),
+                      color: AppTheme.primaryOrange,
                     ),
                   ),
                   Text(
                     hora.split(':')[1],
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF2B7FDB),
+                      color: AppTheme.primaryOrange,
                     ),
                   ),
                 ],
@@ -1032,6 +1222,7 @@ class _CalendarPageState extends State<CalendarPage> {
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
+                color: Colors.black87,
               ),
             ),
             subtitle: Column(
@@ -1049,7 +1240,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 Text(
                   'L${cita['precio']?.toStringAsFixed(2) ?? '0.00'}',
                   style: TextStyle(
-                    color: Colors.grey.shade400,
+                    color: Colors.grey.shade500,
                     fontSize: 14,
                   ),
                 ),
@@ -1069,17 +1260,21 @@ class _CalendarPageState extends State<CalendarPage> {
   void _showCitaDetails(Map<String, dynamic> cita) {
     final fechaHora = cita['fecha_hora'] as DateTime;
     final isPast = fechaHora.isBefore(DateTime.now());
-    final canReview = isPast && _userRole == 'cliente' && cita['estado'] == 'completada';
-    final canFinalize = _userRole == 'salon' && cita['estado'] != 'completada' && cita['estado'] != 'cancelada';
+    final canReview =
+        isPast && _userRole == 'cliente' && cita['estado'] == 'completada';
+    final canFinalize = _userRole == 'salon' &&
+        cita['estado'] != 'completada' &&
+        cita['estado'] != 'cancelada';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1091,7 +1286,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   'Detalles de la cita',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
                   ),
                 ),
                 IconButton(
@@ -1132,8 +1328,6 @@ class _CalendarPageState extends State<CalendarPage> {
               _getStatusText(cita['estado']),
             ),
             const SizedBox(height: 24),
-            
-            // ✅ CAMBIO: Botón para salón (Finalizar cita)
             if (canFinalize)
               SizedBox(
                 width: double.infinity,
@@ -1146,15 +1340,13 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
               ),
-            
-            // ✅ CAMBIO: Botón para cliente (Dejar reseña)
             if (canReview)
               SizedBox(
                 width: double.infinity,
@@ -1166,7 +1358,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       MaterialPageRoute(
                         builder: (_) => ReviewScreen(
                           citaId: cita['id'],
-                          comercioId: cita['comercio_id'], // ✅ CAMBIO: Solo comercioId
+                          comercioId: cita['comercio_id'],
                           salonName: cita['nombre_otra_persona'],
                           servicioId: cita['servicio_id'],
                         ),
@@ -1183,13 +1375,38 @@ class _CalendarPageState extends State<CalendarPage> {
                     style: TextStyle(color: Colors.white),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA963A),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppTheme.primaryOrange,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
+              ),
+            // Botón de cancelar para clientes con citas pendientes
+            if (_userRole == 'cliente' && cita['estado'] == 'pendiente')
+              Column(
+                children: [
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _cancelarCita(cita),
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      label: const Text(
+                        'Cancelar cita',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),
@@ -1197,11 +1414,10 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  // ✅ NUEVO: Finalizar cita (solo para salón)
   Future<void> _finalizarCita(Map<String, dynamic> cita) async {
     try {
-      Navigator.pop(context); // Cerrar modal
-      
+      Navigator.pop(context);
+
       setState(() => _isLoading = true);
 
       final user = FirebaseAuth.instance.currentUser;
@@ -1210,9 +1426,9 @@ class _CalendarPageState extends State<CalendarPage> {
       final idToken = await user.getIdToken();
 
       final url = Uri.parse('$apiBaseUrl/citas/${cita['id']}');
-      
+
       print('🔄 Actualizando estado de cita: ${cita['id']}');
-      
+
       final response = await http.put(
         url,
         headers: {
@@ -1228,11 +1444,11 @@ class _CalendarPageState extends State<CalendarPage> {
 
       if (response.statusCode == 200) {
         await _cargarCitasReales();
-        
+
         setState(() => _isLoading = false);
 
         if (!mounted) return;
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Cita marcada como finalizada'),
@@ -1256,12 +1472,105 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  Future<void> _cancelarCita(Map<String, dynamic> cita) async {
+    // Mostrar diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar cita'),
+        content: const Text(
+          '¿Estás seguro que deseas cancelar esta cita?\n\n'
+          'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, mantener'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text(
+              'Sí, cancelar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      Navigator.pop(context); // Cerrar el bottom sheet
+
+      setState(() => _isLoading = true);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('No hay usuario autenticado');
+
+      final idToken = await user.getIdToken();
+
+      final url = Uri.parse('$apiBaseUrl/citas/${cita['id']}');
+
+      print('🔄 Cancelando cita: ${cita['id']}');
+
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      print('📥 Response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        await _cargarCitasReales();
+
+        setState(() => _isLoading = false);
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Cita cancelada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error cancelando cita: $e');
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cancelar: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF2B7FDB), size: 24),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryOrange.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: AppTheme.primaryOrange, size: 20),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -1279,7 +1588,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   value,
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
               ],
@@ -1292,32 +1602,77 @@ class _CalendarPageState extends State<CalendarPage> {
 
   String _formatMonth(DateTime date) {
     final months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre'
     ];
     return '${months[date.month - 1]} ${date.year}';
   }
 
   String _formatDate(DateTime date) {
-    final days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    final days = [
+      'Domingo',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado'
+    ];
     final months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre'
     ];
     return '${days[date.weekday % 7]}, ${date.day} de ${months[date.month - 1]}';
   }
 
   String _formatDateLong(DateTime date) {
-    final days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    final days = [
+      'Domingo',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado'
+    ];
     final months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre'
     ];
     return '${days[date.weekday % 7]}, ${date.day} de ${months[date.month - 1]} de ${date.year}';
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
-    // ✅ CAMBIO: Comparar solo año, mes y día (ignorar hora)
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 

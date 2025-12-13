@@ -9,6 +9,7 @@ import {
   updateComercio,
   deleteComercio,
   getComercioscerca,
+  getComerciosPorPais,
 } from '../controllers/comercio.controller';
 import { verifyToken } from '../middleware/auth.middleware';
 
@@ -16,6 +17,7 @@ const router = Router();
 
 // ✅ RUTAS ESPECÍFICAS PRIMERO (sin parámetros dinámicos)
 router.get('/cerca', verifyToken, getComercioscerca);
+router.get('/pais/:pais', verifyToken, getComerciosPorPais);
 
 // Rutas para registro por pasos (si las usas, sino eliminar)
 router.post('/register-salon-step1', verifyToken, registerSalonStep1);
