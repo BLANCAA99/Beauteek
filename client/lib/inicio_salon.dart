@@ -10,6 +10,7 @@ import 'calendar_page.dart';
 import 'estadisticas_salon_page.dart';
 import 'gestionar_promociones_page.dart';
 import 'notificaciones_page.dart';
+import 'chat_bot_page.dart';
 import 'theme/app_theme.dart';
 
 class InicioSalonPage extends StatefulWidget {
@@ -431,7 +432,12 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       backgroundColor: AppTheme.darkBackground,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // TODO: usar este botón después
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => const ChatBotPage(),
+          );
         },
         elevation: 0,
         backgroundColor: Colors.transparent,

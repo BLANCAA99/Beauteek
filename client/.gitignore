@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Dialogflow credentials - NO SUBIR A GIT
+assets/dialogflow/credentials.json
+.env

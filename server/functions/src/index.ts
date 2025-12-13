@@ -31,6 +31,7 @@ import ubicacionRoutes from './routes/ubicacion.routes';
 import suscripcionRoutes from './routes/suscripcion.routes';
 import reporteRoutes from './routes/reporte.routes';
 import soporteRoutes from './routes/soporte.routes';
+import chatbotRoutes from './routes/chatbot.routes';
 
 const app = express();
 
@@ -61,8 +62,9 @@ app.use('/api/ubicaciones', ubicacionRoutes);
 app.use('/api/suscripciones', suscripcionRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/soporte', soporteRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
-console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /soporte');
+console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /soporte, /api/chatbot');
 
 export const api = onRequest(
   { region: "us-central1" },

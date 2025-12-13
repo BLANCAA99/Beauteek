@@ -13,6 +13,7 @@ import 'promociones_page.dart';
 import 'notificaciones_page.dart';
 import 'setup_location_page.dart';
 import 'comparar_servicios_page.dart';
+import 'chat_bot_page.dart';
 import 'theme/app_theme.dart';
 
 class InicioClientePage extends StatefulWidget {
@@ -1579,7 +1580,12 @@ class _InicioClientePageState extends State<InicioClientePage> {
       backgroundColor: AppTheme.darkBackground,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // futuro botón IA
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => const ChatBotPage(),
+          );
         },
         elevation: 0,
         backgroundColor: Colors.transparent,

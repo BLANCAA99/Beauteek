@@ -134,6 +134,13 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   userLng,
                   idToken,
                 );
+
+                // Obtener foto del servicio desde galería
+                final fotoServicio = await _obtenerFotoServicio(
+                  comercio['id'],
+                  servicio['id'],
+                  idToken,
+                );
                 
                 serviciosEncontrados.add({
                   'servicio': servicio,
@@ -143,6 +150,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   'distancia': distancia,
                   'rating': (comercio['rating'] ?? 4.0).toDouble(),
                   'resenas': comercio['total_resenas'] ?? 0,
+                  'foto_servicio': fotoServicio,
                 });
               }
             }
@@ -170,6 +178,55 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<String?> _obtenerFotoServicio(
+    String comercioId,
+    String servicioId,
+    String idToken,
+  ) async {
+    try {
+      print('🔍 Buscando foto para servicio: $servicioId en comercio: $comercioId');
+      
+      final galeriaUrl = Uri.parse('$apiBaseUrl/api/galeria-fotos/comercio/$comercioId');
+      final galeriaResponse = await http.get(
+        galeriaUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      print('📸 Response status galería: ${galeriaResponse.statusCode}');
+
+      if (galeriaResponse.statusCode == 200) {
+        final List<dynamic> fotos = json.decode(galeriaResponse.body);
+        print('📸 Total fotos encontradas: ${fotos.length}');
+        
+        // Buscar primera foto que tenga el servicio_id
+        for (var foto in fotos) {
+          print('📸 Comparando servicio_id: ${foto['servicio_id']} con $servicioId');
+          if (foto['servicio_id'] == servicioId) {
+            final url = foto['foto_url'] as String?;
+            print('✅ Foto encontrada para servicio: $url');
+            return url;
+          }
+        }
+
+        print('⚠️ No se encontró foto específica del servicio');
+
+        // Si no hay foto específica del servicio, usar la primera foto del salón
+        if (fotos.isNotEmpty) {
+          final url = fotos.first['foto_url'] as String?;
+          print('📸 Usando primera foto del salón: $url');
+          return url;
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error obteniendo foto del servicio: $e');
+    }
+    print('❌ No se encontró ninguna foto');
+    return null;
   }
 
   Future<double> _calcularDistanciaConUbicacion(
@@ -514,6 +571,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                             distancia: item['distancia'],
                             rating: item['rating'],
                             resenas: item['resenas'],
+                            fotoServicio: item['foto_servicio'],
                             esMejorPrecio: mejorPrecio != null && 
                               item['servicio']['id'] == mejorPrecio['servicio']['id'],
                             esMasCercano: masCercano != null && 
@@ -555,6 +613,7 @@ class _ServicioCard extends StatelessWidget {
   final double distancia;
   final double rating;
   final int resenas;
+  final String? fotoServicio;
   final bool esMejorPrecio;
   final bool esMasCercano;
   final bool esMejorRating;
@@ -569,6 +628,7 @@ class _ServicioCard extends StatelessWidget {
     required this.distancia,
     required this.rating,
     required this.resenas,
+    this.fotoServicio,
     this.esMejorPrecio = false,
     this.esMasCercano = false,
     this.esMejorRating = false,
@@ -578,7 +638,8 @@ class _ServicioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fotoUrl = comercio['foto_portada'] ?? comercio['foto_url'];
+    // Priorizar foto del servicio, luego foto del comercio
+    final fotoUrl = fotoServicio ?? comercio['foto_portada'] ?? comercio['foto_url'];
 
     return GestureDetector(
       onTap: onTap,
