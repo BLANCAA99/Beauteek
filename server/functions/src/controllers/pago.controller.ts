@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendPushNotificationToUser } from "../services/notification.service";
 
 // Crear pago
 export const createPago = async (req: Request, res: Response): Promise<void> => {
@@ -26,14 +27,24 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
     
     console.log('📄 Datos de la cita:', citaData);
 
-    // ✅ NUEVO: Sin comisión al cliente, solo paga el monto del servicio
+    // ✅ El cliente paga el monto completo del servicio
     const montoServicio = monto || citaData?.precio || 0;
+
+    // 💰 Cálculo de comisión (5% para Beauteek)
+    const porcentajeComision = 5; // 5%
+    const montoComision = parseFloat((montoServicio * (porcentajeComision / 100)).toFixed(2));
+    const montoSalon = parseFloat((montoServicio - montoComision).toFixed(2));
+
+    console.log(`💵 Monto total: ${montoServicio}, Comisión (5%): ${montoComision}, Monto para salón: ${montoSalon}`);
 
     // ✅ Solo incluir campos que NO sean undefined
     const pagoData: any = {
       cita_id: citaId,
       usuario_cliente_id: clienteId,
-      monto: montoServicio,
+      monto: montoServicio, // Monto total que paga el cliente
+      monto_comision: montoComision, // Lo que retiene Beauteek
+      monto_salon: montoSalon, // Lo que recibe el salón
+      porcentaje_comision: porcentajeComision, // 5%
       metodo_pago: 'tarjeta',
       estado: 'completado',
       fecha_pago: FieldValue.serverTimestamp(),
@@ -65,10 +76,56 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
 
     console.log(`✅ Pago procesado exitosamente: ${pagoRef.id}`);
 
+    // 🔔 Enviar notificaciones de pago
+    try {
+      // Notificar al cliente
+      await sendPushNotificationToUser(
+        clienteId,
+        {
+          title: '✅ Pago Confirmado',
+          body: `Tu pago de $${montoServicio} ha sido procesado exitosamente`,
+        },
+        {
+          type: 'pago_confirmado',
+          entityId: pagoRef.id,
+        }
+      );
+      console.log(`✅ Notificación de pago enviada al cliente ${clienteId}`);
+
+      // Notificar al salón
+      if (citaData?.comercio_id) {
+        const comercioDoc = await db.collection('comercios').doc(citaData.comercio_id).get();
+        const comercioData = comercioDoc.data();
+        const uidSalon = comercioData?.uid_negocio || comercioData?.usuario_id;
+
+        if (uidSalon) {
+          // Calcular el monto que recibirá el salón (ya calculado arriba)
+          const montoSalonParaNotif = parseFloat((montoServicio * 0.95).toFixed(2));
+          await sendPushNotificationToUser(
+            uidSalon,
+            {
+              title: '💰 Pago Recibido',
+              body: `Has recibido un pago. Monto a transferir: $${montoSalonParaNotif} (después de comisión 5%)`,
+            },
+            {
+              type: 'pago_recibido',
+              entityId: pagoRef.id,
+            }
+          );
+          console.log(`✅ Notificación de pago enviada al salón ${uidSalon}`);
+        }
+      }
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificaciones de pago:', notifError);
+    }
+
     res.status(201).json({
       mensaje: 'Pago procesado exitosamente',
       pagoId: pagoRef.id,
       monto: montoServicio,
+      monto_comision: montoComision,
+      monto_salon: montoSalon,
+      porcentaje_comision: porcentajeComision,
     });
   } catch (error: any) {
     console.error('❌ Error procesando pago:', error);

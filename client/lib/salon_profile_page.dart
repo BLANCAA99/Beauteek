@@ -117,11 +117,11 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               serviciosData.map((s) => s as Map<String, dynamic>).toList();
         }
 
-        // ✅ NUEVO: Cargar reseñas del comercio
+        // ✅ NUEVO: Cargar reseñas del comercio usando la ruta específica
         final resenasUrl = Uri.parse(
-            '$apiBaseUrl/api/resenas?comercio_id=${widget.comercioId}');
+            '$apiBaseUrl/api/resenas/comercio/${widget.comercioId}');
 
-        print('🔍 Cargando reseñas: $resenasUrl');
+        print('🔍 Cargando reseñas del comercio: $resenasUrl');
 
         final resenasResponse = await http.get(
           resenasUrl,

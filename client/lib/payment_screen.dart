@@ -152,8 +152,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Ingrese el número de tarjeta';
                   }
-                  if (value.replaceAll(' ', '').length < 16) {
-                    return 'Número de tarjeta inválido';
+                  // Validación simplificada: solo verifica que tenga dígitos
+                  if (value.replaceAll(' ', '').length < 13) {
+                    return 'Número de tarjeta muy corto';
                   }
                   return null;
                 },
@@ -407,7 +408,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         // Mostrar diálogo de éxito con opción de descargar recibo
         await _mostrarDialogoExito(pagoData);
         
-        Navigator.pop(context, true);
+        // Redirigir al inicio del cliente después del pago
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/inicio_cliente', (route) => false);
       } else {
         final error = json.decode(response.body);
         throw Exception(error['mensaje'] ?? error['error'] ?? 'Error al procesar el pago');

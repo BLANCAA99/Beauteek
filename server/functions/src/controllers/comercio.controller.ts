@@ -420,10 +420,12 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
     
     console.log(`🔍 Buscando comercios cerca de (${userLat}, ${userLng}) - Radio: ${radioKm}km`);
 
+    // 🔧 Buscar comercios activos Y en proceso de registro (paso3_completado)
     const comerciosSnapshot = await db
       .collection('comercios')
-      .where('estado', '==', 'activo')
-      .get();
+      .get(); // Obtener TODOS para debugging
+    
+    console.log(`📊 Total de comercios en BD: ${comerciosSnapshot.size}`);
 
     const comerciosCercanos: any[] = [];
 
@@ -431,28 +433,84 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
       const comercio = comercioDoc.data() as Comercio;
       const comercioId = comercioDoc.id;
 
-      if (!comercio.ubicacion) {
-        console.log(`⚠️ Comercio ${comercioId} sin ubicación`);
+      console.log(`🔍 Procesando comercio: ${comercio.nombre} (${comercioId}) - Estado: ${comercio.estado}`);
+
+      // 🔧 Permitir comercios activos Y paso3_completado (en proceso)
+      const estadosPermitidos = ['activo', 'paso3_completado'];
+      if (!estadosPermitidos.includes(comercio.estado)) {
+        console.log(`⏭️ Comercio ${comercioId} saltado - estado: ${comercio.estado}`);
         continue;
       }
 
+      // 🔧 CAMBIO: Buscar ubicación en la colección 'ubicaciones' en lugar del campo del comercio
       let comercioLat: number | undefined;
       let comercioLng: number | undefined;
 
-      if (comercio.ubicacion._latitude !== undefined && comercio.ubicacion._longitude !== undefined) {
-        comercioLat = comercio.ubicacion._latitude;
-        comercioLng = comercio.ubicacion._longitude;
-      } else if ((comercio.ubicacion as any).latitude !== undefined && (comercio.ubicacion as any).longitude !== undefined) {
-        comercioLat = (comercio.ubicacion as any).latitude;
-        comercioLng = (comercio.ubicacion as any).longitude;
+      // Primero intentar desde el campo ubicacion del comercio (legacy)
+      if (comercio.ubicacion) {
+        if (comercio.ubicacion._latitude !== undefined && comercio.ubicacion._longitude !== undefined) {
+          comercioLat = comercio.ubicacion._latitude;
+          comercioLng = comercio.ubicacion._longitude;
+        } else if ((comercio.ubicacion as any).latitude !== undefined && (comercio.ubicacion as any).longitude !== undefined) {
+          comercioLat = (comercio.ubicacion as any).latitude;
+          comercioLng = (comercio.ubicacion as any).longitude;
+        }
+      }
+
+      // Si no tiene ubicación en el campo, buscar en la colección ubicaciones
+      if (comercioLat === undefined || comercioLng === undefined) {
+        console.log(`📍 Buscando ubicación en colección 'ubicaciones' para ${comercioId}`);
+        try {
+          // Intentar primero con entidad_id y tipo_entidad='comercio'
+          let ubicacionSnapshot = await db
+            .collection('ubicaciones')
+            .where('entidad_id', '==', comercioId)
+            .where('tipo_entidad', '==', 'comercio')
+            .where('es_principal', '==', true)
+            .limit(1)
+            .get();
+
+          // Si no encuentra, buscar por uid_usuario (para salones legacy)
+          if (ubicacionSnapshot.empty && comercio.uid_negocio) {
+            console.log(`📍 Buscando por uid_usuario: ${comercio.uid_negocio}`);
+            ubicacionSnapshot = await db
+              .collection('ubicaciones')
+              .where('uid_usuario', '==', comercio.uid_negocio)
+              .where('tipo_entidad', '==', 'salon')
+              .where('es_principal', '==', true)
+              .limit(1)
+              .get();
+          }
+
+          if (!ubicacionSnapshot.empty) {
+            const ubicacionData = ubicacionSnapshot.docs[0].data();
+            console.log(`✅ Ubicación encontrada en colección: ${JSON.stringify(ubicacionData)}`);
+            
+            if (ubicacionData.geo && ubicacionData.geo._latitude !== undefined && ubicacionData.geo._longitude !== undefined) {
+              comercioLat = ubicacionData.geo._latitude;
+              comercioLng = ubicacionData.geo._longitude;
+              console.log(`✅ Coordenadas extraídas: (${comercioLat}, ${comercioLng})`);
+            } else if (ubicacionData.lat !== undefined && ubicacionData.lng !== undefined) {
+              comercioLat = ubicacionData.lat;
+              comercioLng = ubicacionData.lng;
+              console.log(`✅ Coordenadas extraídas (lat/lng): (${comercioLat}, ${comercioLng})`);
+            }
+          } else {
+            console.log(`⚠️ No se encontró ubicación en colección para comercio ${comercioId}`);
+          }
+        } catch (ubicError) {
+          console.error(`❌ Error buscando ubicación para ${comercioId}:`, ubicError);
+        }
       }
 
       if (comercioLat === undefined || comercioLng === undefined) {
-        console.log(`⚠️ Comercio ${comercioId} con coordenadas inválidas`);
+        console.log(`⚠️ Comercio ${comercioId} sin coordenadas válidas - SALTANDO`);
         continue;
       }
 
       const distancia = calcularDistancia(userLat, userLng, comercioLat, comercioLng);
+
+      console.log(`📏 Distancia de ${comercio.nombre}: ${distancia.toFixed(2)} km`);
 
       if (distancia <= radioKm) {
         const serviciosSnapshot = await db

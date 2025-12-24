@@ -265,7 +265,7 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {});
   }
 
-  Future<bool> _verificarDisponibilidad(DateTime fecha, String hora) async {
+  Future<bool> _verificarDisponibilidad(DateTime fecha, String hora, {String? servicioId}) async {
     final fechaHoraCompleta = DateTime(
       fecha.year,
       fecha.month,
@@ -274,16 +274,66 @@ class _CalendarPageState extends State<CalendarPage> {
       int.parse(hora.split(':')[1]),
     );
 
+    // Si se proporciona un servicioId, verificar que NO exista una cita con el mismo servicio 
+    // en ese horario EN ESTE SALÓN ESPECÍFICO
+    if (servicioId != null && widget.comercioId != null) {
+      final citaMismoServicio = _citas.any((cita) {
+        final citaFecha = cita['fecha_hora'] as DateTime;
+        return citaFecha.year == fechaHoraCompleta.year &&
+            citaFecha.month == fechaHoraCompleta.month &&
+            citaFecha.day == fechaHoraCompleta.day &&
+            citaFecha.hour == fechaHoraCompleta.hour &&
+            citaFecha.minute == fechaHoraCompleta.minute &&
+            cita['servicio_id'] == servicioId &&
+            cita['comercio_id'] == widget.comercioId; // ✅ Filtrar por salón específico
+      });
+      
+      return !citaMismoServicio;
+    }
+
+    // Verificación general: si hay alguna cita en ese horario (sin importar el servicio)
+    // También por salón específico si estamos en modo booking
     final citaExistente = _citas.any((cita) {
       final citaFecha = cita['fecha_hora'] as DateTime;
-      return citaFecha.year == fechaHoraCompleta.year &&
+      final mismoDiaHora = citaFecha.year == fechaHoraCompleta.year &&
           citaFecha.month == fechaHoraCompleta.month &&
           citaFecha.day == fechaHoraCompleta.day &&
           citaFecha.hour == fechaHoraCompleta.hour &&
           citaFecha.minute == fechaHoraCompleta.minute;
+      
+      // Si estamos en modo booking, verificar solo para este salón
+      if (widget.comercioId != null) {
+        return mismoDiaHora && cita['comercio_id'] == widget.comercioId;
+      }
+      
+      return mismoDiaHora;
     });
 
     return !citaExistente;
+  }
+
+  // Verificar si una hora ya pasó en el día actual
+  bool _esHoraPasada(DateTime fecha, String hora) {
+    final now = DateTime.now();
+    
+    // Si la fecha no es hoy, no es hora pasada
+    if (!_isSameDay(fecha, now)) {
+      return false;
+    }
+    
+    // Si es hoy, verificar la hora
+    final horaInt = int.parse(hora.split(':')[0]);
+    final minutoInt = int.parse(hora.split(':')[1]);
+    
+    final horaSeleccionada = DateTime(
+      fecha.year,
+      fecha.month,
+      fecha.day,
+      horaInt,
+      minutoInt,
+    );
+    
+    return horaSeleccionada.isBefore(now);
   }
 
   // 🔹 DIÁLOGO "CONFIRMAR CITA" CON DISEÑO IGUAL A LA IMAGEN
@@ -300,21 +350,28 @@ class _CalendarPageState extends State<CalendarPage> {
 
     final horaStr =
         '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
-    final disponible = await _verificarDisponibilidad(_selectedDate, horaStr);
+    
+    // Verificar disponibilidad para el servicio específico
+    final disponible = await _verificarDisponibilidad(
+      _selectedDate, 
+      horaStr, 
+      servicioId: _selectedServicioId,
+    );
 
     if (!disponible) {
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Hora no disponible'),
+          title: const Text('Horario ocupado'),
           content: const Text(
-            'Lo sentimos, el salón ya tiene una cita agendada en este horario. Por favor selecciona otra hora o día.',
+            'Ya existe una cita para este servicio en este horario. '
+            'Por favor, elige otro horario o servicio diferente.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Entendido'),
+              child: const Text('OK'),
             ),
           ],
         ),
@@ -600,7 +657,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context); // cierra diálogo
-                            Navigator.pop(context); // vuelve atrás
+                            // Redirigir al inicio del cliente
+                            Navigator.of(context).pushNamedAndRemoveUntil('/inicio_cliente', (route) => false);
                           },
                           child: const Text(
                             'Pagar en el local',
@@ -895,13 +953,17 @@ class _CalendarPageState extends State<CalendarPage> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: _horasDisponibles.map((hora) {
+            children: _horasDisponibles.where((hora) {
+              // Filtrar horarios pasados si es el día actual
+              return !_esHoraPasada(_selectedDate, hora);
+            }).map((hora) {
               final horaTime = TimeOfDay(
                 hour: int.parse(hora.split(':')[0]),
                 minute: int.parse(hora.split(':')[1]),
               );
               final isSelected = _selectedTime?.hour == horaTime.hour &&
                   _selectedTime?.minute == horaTime.minute;
+              
               return GestureDetector(
                 onTap: () {
                   setState(() {

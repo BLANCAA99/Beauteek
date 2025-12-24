@@ -3,6 +3,7 @@ import { db } from "../config/firebase";
 import { Resena } from "../modelos/resena.model";
 import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendPushNotificationToUser } from "../services/notification.service";
 
 
 const resenaSchema = z.object({
@@ -34,6 +35,25 @@ export const createResena = async (req: Request, res: Response): Promise<void> =
     };
 
     const docRef = await db.collection("resenas").add(payload);
+    
+    // 🔔 Enviar notificación al salón sobre la nueva reseña
+    try {
+      await sendPushNotificationToUser(
+        data.usuario_salon_id,
+        {
+          title: '⭐ Nueva Reseña Recibida',
+          body: `Has recibido una nueva reseña con ${data.calificacion} estrellas`,
+        },
+        {
+          type: 'nueva_resena',
+          entityId: docRef.id,
+        }
+      );
+      console.log(`✅ Notificación de nueva reseña enviada al salón ${data.usuario_salon_id}`);
+    } catch (notifError) {
+      console.error('⚠️ Error enviando notificación de reseña:', notifError);
+    }
+    
     res.status(201).json({ id: docRef.id, ...data });
     return;
   } catch (error: any) {
@@ -52,6 +72,36 @@ export const getResenas = async (_req: Request, res: Response): Promise<void> =>
     res.json(resenas);
     return;
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+};
+
+// Obtener reseñas por comercio_id
+export const getResenasByComercio = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { comercioId } = req.params;
+    
+    if (!comercioId) {
+      res.status(400).json({ error: 'comercio_id es requerido' });
+      return;
+    }
+
+    const snapshot = await db
+      .collection("resenas")
+      .where("comercio_id", "==", comercioId)
+      .get();
+    
+    const resenas: Resena[] = snapshot.docs.map(
+      (doc) => ({ id: doc.id, ...doc.data() } as Resena)
+    );
+    
+    console.log(`📊 Reseñas encontradas para comercio ${comercioId}: ${resenas.length}`);
+    
+    res.json(resenas);
+    return;
+  } catch (error: any) {
+    console.error(`❌ Error obteniendo reseñas por comercio:`, error);
     res.status(500).json({ error: error.message });
     return;
   }

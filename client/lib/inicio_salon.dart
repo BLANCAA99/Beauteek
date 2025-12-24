@@ -48,7 +48,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       ]);
     }
     setState(() => _isLoading = false);
-    
+
     // Inicializar notificaciones DESPUÉS de cargar todo (no bloqueante)
     _inicializarNotificaciones();
   }
@@ -69,11 +69,11 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         print('✅ Permisos de notificaciones concedidos (Salón)');
-        
+
         final fcmToken = await messaging.getToken();
         if (fcmToken != null) {
           print('📱 FCM Token (Salón): $fcmToken');
-          
+
           final idToken = await user.getIdToken(true);
           try {
             await http.put(
@@ -92,6 +92,32 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             print('⚠️ Error guardando token FCM: $e');
           }
         }
+
+        // 🔔 Configurar listeners de notificaciones para el salón
+        // Cuando la app está en primer plano
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          print(
+              '📬 Notificación recibida (Salón): ${message.notification?.title}');
+          if (message.notification != null && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.notification!.title ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(message.notification!.body ?? ''),
+                  ],
+                ),
+                duration: const Duration(seconds: 4),
+                backgroundColor: const Color(0xFFEA963A),
+              ),
+            );
+          }
+        });
       } else {
         print('⚠️ Permisos de notificaciones denegados (Salón)');
       }
@@ -133,15 +159,13 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
       print('🏢 Buscando comercios del salón: $_uidUsuario');
 
-      final response = await http
-          .get(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          )
-          .timeout(const Duration(seconds: 6));
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 6));
 
       print('📥 Status (comercios): ${response.statusCode}');
 
@@ -157,8 +181,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
         String? fotoSalon;
 
         try {
-          final userUrl =
-              Uri.parse('$apiBaseUrl/api/users/uid/$_uidUsuario');
+          final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/$_uidUsuario');
           print('🔍 Cargando datos de usuario salón: $userUrl');
 
           final userResponse = await http.get(
@@ -297,15 +320,14 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           try {
             DateTime fechaFin;
             final fechaFinData = promo['fecha_fin'];
-            
+
             if (fechaFinData is String) {
               fechaFin = DateTime.parse(fechaFinData);
             } else if (fechaFinData is Map) {
               final seconds =
                   fechaFinData['_seconds'] ?? fechaFinData['seconds'];
               if (seconds != null) {
-                fechaFin =
-                    DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+                fechaFin = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
               } else {
                 return true;
               }
@@ -340,8 +362,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      final url =
-          Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
+      final url = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
       print('🔍 Cargando reseñas para comercio $_comercioId');
 
       final response = await http.get(
@@ -485,8 +506,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               child: Image.network(
                                 _logoSalon!,
                                 fit: BoxFit.cover,
-                                errorBuilder:
-                                    (context, error, stackTrace) {
+                                errorBuilder: (context, error, stackTrace) {
                                   return const Icon(
                                     Icons.store,
                                     color: Colors.white,
@@ -547,8 +567,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const NotificacionesPage(),
+                              builder: (context) => const NotificacionesPage(),
                             ),
                           );
                         },
@@ -620,7 +639,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                             ),
                           ),
                           const SizedBox(height: 32),
-
                           Text(
                             'Citas del día',
                             style: AppTheme.heading2.copyWith(
@@ -628,12 +646,11 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
-
                           if (_citasDelDia.isEmpty)
                             Container(
                               padding: const EdgeInsets.all(24),
-                              decoration: AppTheme.cardDecoration(
-                                  borderRadius: 20),
+                              decoration:
+                                  AppTheme.cardDecoration(borderRadius: 20),
                               child: Center(
                                 child: Column(
                                   children: [
@@ -657,16 +674,14 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                             ..._citasDelDia.asMap().entries.map((entry) {
                               final index = entry.key;
                               final cita = entry.value;
-                              final esUltimo =
-                                  index == _citasDelDia.length - 1;
+                              final esUltimo = index == _citasDelDia.length - 1;
 
                               final fechaHora =
                                   DateTime.parse(cita['fecha_hora']);
                               final horaFormato =
                                   DateFormat('HH:mm').format(fechaHora);
-                              final estado =
-                                  cita['estado'] ?? 'pendiente';
-                              
+                              final estado = cita['estado'] ?? 'pendiente';
+
                               Color estadoColor;
                               Color tituloColor;
                               Color fondo;
@@ -699,28 +714,21 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               }
 
                               return Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 12),
                                 child: _TimelineCard(
                                   estadoColor: estadoColor,
                                   lineaColor: const Color(0xFF2C3344),
                                   fondo: fondo,
-                                  titulo:
-                                      '$horaFormato - $estadoTexto',
+                                  titulo: '$horaFormato - $estadoTexto',
                                   tituloColor: tituloColor,
                                   servicio:
-                                      cita['servicio_nombre'] ??
-                                          'Servicio',
-                                  cliente:
-                                      cita['usuario_nombre'] ??
-                                          'Cliente',
+                                      cita['servicio_nombre'] ?? 'Servicio',
+                                  cliente: cita['usuario_nombre'] ?? 'Cliente',
                                   esUltimo: esUltimo,
                                 ),
                               );
                             }).toList(),
-
                           const SizedBox(height: 28),
-
                           Text(
                             'Promociones',
                             style: AppTheme.heading2.copyWith(
@@ -746,9 +754,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               );
                             },
                           ),
-
                           const SizedBox(height: 24),
-
                           _SeccionGrandeCard(
                             color: const Color(0xFF0D2538),
                             icon: Icons.check_circle_outline,
@@ -768,9 +774,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                               );
                             },
                           ),
-
                           const SizedBox(height: 28),
-
                           Text(
                             'Últimas reseñas',
                             style: AppTheme.heading2.copyWith(
@@ -781,8 +785,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                           if (_resenas.isEmpty)
                             Container(
                               padding: const EdgeInsets.all(24),
-                              decoration: AppTheme.cardDecoration(
-                                  borderRadius: 20),
+                              decoration:
+                                  AppTheme.cardDecoration(borderRadius: 20),
                               child: Center(
                                 child: Column(
                                   children: [
@@ -812,23 +816,20 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                                     const SizedBox(width: 12),
                                 itemBuilder: (context, index) {
                                   final resena = _resenas[index];
-                                  final comentario =
-                                      resena['comentario'] ?? '';
+                                  final comentario = resena['comentario'] ?? '';
                                   final calificacion =
-                                      (resena['calificacion'] ?? 0)
-                                          .toInt();
+                                      (resena['calificacion'] ?? 0).toInt();
                                   final nombreUsuario =
-                                      resena['usuario_nombre'] ??
-                                          'Cliente';
-                                  
+                                      resena['usuario_nombre'] ?? 'Cliente';
+
                                   String fechaRelativa = 'Reciente';
                                   if (resena['created_at'] != null) {
                                     try {
-                                      final fecha = DateTime.parse(
-                                          resena['created_at']);
-                                      final diferencia = DateTime.now()
-                                          .difference(fecha);
-                                      
+                                      final fecha =
+                                          DateTime.parse(resena['created_at']);
+                                      final diferencia =
+                                          DateTime.now().difference(fecha);
+
                                       if (diferencia.inDays > 7) {
                                         fechaRelativa =
                                             'hace ${diferencia.inDays ~/ 7} semana${diferencia.inDays ~/ 7 != 1 ? "s" : ""}';
@@ -899,8 +900,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          const GestionarPromocionesPage(),
+                      builder: (_) => const GestionarPromocionesPage(),
                     ),
                   );
                 },
@@ -1145,8 +1145,7 @@ class _SeccionGrandeCard extends StatelessWidget {
           TextButton(
             onPressed: onPressed,
             style: TextButton.styleFrom(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               backgroundColor: AppTheme.primaryOrange,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),

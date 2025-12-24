@@ -8,7 +8,7 @@ export interface NotificationPayload {
 }
 
 export interface NotificationOptions {
-  type: 'nueva_cita' | 'cita_cancelada' | 'cita_confirmada' | 'recordatorio_cita' | 'nueva_promocion' | 'mensaje';
+  type: 'nueva_cita' | 'cita_cancelada' | 'cita_confirmada' | 'recordatorio_cita' | 'nueva_promocion' | 'mensaje' | 'pago_confirmado' | 'pago_recibido' | 'nueva_resena';
   entityId?: string;
   imageUrl?: string;
 }
