@@ -37,16 +37,12 @@ class _PromocionesPageState extends State<PromocionesPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('⚠️ Usuario no autenticado');
         setState(() => _isLoading = false);
         return;
       }
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/promociones');
-
-      print('🔍 Cargando promociones desde: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -54,25 +50,12 @@ class _PromocionesPageState extends State<PromocionesPage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 10));
-
-      print('📊 Status promociones: ${response.statusCode}');
-      print('📊 Body length: ${response.body.length}');
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('📊 Total promociones recibidas: ${data.length}');
-        
         // Filtrar promociones activas y vigentes
         final now = DateTime.now();
-        print('📅 Fecha actual: $now');
-        
         final promocionesActivas = data.where((promo) {
-          print('🔍 Verificando promo: ${promo['servicio_nombre']}');
-          print('   - activo: ${promo['activo']}');
-          print('   - fecha_fin: ${promo['fecha_fin']}');
-          
           if (promo['activo'] != true) {
-            print('   ❌ Rechazada: activo != true');
             return false;
           }
           
@@ -88,22 +71,14 @@ class _PromocionesPageState extends State<PromocionesPage> {
             } else if (fechaFinData is String) {
               fechaFin = DateTime.parse(fechaFinData);
             } else {
-              print('   ❌ Formato de fecha no reconocido');
               return false;
             }
-            
-            print('   - fecha_fin parseada: $fechaFin');
             final esValida = fechaFin.isAfter(now);
-            print('   ${esValida ? "✅" : "❌"} ${esValida ? "Válida" : "Expirada"}');
             return esValida;
           } catch (e) {
-            print('   ❌ Error parseando fecha: $e');
             return false;
           }
         }).toList();
-        
-        print('✅ Promociones activas: ${promocionesActivas.length}');
-
         // Obtener detalles de comercios
         final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
         final comerciosResponse = await http.get(
@@ -136,7 +111,6 @@ class _PromocionesPageState extends State<PromocionesPage> {
         });
       }
     } catch (e) {
-      print('❌ Error cargando promociones: $e');
       setState(() => _isLoading = false);
     }
   }

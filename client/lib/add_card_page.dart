@@ -84,7 +84,7 @@ class _AddCardPageState extends State<AddCardPage> {
         'banco': _bancoSeleccionado,
       };
 
-      print('📤 Enviando tarjeta: ${json.encode(payload)}');
+      
 
       final url = Uri.parse('$apiBaseUrl/api/tarjetas');
       final response = await http
@@ -97,10 +97,6 @@ class _AddCardPageState extends State<AddCardPage> {
             body: json.encode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       if (response.statusCode == 201) {
         if (!mounted) return;
 
@@ -211,7 +207,6 @@ class _AddCardPageState extends State<AddCardPage> {
         throw Exception(msg);
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),

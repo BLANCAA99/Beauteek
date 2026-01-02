@@ -71,7 +71,6 @@ class _ActividadRecientePageState extends State<ActividadRecientePage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error cargando actividad: $e');
       setState(() => _isLoading = false);
     }
   }

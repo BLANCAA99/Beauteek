@@ -86,7 +86,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error cargando estadísticas: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -187,7 +186,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
             });
           }
         } catch (e) {
-          print('Error procesando cita: $e');
         }
       }
 
@@ -222,7 +220,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
       // Guardar servicios count para usarlo después
       _serviciosCountTemp = serviciosCount;
     } catch (e) {
-      print('Error cargando citas: $e');
     }
   }
 
@@ -267,7 +264,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
         _serviciosTop = serviciosConConteo.take(3).toList();
       });
     } catch (e) {
-      print('Error cargando servicios: $e');
     }
   }
 
@@ -304,7 +300,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
         _totalResenas = resenas.length;
       });
     } catch (e) {
-      print('Error cargando reseñas: $e');
     }
   }
 
@@ -337,7 +332,6 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
         _promocionesEfectivas = promocionesConUso.take(1).toList();
       });
     } catch (e) {
-      print('Error cargando promociones: $e');
     }
   }
 

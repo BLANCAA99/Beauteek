@@ -79,7 +79,6 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error cargando configuración: $e');
       setState(() => _isLoading = false);
     }
   }

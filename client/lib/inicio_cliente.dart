@@ -80,9 +80,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
       final idToken = await user.getIdToken();
       final ubicacionUrl = Uri.parse(
           '$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
-
-      print('🔍 Verificando ubicación del cliente: $ubicacionUrl');
-
       final ubicacionResponse = await http.get(
         ubicacionUrl,
         headers: {
@@ -90,28 +87,19 @@ class _InicioClientePageState extends State<InicioClientePage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 5));
-
-      print('📍 Status ubicación: ${ubicacionResponse.statusCode}');
-      print('📍 Body: ${ubicacionResponse.body}');
-
       final ubicacionPrincipal = ubicacionResponse.statusCode == 200
           ? json.decode(ubicacionResponse.body)
           : null;
 
       if (ubicacionPrincipal == null) {
-        print(
-            '⚠️ Cliente sin ubicación principal, redirigiendo a SetupLocationPage');
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
         return;
       }
-
-      print('✅ Cliente tiene ubicación principal configurada');
       _cargarDatosIniciales();
     } catch (e) {
-      print('❌ Error verificando ubicación: $e');
       _cargarDatosIniciales(); // Intentar cargar de todos modos
     }
   }
@@ -145,12 +133,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('✅ Permisos de notificaciones concedidos');
-
         final fcmToken = await messaging.getToken();
         if (fcmToken != null) {
-          print('📱 FCM Token: $fcmToken');
-
           final idToken = await user.getIdToken(true);
           try {
             await http.put(
@@ -164,17 +148,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 'platform': 'android',
               }),
             );
-            print('✅ Token FCM guardado en servidor');
           } catch (e) {
-            print('⚠️ Error guardando token FCM: $e');
           }
         }
 
         // 🔔 Configurar listeners de notificaciones
         // Cuando la app está en primer plano
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          print(
-              '📬 Notificación recibida (foreground): ${message.notification?.title}');
+          
           if (message.notification != null && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -196,10 +177,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
           }
         });
       } else {
-        print('⚠️ Permisos de notificaciones denegados');
       }
     } catch (e) {
-      print('⚠️ Error inicializando notificaciones: $e');
     }
   }
 
@@ -207,7 +186,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        print('⚠️ No hay usuario autenticado');
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -220,8 +198,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
-      print('🔍 Obteniendo usuario: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -231,17 +207,11 @@ class _InicioClientePageState extends State<InicioClientePage> {
       ).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          print('⏱️ Timeout obteniendo usuario');
           throw Exception('Timeout al obtener datos del usuario');
         },
       );
-
-      print('📥 Status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final userData = json.decode(response.body) as Map<String, dynamic>;
-
-        print('👤 Datos del usuario obtenidos');
         final nombreCompleto =
             userData['nombre_completo'] ?? userData['displayName'] ?? 'Usuario';
 
@@ -277,7 +247,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         if (!mounted) return;
 
         if (ubicacionData == null) {
-          print('⚠️ Cliente sin ubicación principal');
           setState(() {
             _userLat = null;
             _userLng = null;
@@ -287,18 +256,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
             _userLat = ubicacionData['lat'];
             _userLng = ubicacionData['lng'];
           });
-          print(
-              '✅ Ubicación desde colección ubicaciones: Lat=$_userLat, Lng=$_userLng');
         }
       } else {
-        print('❌ Error HTTP: ${response.statusCode}');
         if (!mounted) return;
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -329,11 +294,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
         _cacheFotosSalones[uidNegocio] = fotoSalon;
         return fotoSalon;
       } else {
-        print(
-            '⚠️ Error HTTP obteniendo usuario $uidNegocio: ${propietarioResponse.statusCode}');
       }
     } catch (e) {
-      print('⚠️ Error obteniendo foto del salón (uid=$uidNegocio): $e');
+      
     }
 
     _cacheFotosSalones[uidNegocio] = null;
@@ -343,7 +306,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
   Future<void> _cargarSalonesDestacados() async {
     try {
       if (_userLat == null || _userLng == null) {
-        print('⚠️ Usuario sin ubicación, mostrando categorías sin salones');
         if (!mounted) return;
         setState(() {
           _salonesDestacados = [];
@@ -362,8 +324,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
         '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=50',
       );
 
-      print(
-          '🔍 Buscando comercios cerca de ($_userLat, $_userLng) - radio: 50 km');
+      
 
       final response = await http.get(
         url,
@@ -373,10 +334,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
         },
       ).timeout(const Duration(seconds: 20)); // Aumentado a 20 segundos
 
-      print('📥 Response status (cerca): ${response.statusCode}');
+      
 
       if (response.statusCode != 200) {
-        print('❌ Error HTTP en /comercios/cerca: ${response.statusCode}');
         if (!mounted) return;
         setState(() {
           _salonesDestacados = [];
@@ -387,21 +347,15 @@ class _InicioClientePageState extends State<InicioClientePage> {
       }
 
       final List<dynamic> saloneData = json.decode(response.body);
-      print('📊 ✨✨✨ BACKEND DEVOLVIÓ: ${saloneData.length} salones ✨✨✨');
       for (var s in saloneData) {
-        print('   - ${s['nombre']} (${s['distancia']} km)');
+        
       }
-      print('📊 Datos completos: $saloneData');
-
       final List<Map<String, dynamic>> salonesConFoto = [];
 
       for (var salon in saloneData) {
         final salonMap = Map<String, dynamic>.from(salon);
         final comercioId = salonMap['id'] as String?;
         String? uidPropietario;
-
-        print('➡️ Procesando comercioId: $comercioId');
-
         // 1️⃣ Traer detalle del comercio para obtener uid_negocio si no viene
         if (comercioId != null) {
           try {
@@ -413,9 +367,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 'Authorization': 'Bearer $idToken',
               },
             ).timeout(const Duration(seconds: 5));
-
-            print('   📄 Detalle comercio status: ${detalleResp.statusCode}');
-
             if (detalleResp.statusCode == 200) {
               final detalleData = json.decode(detalleResp.body);
               uidPropietario = detalleData['uid_negocio'] as String?;
@@ -425,11 +376,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
               if (fotoDesdeDetalle != null && fotoDesdeDetalle.isNotEmpty) {
                 salonMap['foto_url'] = fotoDesdeDetalle;
               }
-
-              print('   ✅ uid_negocio desde detalle: $uidPropietario');
             }
           } catch (e) {
-            print('⚠️ Error obteniendo detalle de comercio $comercioId: $e');
           }
         }
 
@@ -439,8 +387,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
             idToken != null) {
           final fotoSalon =
               await _obtenerFotoSalonPorUid(uidPropietario, idToken);
-          print('   🖼️ fotoSalon obtenida para $uidPropietario: $fotoSalon');
-
           if (fotoSalon != null && fotoSalon.isNotEmpty) {
             salonMap['foto_url'] = fotoSalon;
           }
@@ -474,12 +420,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
               }
             }
           } catch (e) {
-            print(
-                '⚠️ Error obteniendo reseñas del salón ${salonMap['nombre']}: $e');
           }
         }
-
-        print('   ✅ salonMap final: $salonMap');
         salonesConFoto.add(salonMap);
       }
 
@@ -490,10 +432,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
         _salonesFiltrados = _salonesDestacados;
         _isLoading = false;
       });
-      print(
-          '✅ ${_salonesDestacados.length} salones cargados (con posibles fotos)');
+      
     } catch (e) {
-      print('❌ Error _cargarSalonesDestacados: $e');
       if (!mounted) return;
       setState(() {
         _salonesDestacados = [];
@@ -510,9 +450,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/promociones');
-
-      print('🎁 Cargando promociones activas');
-
       final response = await http.get(
         url,
         headers: {
@@ -535,10 +472,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
             return false;
           }
         }).toList();
-
-        print(
-            '✅ Promociones activas encontradas: ${promocionesActivas.length}');
-
         if (!mounted) return;
 
         setState(() {
@@ -546,7 +479,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         });
       }
     } catch (e) {
-      print('❌ Error cargando promociones: $e');
     }
   }
 
@@ -589,9 +521,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
           }
           return false;
         }).toList();
-
-        print(
-            '🔍 Filtrados por $categoria: ${_salonesFiltrados.length} salones');
       }
     });
   }
@@ -606,8 +535,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
       final idToken = await user.getIdToken();
 
       final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
-      print('📊 Cargando estadísticas del cliente: $citasUrl');
-
       final citasResponse = await http.get(
         citasUrl,
         headers: {
@@ -636,7 +563,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 }
               }
             } catch (e) {
-              print('⚠️ Error parseando fecha: $e');
             }
           }
 
@@ -655,11 +581,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           _totalServicios = citasData.length;
           _salonesVisitados = comerciosUnicos.length;
         });
-
-        print(
-            '✅ Estadísticas: Pendientes=$_citasPendientes, Total=$_totalServicios, Salones=$_salonesVisitados');
       } else if (citasResponse.statusCode == 404) {
-        print('ℹ️ Usuario sin citas registradas');
         if (!mounted) return;
         setState(() {
           _citasPendientes = 0;
@@ -668,7 +590,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         });
       }
     } catch (e) {
-      print('❌ Error cargando estadísticas: $e');
       if (!mounted) return;
       setState(() {
         _citasPendientes = 0;
@@ -688,8 +609,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
       final idToken = await user.getIdToken();
 
       final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
-      print('🔍 Verificando citas completadas para reseña: $citasUrl');
-
       final citasResponse = await http.get(
         citasUrl,
         headers: {
@@ -699,12 +618,10 @@ class _InicioClientePageState extends State<InicioClientePage> {
       ).timeout(const Duration(seconds: 5));
 
       if (citasResponse.statusCode == 404) {
-        print('ℹ️ No hay citas para este usuario');
         return;
       }
 
       if (citasResponse.statusCode != 200) {
-        print('⚠️ Error obteniendo citas: ${citasResponse.statusCode}');
         return;
       }
 
@@ -714,20 +631,14 @@ class _InicioClientePageState extends State<InicioClientePage> {
           citasData.where((cita) => cita['estado'] == 'completada').toList();
 
       if (citasCompletadas.isEmpty) {
-        print('ℹ️ No hay citas completadas');
         return;
       }
-
-      print('📋 Encontradas ${citasCompletadas.length} citas completadas');
-
       for (var cita in citasCompletadas.take(1)) {
         final citaId = cita['id'];
 
         if (citaId == null) continue;
 
         final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?cita_id=$citaId');
-        print('🔍 Verificando reseña para cita $citaId: $resenasUrl');
-
         final resenasResponse = await http.get(
           resenasUrl,
           headers: {
@@ -738,14 +649,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
         if (resenasResponse.statusCode == 200) {
           final List<dynamic> resenasData = json.decode(resenasResponse.body);
-
-          print(
-              '📊 Reseñas encontradas para cita $citaId: ${resenasData.length}');
-
           if (resenasData.isEmpty) {
             if (!mounted) return;
-
-            print('✨ Mostrando modal de reseña para cita $citaId');
             await Future.delayed(const Duration(milliseconds: 200));
 
             _mostrarModalResena({
@@ -758,11 +663,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
             break;
           }
         } else {
-          print('⚠️ Error verificando reseñas: ${resenasResponse.statusCode}');
         }
       }
     } catch (e) {
-      print('❌ Error verificando citas finalizadas: $e');
     }
   }
 
@@ -789,7 +692,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
         }
       }
     } catch (e) {
-      print('⚠️ No se pudo cargar nombre del salón (usando genérico): $e');
+      
     }
 
     if (!mounted) return;
@@ -964,8 +867,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         return false;
       }).toList();
     });
-
-    print('🔍 Búsqueda "$texto": ${_salonesFiltrados.length} resultados');
   }
 
   // ---------- UI HELPERS ----------

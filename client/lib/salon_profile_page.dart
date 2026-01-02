@@ -48,9 +48,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
       // ✅ Obtener comercio
       final comercioUrl =
           Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
-
-      print('🔍 Cargando comercio: $comercioUrl');
-
       final comercioResponse = await http.get(
         comercioUrl,
         headers: {
@@ -83,7 +80,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               fotoSalon = propietarioData['foto_url'] as String?;
             }
           } catch (e) {
-            print('⚠️ Error obteniendo foto del propietario: $e');
           }
         }
 
@@ -95,9 +91,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         // ✅ Usar /api/servicios con query param comercio_id
         final serviciosUrl = Uri.parse(
             '$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
-
-        print('🔍 Cargando servicios: $serviciosUrl');
-
         final serviciosResponse = await http.get(
           serviciosUrl,
           headers: {
@@ -105,10 +98,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             'Authorization': 'Bearer $idToken',
           },
         );
-
-        print('📥 Servicios status: ${serviciosResponse.statusCode}');
-        print('📥 Servicios body: ${serviciosResponse.body}');
-
         List<Map<String, dynamic>> servicios = [];
         if (serviciosResponse.statusCode == 200) {
           final List<dynamic> serviciosData =
@@ -120,9 +109,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         // ✅ NUEVO: Cargar reseñas del comercio usando la ruta específica
         final resenasUrl = Uri.parse(
             '$apiBaseUrl/api/resenas/comercio/${widget.comercioId}');
-
-        print('🔍 Cargando reseñas del comercio: $resenasUrl');
-
         final resenasResponse = await http.get(
           resenasUrl,
           headers: {
@@ -173,7 +159,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
                   fotoUsuario = usuarioData['foto_url'];
                 }
               } catch (e) {
-                print('⚠️ Error obteniendo usuario: $e');
               }
             }
 
@@ -196,13 +181,8 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
           _resenas = resenas;
           _isLoading = false;
         });
-
-        print('✅ Comercio cargado: ${comercioData['nombre']}');
-        print('✅ Servicios cargados: ${servicios.length}');
-        print('✅ Reseñas cargadas: ${resenas.length}');
       }
     } catch (e) {
-      print('❌ Error: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -242,7 +222,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         }
       }
     } catch (e) {
-      print('❌ Error verificando favorito: $e');
     }
   }
 
@@ -253,9 +232,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/promociones/comercio/${widget.comercioId}');
-
-      print('🎁 Cargando promociones del salón: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -266,8 +242,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('📊 Promociones recibidas: ${data.length}');
-        
         // Filtrar promociones activas y vigentes
         final now = DateTime.now();
         final promocionesActivas = data.where((promo) {
@@ -288,7 +262,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
             
             return fechaFin.isAfter(now);
           } catch (e) {
-            print('⚠️ Error parseando fecha de promoción: $e');
             return false;
           }
         }).toList();
@@ -296,11 +269,8 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         setState(() {
           _promociones = promocionesActivas.cast<Map<String, dynamic>>();
         });
-
-        print('✅ Promociones activas del salón: ${_promociones.length}');
       }
     } catch (e) {
-      print('❌ Error cargando promociones: $e');
     }
   }
 
@@ -418,7 +388,6 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
         }
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

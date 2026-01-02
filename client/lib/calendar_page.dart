@@ -90,7 +90,6 @@ class _CalendarPageState extends State<CalendarPage> {
           });
         }
       } catch (e) {
-        print('⚠️ Error obteniendo rol del usuario: $e');
         setState(() {
           _userRole = 'cliente';
         });
@@ -105,7 +104,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error cargando datos del usuario: $e');
       setState(() {
         _userRole = 'cliente';
         _isLoading = false;
@@ -117,19 +115,15 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_userId == null) return;
 
     try {
-      print('🔍 Buscando citas para usuario: $_userId (rol: $_userRole)');
-
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('❌ No hay usuario autenticado');
         setState(() => _citas = []);
         return;
       }
 
       final idToken = await user.getIdToken();
 
-      final url = Uri.parse('$apiBaseUrl/citas/usuario/${_userId}');
-      print('📡 Llamando a API: $url');
+      final url = Uri.parse('$apiBaseUrl/citas/usuario/$_userId');
 
       final response = await http.get(
         url,
@@ -139,10 +133,7 @@ class _CalendarPageState extends State<CalendarPage> {
         },
       );
 
-      print('📥 Status: ${response.statusCode}');
-
       if (response.statusCode == 404) {
-        print('ℹ️ No hay citas para este usuario');
         setState(() => _citas = []);
         return;
       }
@@ -152,11 +143,8 @@ class _CalendarPageState extends State<CalendarPage> {
       }
 
       final List<dynamic> citasData = json.decode(response.body);
-      print('📋 Citas recibidas: ${citasData.length}');
 
       final citasTemp = await Future.wait(citasData.map((data) async {
-        print('📄 Procesando cita: ${data['id']}');
-
         String nombreOtraPersona = 'Desconocido';
 
         final user = FirebaseAuth.instance.currentUser;
@@ -179,7 +167,7 @@ class _CalendarPageState extends State<CalendarPage> {
               nombreOtraPersona = comercioData['nombre'] ?? 'Salón sin nombre';
             }
           } catch (e) {
-            print('⚠️ Error obteniendo comercio: $e');
+            // Ignorar error al obtener comercio
           }
         } else if (_userRole == 'salon' && data['usuario_cliente_id'] != null) {
           try {
@@ -198,7 +186,7 @@ class _CalendarPageState extends State<CalendarPage> {
               nombreOtraPersona = clienteData['nombre_completo'] ?? 'Cliente';
             }
           } catch (e) {
-            print('⚠️ Error obteniendo cliente: $e');
+            // Ignorar error al obtener cliente
           }
         }
 
@@ -219,7 +207,6 @@ class _CalendarPageState extends State<CalendarPage> {
             fechaHora = DateTime.now();
           }
         } catch (e) {
-          print('   ❌ Error parseando fecha: $e');
           fechaHora = DateTime.now();
         }
 
@@ -246,10 +233,7 @@ class _CalendarPageState extends State<CalendarPage> {
       setState(() {
         _citas = citasTemp;
       });
-
-      print('✅ ${_citas.length} citas cargadas');
     } catch (e) {
-      print('❌ Error cargando citas: $e');
       setState(() {
         _citas = [];
       });
@@ -265,7 +249,8 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {});
   }
 
-  Future<bool> _verificarDisponibilidad(DateTime fecha, String hora, {String? servicioId}) async {
+  Future<bool> _verificarDisponibilidad(DateTime fecha, String hora,
+      {String? servicioId}) async {
     final fechaHoraCompleta = DateTime(
       fecha.year,
       fecha.month,
@@ -274,7 +259,7 @@ class _CalendarPageState extends State<CalendarPage> {
       int.parse(hora.split(':')[1]),
     );
 
-    // Si se proporciona un servicioId, verificar que NO exista una cita con el mismo servicio 
+    // Si se proporciona un servicioId, verificar que NO exista una cita con el mismo servicio
     // en ese horario EN ESTE SALÓN ESPECÍFICO
     if (servicioId != null && widget.comercioId != null) {
       final citaMismoServicio = _citas.any((cita) {
@@ -285,9 +270,10 @@ class _CalendarPageState extends State<CalendarPage> {
             citaFecha.hour == fechaHoraCompleta.hour &&
             citaFecha.minute == fechaHoraCompleta.minute &&
             cita['servicio_id'] == servicioId &&
-            cita['comercio_id'] == widget.comercioId; // ✅ Filtrar por salón específico
+            cita['comercio_id'] ==
+                widget.comercioId; // ✅ Filtrar por salón específico
       });
-      
+
       return !citaMismoServicio;
     }
 
@@ -300,12 +286,12 @@ class _CalendarPageState extends State<CalendarPage> {
           citaFecha.day == fechaHoraCompleta.day &&
           citaFecha.hour == fechaHoraCompleta.hour &&
           citaFecha.minute == fechaHoraCompleta.minute;
-      
+
       // Si estamos en modo booking, verificar solo para este salón
       if (widget.comercioId != null) {
         return mismoDiaHora && cita['comercio_id'] == widget.comercioId;
       }
-      
+
       return mismoDiaHora;
     });
 
@@ -315,16 +301,16 @@ class _CalendarPageState extends State<CalendarPage> {
   // Verificar si una hora ya pasó en el día actual
   bool _esHoraPasada(DateTime fecha, String hora) {
     final now = DateTime.now();
-    
+
     // Si la fecha no es hoy, no es hora pasada
     if (!_isSameDay(fecha, now)) {
       return false;
     }
-    
+
     // Si es hoy, verificar la hora
     final horaInt = int.parse(hora.split(':')[0]);
     final minutoInt = int.parse(hora.split(':')[1]);
-    
+
     final horaSeleccionada = DateTime(
       fecha.year,
       fecha.month,
@@ -332,7 +318,7 @@ class _CalendarPageState extends State<CalendarPage> {
       horaInt,
       minutoInt,
     );
-    
+
     return horaSeleccionada.isBefore(now);
   }
 
@@ -350,11 +336,11 @@ class _CalendarPageState extends State<CalendarPage> {
 
     final horaStr =
         '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
-    
+
     // Verificar disponibilidad para el servicio específico
     final disponible = await _verificarDisponibilidad(
-      _selectedDate, 
-      horaStr, 
+      _selectedDate,
+      horaStr,
       servicioId: _selectedServicioId,
     );
 
@@ -400,7 +386,7 @@ class _CalendarPageState extends State<CalendarPage> {
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
+                  color: Colors.black.withAlpha(46),
                   blurRadius: 18,
                   offset: const Offset(0, 10),
                 ),
@@ -507,6 +493,167 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _guardarCita(Map<String, dynamic>? servicio) async {
     if (servicio == null || _userId == null) return;
 
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    final montoFinal = (servicio['precio'] as num?)?.toDouble() ?? 0.0;
+    final salonNameFinal = widget.salonName ?? 'Salón de belleza';
+    final precioOriginal = servicio['precio_original'] as num?;
+    final descuento = servicio['descuento'] as num?;
+
+    // 🔹 PRIMERO PREGUNTA CÓMO QUIERE PAGAR
+    final metodoPago = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF5EE),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Text(
+                    '¿Cómo deseas pagar?',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Servicio: ${servicio['nombre'] ?? 'N/A'}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Valor del servicio: L${montoFinal.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context, 'local');
+                      },
+                      child: const Text(
+                        'Pagar en el local',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF5F5F5F),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context, 'app');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryOrange,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const Text(
+                        'Pagar en la app',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Si el usuario canceló el diálogo o cerró sin elegir
+    if (metodoPago == null) return;
+
+    // 🔹 SI ELIGE PAGAR EN LA APP, VA A PAYMENT SCREEN SIN CREAR LA CITA
+    if (metodoPago == 'app') {
+      if (!mounted) return;
+
+      // Navegar a payment screen con datos necesarios para crear la cita después del pago
+      final resultado = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentScreen(
+            citaId: '', // Vacío porque aún no se crea la cita
+            monto: montoFinal,
+            salonName: salonNameFinal,
+            precioOriginal: precioOriginal?.toDouble(),
+            descuento: descuento?.toDouble(),
+            // Datos adicionales para crear la cita después del pago
+            crearCitaDespuesPago: true,
+            datosCita: {
+              'comercio_id': widget.comercioId,
+              'servicio_id': servicio['id'],
+              'usuario_cliente_id': _userId,
+              'fecha_hora': DateTime(
+                _selectedDate.year,
+                _selectedDate.month,
+                _selectedDate.day,
+                _selectedTime!.hour,
+                _selectedTime!.minute,
+              ).toIso8601String().substring(0, 16),
+              'duracion_min':
+                  servicio['duracion_min'] ?? servicio['duracion'] ?? 60,
+              'precio': servicio['precio'],
+              'servicio_nombre': servicio['nombre'],
+              'estado': 'pendiente',
+            },
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+
+      // Si el pago fue exitoso, recargar citas y volver a inicio
+      if (resultado == true) {
+        await _cargarCitasReales();
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/inicio_cliente',
+          (route) => false,
+        );
+      }
+      // Si no pagó (resultado != true), simplemente no hace nada y el usuario puede seguir eligiendo otra fecha/hora
+      return;
+    }
+
+    // 🔹 SI ELIGE PAGAR EN EL LOCAL, AHORA SÍ CREA LA CITA
     try {
       setState(() => _isLoading = true);
 
@@ -534,8 +681,6 @@ class _CalendarPageState extends State<CalendarPage> {
         'estado': 'pendiente',
       };
 
-      print('📤 Enviando cita: ${json.encode(payload)}');
-
       final url = Uri.parse('$apiBaseUrl/citas');
       final response = await http
           .post(
@@ -548,47 +693,13 @@ class _CalendarPageState extends State<CalendarPage> {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       if (response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-
-        String? citaId;
-
-        if (responseData.containsKey('citaId')) {
-          citaId = responseData['citaId']?.toString();
-        } else if (responseData.containsKey('id')) {
-          citaId = responseData['id']?.toString();
-        } else if (responseData.containsKey('cita_id')) {
-          citaId = responseData['cita_id']?.toString();
-        } else if (responseData is Map && responseData.containsKey('cita')) {
-          citaId = responseData['cita']?['id']?.toString();
-        }
-
-        print('🆔 Cita ID extraído: $citaId');
-
-        if (citaId == null || citaId.isEmpty) {
-          print('⚠️ Estructura de respuesta: ${responseData.keys.toList()}');
-          throw Exception(
-              'No se pudo obtener el ID de la cita de la respuesta');
-        }
-
-        final citaIdFinal = citaId;
-        final montoFinal = (servicio['precio'] as num?)?.toDouble() ?? 0.0;
-        final salonNameFinal = widget.salonName ?? 'Salón de belleza';
-        final precioOriginal = servicio['precio_original'] as num?;
-        final descuento = servicio['descuento'] as num?;
-
-        print(
-            '💰 Datos para pago: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal, precioOriginal=$precioOriginal, descuento=$descuento');
-
         await _cargarCitasReales();
         setState(() => _isLoading = false);
 
         if (!mounted) return;
 
-        // 🔹 DIÁLOGO DE ÉXITO CON MISMO DISEÑO
+        // 🔹 DIÁLOGO DE ÉXITO
         await showDialog(
           context: context,
           barrierDismissible: false,
@@ -604,7 +715,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.18),
+                      color: Colors.black.withAlpha(46),
                       blurRadius: 18,
                       offset: const Offset(0, 10),
                     ),
@@ -612,119 +723,58 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Text(
-                        '¡Cita agendada!',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black87,
-                        ),
-                      ),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: AppTheme.primaryOrange,
+                      size: 64,
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Tu cita ha sido agendada exitosamente.',
+                      '¡Cita agendada!',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Tu cita ha sido agendada exitosamente.\nPuedes pagar en el local.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '¿Cómo deseas pagar?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Valor del servicio: L${montoFinal.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
-                      ),
-                    ),
                     const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context); // cierra diálogo
-                            // Redirigir al inicio del cliente
-                            Navigator.of(context).pushNamedAndRemoveUntil('/inicio_cliente', (route) => false);
-                          },
-                          child: const Text(
-                            'Pagar en el local',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF5F5F5F),
-                            ),
-                          ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // cierra diálogo
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                          '/inicio_cliente',
+                          (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryOrange,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 14,
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context); // cierra diálogo
-                            try {
-                              print(
-                                  '🚀 Navegando a PaymentScreen con: citaId=$citaIdFinal, monto=$montoFinal, salon=$salonNameFinal');
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PaymentScreen(
-                                    citaId: citaIdFinal,
-                                    monto: montoFinal,
-                                    salonName: salonNameFinal,
-                                    precioOriginal: precioOriginal?.toDouble(),
-                                    descuento: descuento?.toDouble(),
-                                  ),
-                                ),
-                              ).then((pagado) {
-                                if (pagado == true) {
-                                  Navigator.pop(context);
-                                }
-                              });
-                            } catch (e, stackTrace) {
-                              print('❌ Error al navegar a PaymentScreen: $e');
-                              print('Stack: $stackTrace');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      'Error al abrir pantalla de pago: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryOrange,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Text(
-                            'Pagar en la app',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ],
+                      ),
+                      child: const Text(
+                        'Entendido',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -755,7 +805,6 @@ class _CalendarPageState extends State<CalendarPage> {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error guardando cita: $e');
       setState(() => _isLoading = false);
 
       if (!mounted) return;
@@ -858,7 +907,7 @@ class _CalendarPageState extends State<CalendarPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.primaryOrange.withOpacity(0.06),
+              color: AppTheme.primaryOrange.withAlpha(15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -917,7 +966,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppTheme.primaryOrange.withOpacity(0.12)
+                          ? AppTheme.primaryOrange.withAlpha(31)
                           : Colors.white,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
@@ -963,7 +1012,7 @@ class _CalendarPageState extends State<CalendarPage> {
               );
               final isSelected = _selectedTime?.hour == horaTime.hour &&
                   _selectedTime?.minute == horaTime.minute;
-              
+
               return GestureDetector(
                 onTap: () {
                   setState(() {
@@ -979,7 +1028,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppTheme.primaryOrange.withOpacity(0.12)
+                        ? AppTheme.primaryOrange.withAlpha(31)
                         : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
@@ -1038,7 +1087,7 @@ class _CalendarPageState extends State<CalendarPage> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withAlpha(8),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1153,7 +1202,7 @@ class _CalendarPageState extends State<CalendarPage> {
               shape: BoxShape.circle,
               border: isToday && !isSelected
                   ? Border.all(
-                      color: AppTheme.primaryOrange.withOpacity(0.5),
+                      color: AppTheme.primaryOrange.withAlpha(128),
                       width: 1.8,
                     )
                   : null,
@@ -1243,7 +1292,7 @@ class _CalendarPageState extends State<CalendarPage> {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withAlpha(8),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -1255,7 +1304,7 @@ class _CalendarPageState extends State<CalendarPage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: AppTheme.primaryOrange.withOpacity(0.1),
+                color: AppTheme.primaryOrange.withAlpha(26),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -1489,8 +1538,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final url = Uri.parse('$apiBaseUrl/citas/${cita['id']}');
 
-      print('🔄 Actualizando estado de cita: ${cita['id']}');
-
       final response = await http.put(
         url,
         headers: {
@@ -1501,8 +1548,6 @@ class _CalendarPageState extends State<CalendarPage> {
           'estado': 'completada',
         }),
       );
-
-      print('📥 Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         await _cargarCitasReales();
@@ -1521,7 +1566,6 @@ class _CalendarPageState extends State<CalendarPage> {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error finalizando cita: $e');
       setState(() => _isLoading = false);
 
       if (!mounted) return;
@@ -1577,8 +1621,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final url = Uri.parse('$apiBaseUrl/citas/${cita['id']}');
 
-      print('🔄 Cancelando cita: ${cita['id']}');
-
       final response = await http.delete(
         url,
         headers: {
@@ -1586,8 +1628,6 @@ class _CalendarPageState extends State<CalendarPage> {
           'Authorization': 'Bearer $idToken',
         },
       );
-
-      print('📥 Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         await _cargarCitasReales();
@@ -1606,7 +1646,6 @@ class _CalendarPageState extends State<CalendarPage> {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error cancelando cita: $e');
       setState(() => _isLoading = false);
 
       if (!mounted) return;
@@ -1628,7 +1667,7 @@ class _CalendarPageState extends State<CalendarPage> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppTheme.primaryOrange.withOpacity(0.08),
+              color: AppTheme.primaryOrange.withAlpha(20),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: AppTheme.primaryOrange, size: 20),

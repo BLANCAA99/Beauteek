@@ -17,13 +17,16 @@
     "@google-cloud/dialogflow": "^7.4.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "express": "^5.1.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.0.1",
+    "nodemailer": "^6.9.8",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/nodemailer": "^6.4.14",
     "firebase-functions-test": "^3.1.0",
     "typescript": "^5.7.3"
   },

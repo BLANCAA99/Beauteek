@@ -89,9 +89,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
-
-      print('📍 Cargando ubicación: $url');
-
       final resp = await http.get(
         url,
         headers: {
@@ -99,23 +96,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
           'Authorization': 'Bearer $idToken',
         },
       );
-
-      print('📍 Status ubicación: ${resp.statusCode}');
-
       if (resp.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(resp.body);
-        print('📍 Ubicación cargada: ${data['pais']}, ${data['ciudad']}');
-
         setState(() {
           _ubicacionId = data['id'];
           _pais = data['pais'] ?? '';
           _ciudad = data['ciudad'] ?? '';
         });
       } else {
-        print('⚠️ No se encontró ubicación principal');
       }
     } catch (e) {
-      print('❌ Error cargando ubicación: $e');
     }
   }
 
@@ -315,7 +305,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         'direccion_completa': direccionCompleta,
       };
 
-      print('📍 Actualizando ubicación: ${json.encode(ubicacionData)}');
+      
 
       final ubicacionResponse = await http.put(
         ubicacionUrl,
@@ -325,16 +315,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         },
         body: json.encode(ubicacionData),
       );
-
-      print('📍 Status actualización ubicación: ${ubicacionResponse.statusCode}');
-
       if (ubicacionResponse.statusCode == 200) {
-        print('✅ Ubicación actualizada correctamente');
       } else {
-        print('⚠️ Error actualizando ubicación: ${ubicacionResponse.body}');
       }
     } catch (e) {
-      print('❌ Error al actualizar ubicación: $e');
     }
   }
 
@@ -371,11 +355,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _pais = place.country ?? 'Honduras';
             _ciudad = place.locality ?? place.subAdministrativeArea ?? '';
           });
-          
-          print('📍 Ubicación seleccionada: $_ciudad, $_pais');
         }
       } catch (e) {
-        print('❌ Error obteniendo dirección: $e');
       }
       
       if (mounted) {

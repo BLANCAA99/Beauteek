@@ -44,8 +44,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   Future<void> _checkEmulatorMode() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
-      print('Usuario actual: ${currentUser.email} (${currentUser.uid})');
-      print('Modo: Producción');
+      
     }
   }
 
@@ -184,11 +183,9 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
           );
         });
       } else {
-        print('✅ Usuario tiene tarjeta registrada');
         setState(() => _tarjetaVerificada = true);
       }
     } catch (e) {
-      print('❌ Error verificando tarjeta: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error al verificar método de pago')),
@@ -250,7 +247,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         'rtn': _rtnController.text.trim(),
       };
 
-      print('📤 Enviando payload: ${json.encode(payload)}');
+      
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step1');
       final response = await http.post(
@@ -261,10 +258,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         },
         body: json.encode(payload),
       ).timeout(const Duration(seconds: 30));
-
-      print('📥 Status code: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
-
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         final String comercioId = responseData['comercioId'];
@@ -289,7 +282,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         throw Exception(errorData['error'] ?? 'Error desconocido');
       }
     } catch (e) {
-      print('[salon] Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')));

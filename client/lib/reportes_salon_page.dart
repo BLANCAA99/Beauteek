@@ -70,7 +70,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('❌ Error cargando datos: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -86,9 +85,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
       final reporteUrl = Uri.parse(
         '$apiBaseUrl/api/reportes/salon/$_comercioId?periodo=$_periodoSeleccionado',
       );
-
-      print('🔍 Llamando a: $reporteUrl');
-
       final response = await http.get(
         reporteUrl,
         headers: {
@@ -96,17 +92,11 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
           'Authorization': 'Bearer $idToken',
         },
       );
-
-      print('📊 Status: ${response.statusCode}');
-      print('📊 Body: ${response.body}');
-
       if (response.statusCode == 200) {
         setState(() {
           _datosReporte = json.decode(response.body) as Map<String, dynamic>;
-          print('✅ Datos cargados: $_datosReporte');
         });
       } else {
-        print('❌ Error en respuesta: ${response.statusCode} - ${response.body}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -117,7 +107,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
         }
       }
     } catch (e) {
-      print('❌ Error cargando reporte: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -139,7 +128,7 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
   }
 
   String _formatearMoneda(double cantidad) {
-    return NumberFormat.currency(locale: 'es_MX', symbol: '\$').format(cantidad);
+    return NumberFormat.currency(locale: 'es_HN', symbol: 'L').format(cantidad);
   }
 
   Future<void> _descargarReporteIngresos() async {
@@ -157,12 +146,18 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Reporte de Ingresos', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Reporte de Ingresos',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Text('${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Text(
+                  '${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado',
+                  style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
-              pw.Text('Ingresos Totales: ${_formatearMoneda(ingresos)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Ingresos Totales: ${_formatearMoneda(ingresos)}',
+                  style: pw.TextStyle(
+                      fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Text('Total de Citas: $totalCitas'),
             ],
@@ -172,7 +167,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       await _compartirPDF(pdf, 'reporte_ingresos');
     } catch (e) {
-      print('❌ Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -193,16 +187,21 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Servicios Mas Populares', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Servicios Mas Populares',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Text('${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Text(
+                  '${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado',
+                  style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
               ...servicios.map((servicio) {
                 final s = servicio as Map<String, dynamic>;
                 return pw.Container(
                   margin: const pw.EdgeInsets.only(bottom: 8),
-                  child: pw.Text('${s['nombre'] ?? 'Servicio'}: ${s['cantidad'] ?? 0} veces'),
+                  child: pw.Text(
+                      '${s['nombre'] ?? 'Servicio'}: ${s['cantidad'] ?? 0} veces'),
                 );
               }).toList(),
             ],
@@ -212,7 +211,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       await _compartirPDF(pdf, 'reporte_servicios');
     } catch (e) {
-      print('❌ Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -235,19 +233,26 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Reporte de Clientes', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Reporte de Clientes',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Text('${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Text(
+                  '${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado',
+                  style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
-              pw.Text('Total Clientes: $totalClientes', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.Text('Nuevos Clientes: $nuevosClientes', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text('Total Clientes: $totalClientes',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text('Nuevos Clientes: $nuevosClientes',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 20),
               ...clientes.take(20).map((cliente) {
                 final c = cliente as Map<String, dynamic>;
                 return pw.Container(
                   margin: const pw.EdgeInsets.only(bottom: 8),
-                  child: pw.Text('${c['nombre'] ?? 'Cliente'}: ${c['total_citas'] ?? 0} citas'),
+                  child: pw.Text(
+                      '${c['nombre'] ?? 'Cliente'}: ${c['total_citas'] ?? 0} citas'),
                 );
               }).toList(),
             ],
@@ -257,7 +262,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       await _compartirPDF(pdf, 'reporte_clientes');
     } catch (e) {
-      print('❌ Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -273,19 +277,27 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
       final pdf = pw.Document();
       final citasCanceladas = _datosReporte!['citasCanceladas'] ?? 0;
       final totalCitas = _datosReporte!['totalCitas'] ?? 0;
-      final porcentaje = totalCitas > 0 ? (citasCanceladas / totalCitas * 100).toStringAsFixed(1) : '0.0';
+      final porcentaje = totalCitas > 0
+          ? (citasCanceladas / totalCitas * 100).toStringAsFixed(1)
+          : '0.0';
 
       pdf.addPage(
         pw.Page(
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Reporte de Citas Canceladas', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Reporte de Citas Canceladas',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Text('${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado', style: pw.TextStyle(fontSize: 12)),
+              pw.Text(
+                  '${_nombreSalon ?? "Mi Salon"} - Periodo: $_periodoSeleccionado',
+                  style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
-              pw.Text('Citas Canceladas: $citasCanceladas', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Citas Canceladas: $citasCanceladas',
+                  style: pw.TextStyle(
+                      fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Text('Total de Citas: $totalCitas'),
               pw.Text('Porcentaje Cancelado: $porcentaje%'),
@@ -296,7 +308,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
 
       await _compartirPDF(pdf, 'reporte_citas_canceladas');
     } catch (e) {
-      print('❌ Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -327,7 +338,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
         );
       }
     } catch (e) {
-      print('❌ Error compartiendo PDF: $e');
       _mostrarError('Error al compartir el reporte');
     }
   }
@@ -366,7 +376,8 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryOrange))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange))
           : Column(
               children: [
                 // Selector de periodo
@@ -398,17 +409,20 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
                 // Mensaje de sin datos
                 if (!hayDatos)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.3)),
+                        border: Border.all(
+                            color: AppTheme.primaryOrange.withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: AppTheme.primaryOrange, size: 24),
+                          Icon(Icons.info_outline,
+                              color: AppTheme.primaryOrange, size: 24),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -442,7 +456,8 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
                         iconColor: const Color(0xFF34C759),
                         backgroundColor: const Color(0xFF0D2538),
                         titulo: 'Reporte de Servicios Más Populares',
-                        onDownload: hayDatos ? _descargarReporteServicios : null,
+                        onDownload:
+                            hayDatos ? _descargarReporteServicios : null,
                       ),
                       const SizedBox(height: 16),
                       _ReporteCard(
@@ -474,7 +489,8 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
                         iconColor: const Color(0xFF007AFF),
                         backgroundColor: const Color(0xFF0B1F2E),
                         titulo: 'Reporte de Citas Canceladas',
-                        onDownload: hayDatos ? _descargarReporteCanceladas : null,
+                        onDownload:
+                            hayDatos ? _descargarReporteCanceladas : null,
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -580,7 +596,9 @@ class _ReporteCard extends StatelessWidget {
                 ),
                 child: Icon(
                   Icons.file_download_outlined,
-                  color: onDownload != null ? iconColor : iconColor.withOpacity(0.3),
+                  color: onDownload != null
+                      ? iconColor
+                      : iconColor.withOpacity(0.3),
                   size: 20,
                 ),
               ),

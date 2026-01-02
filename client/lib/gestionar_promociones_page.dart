@@ -35,13 +35,8 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      print('👤 Usuario autenticado: ${user.uid}');
-      print('📧 Email del usuario: ${user.email}');
-
       // 1. Obtener comercio del salón
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
-      print('🌐 Consultando comercios: $comerciosUrl');
-
       final comerciosResponse = await http.get(
         comerciosUrl,
         headers: {
@@ -49,17 +44,9 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
           'Authorization': 'Bearer $idToken',
         },
       );
-
-      print('📡 Respuesta comercios: ${comerciosResponse.statusCode}');
-
       if (comerciosResponse.statusCode == 200) {
         final List<dynamic> comercios = json.decode(comerciosResponse.body);
-        print('🏪 Total de comercios en BD: ${comercios.length}');
-
-        for (var c in comercios) {
-          print(
-              '  - Comercio: ${c['nombre']} | ID: ${c['id']} | Email: ${c['email']} | UID_negocio: ${c['uid_negocio']}');
-        }
+        for (var c in comercios) {}
 
         final miComercio = comercios.firstWhere(
           (c) =>
@@ -71,14 +58,10 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
 
         if (miComercio != null) {
           _comercioId = miComercio['id'];
-          print(
-              '✅ Mi comercio encontrado: ${miComercio['nombre']} (ID: $_comercioId)');
 
           // 2. Obtener servicios del comercio (MISMA RUTA QUE EN SalonProfilePage)
-          final serviciosUrl = Uri.parse(
-              '$apiBaseUrl/api/servicios?comercio_id=$_comercioId');
-          print('🔍 Buscando servicios: $serviciosUrl');
-
+          final serviciosUrl =
+              Uri.parse('$apiBaseUrl/api/servicios?comercio_id=$_comercioId');
           final serviciosResponse = await http.get(
             serviciosUrl,
             headers: {
@@ -86,31 +69,17 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
               'Authorization': 'Bearer $idToken',
             },
           );
-
-          print('📋 Respuesta servicios: ${serviciosResponse.statusCode}');
-          print('📄 Body servicios: ${serviciosResponse.body}');
-
           if (serviciosResponse.statusCode == 200) {
             final List<dynamic> serviciosList =
                 json.decode(serviciosResponse.body);
-            _servicios = serviciosList
-                .map((s) => s as Map<String, dynamic>)
-                .toList();
-            print('✅ Servicios cargados: ${_servicios.length}');
-            for (var s in _servicios) {
-              print(
-                  '  - Servicio: ${s['nombre']} | ID: ${s['id']} | Precio: ${s['precio']}');
-            }
-          } else {
-            print(
-                '❌ Error obteniendo servicios: ${serviciosResponse.body}');
-          }
+            _servicios =
+                serviciosList.map((s) => s as Map<String, dynamic>).toList();
+            for (var s in _servicios) {}
+          } else {}
 
           // 3. Obtener promociones del comercio
           final promocionesUrl =
               Uri.parse('$apiBaseUrl/api/promociones/comercio/$_comercioId');
-          print('🎁 Buscando promociones: $promocionesUrl');
-
           final promocionesResponse = await http.get(
             promocionesUrl,
             headers: {
@@ -118,30 +87,16 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
               'Authorization': 'Bearer $idToken',
             },
           );
-
-          print(
-              '📡 Respuesta promociones: ${promocionesResponse.statusCode}');
-
           if (promocionesResponse.statusCode == 200) {
             final promocionesList =
                 json.decode(promocionesResponse.body) as List;
-            _promociones =
-                promocionesList.cast<Map<String, dynamic>>();
-            print('✅ Promociones cargadas: ${_promociones.length}');
-          } else {
-            print(
-                '❌ Error obteniendo promociones: ${promocionesResponse.body}');
-          }
-        } else {
-          print('❌ No se encontró comercio para el usuario: ${user.uid}');
-          print(
-              '💡 Asegúrate de que el comercio tenga uid_negocio = ${user.uid}');
-        }
+            _promociones = promocionesList.cast<Map<String, dynamic>>();
+          } else {}
+        } else {}
       }
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('❌ Error cargando datos: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -168,8 +123,7 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
       ),
       body: _isLoading
           ? const Center(
-              child:
-                  CircularProgressIndicator(color: AppTheme.primaryOrange),
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange),
             )
           : _comercioId == null
               ? _buildNoComercioState()
@@ -183,15 +137,26 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
                         return _PromocionCard(
                           promocion: promo,
                           onEdit: () => _editarPromocion(promo),
-                          onDelete: () =>
-                              _eliminarPromocion(promo['id']),
+                          onDelete: () => _eliminarPromocion(promo['id']),
                           onToggle: (activo) =>
                               _togglePromocion(promo['id'], activo),
                         );
                       },
                     ),
-      // 👇 Quitamos el botón flotante para que solo quede el botón central
-      floatingActionButton: null,
+      floatingActionButton: _comercioId == null || _isLoading
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _crearPromocion,
+              backgroundColor: AppTheme.primaryOrange,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'Nueva Promoción',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
     );
   }
 
@@ -234,8 +199,8 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
               onPressed: () => _cargarDatos(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryOrange,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
@@ -293,8 +258,7 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
             onPressed: _crearPromocion,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryOrange,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 32, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
               ),
@@ -402,9 +366,7 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
         }
         _cargarDatos();
       }
-    } catch (e) {
-      print('❌ Error eliminando promoción: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _togglePromocion(String promocionId, bool activo) async {
@@ -427,9 +389,7 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
       if (response.statusCode == 200) {
         _cargarDatos();
       }
-    } catch (e) {
-      print('❌ Error actualizando promoción: $e');
-    }
+    } catch (e) {}
   }
 }
 
@@ -460,10 +420,10 @@ class _PromocionCard extends StatelessWidget {
         fechaFin = DateTime.parse(promocion['fecha_fin'].toString());
       }
     } catch (e) {
-      print('⚠️ Error parsing fecha_fin: $e');
-      fechaFin = DateTime.now().add(const Duration(days: 30)); // Default to 30 days from now
+      fechaFin = DateTime.now()
+          .add(const Duration(days: 30)); // Default to 30 days from now
     }
-    
+
     final esActiva = promocion['activo'] == true;
     final estaVigente = fechaFin.isAfter(DateTime.now());
 
@@ -481,8 +441,8 @@ class _PromocionCard extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryOrange.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -655,14 +615,11 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
   void initState() {
     super.initState();
     if (widget.promocion != null) {
-      _servicioSeleccionado =
-          widget.promocion!['servicio_id']?.toString();
-      _descuentoController.text =
-          widget.promocion!['valor'].toString();
-      _descripcionController.text =
-          widget.promocion!['descripcion'] ?? '';
-      _fechaInicio = DateTime.parse(widget.promocion!['fecha_inicio']);
-      _fechaFin = DateTime.parse(widget.promocion!['fecha_fin']);
+      _servicioSeleccionado = widget.promocion!['servicio_id']?.toString();
+      _descuentoController.text = widget.promocion!['valor'].toString();
+      _descripcionController.text = widget.promocion!['descripcion'] ?? '';
+      _fechaInicio = _parsearFecha(widget.promocion!['fecha_inicio']);
+      _fechaFin = _parsearFecha(widget.promocion!['fecha_fin']);
       _fotoSeleccionada = widget.promocion!['foto_url'];
     } else {
       _fechaInicio = DateTime.now();
@@ -670,26 +627,41 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
     }
   }
 
+  // Parsear fecha que puede venir como String o como Map (Timestamp de Firestore)
+  DateTime _parsearFecha(dynamic fechaData) {
+    if (fechaData == null) return DateTime.now();
+
+    if (fechaData is String) {
+      return DateTime.parse(fechaData);
+    } else if (fechaData is Map && fechaData.containsKey('_seconds')) {
+      // Timestamp de Firestore
+      final seconds = fechaData['_seconds'] as int;
+      return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+    }
+
+    return DateTime.now();
+  }
+
   // 👇 NUEVO: selección de foto navegando a GaleriaSalonPage
   Future<void> _seleccionarFotoDesdeGaleria() async {
-  if (widget.comercioId.isEmpty) return;
+    if (widget.comercioId.isEmpty) return;
 
-  final urlSeleccionada = await Navigator.push<String>(
-    context,
-    MaterialPageRoute(
-      builder: (_) => GaleriaSalonPage(
-        comercioId: widget.comercioId,
-        modoSeleccion: true,        // 👈 IMPORTANTE
+    final urlSeleccionada = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GaleriaSalonPage(
+          comercioId: widget.comercioId,
+          modoSeleccion: true, // 👈 IMPORTANTE
+        ),
       ),
-    ),
-  );
+    );
 
-  if (!mounted) return;
+    if (!mounted) return;
 
-  if (urlSeleccionada != null && urlSeleccionada.isNotEmpty) {
-    setState(() => _fotoSeleccionada = urlSeleccionada);
+    if (urlSeleccionada != null && urlSeleccionada.isNotEmpty) {
+      setState(() => _fotoSeleccionada = urlSeleccionada);
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -757,8 +729,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                           borderSide: BorderSide.none,
                         ),
                         hintText: 'Selecciona un servicio',
-                        hintStyle: const TextStyle(
-                            color: AppTheme.textSecondary),
+                        hintStyle:
+                            const TextStyle(color: AppTheme.textSecondary),
                       ),
                       style: const TextStyle(color: AppTheme.textPrimary),
                       items: widget.servicios
@@ -766,8 +738,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                         final idStr = servicio['id'].toString();
                         return DropdownMenuItem<String>(
                           value: idStr,
-                          child: Text(
-                              servicio['nombre'] ?? 'Servicio sin nombre'),
+                          child:
+                              Text(servicio['nombre'] ?? 'Servicio sin nombre'),
                         );
                       }).toList(),
                       onChanged: (value) =>
@@ -795,15 +767,13 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                   filled: true,
                   fillColor: AppTheme.darkBackground,
                   hintText: '20',
-                  hintStyle:
-                      const TextStyle(color: AppTheme.textSecondary),
+                  hintStyle: const TextStyle(color: AppTheme.textSecondary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   suffixText: '%',
-                  suffixStyle:
-                      const TextStyle(color: AppTheme.textSecondary),
+                  suffixStyle: const TextStyle(color: AppTheme.textSecondary),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -859,18 +829,15 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                           : 'Cambiar foto'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryOrange,
-                        side: const BorderSide(
-                            color: AppTheme.primaryOrange),
+                        side: const BorderSide(color: AppTheme.primaryOrange),
                       ),
                     ),
                   ),
                   if (_fotoSeleccionada != null) ...[
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: () =>
-                          setState(() => _fotoSeleccionada = null),
-                      icon: const Icon(Icons.close,
-                          color: AppTheme.errorRed),
+                      onPressed: () => setState(() => _fotoSeleccionada = null),
+                      icon: const Icon(Icons.close, color: AppTheme.errorRed),
                     ),
                   ],
                 ],
@@ -894,10 +861,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppTheme.darkBackground,
-                  hintText:
-                      'Describe los detalles de la promoción...',
-                  hintStyle:
-                      const TextStyle(color: AppTheme.textSecondary),
+                  hintText: 'Describe los detalles de la promoción...',
+                  hintStyle: const TextStyle(color: AppTheme.textSecondary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -926,11 +891,10 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                           onTap: () async {
                             final fecha = await showDatePicker(
                               context: context,
-                              initialDate:
-                                  _fechaInicio ?? DateTime.now(),
+                              initialDate: _fechaInicio ?? DateTime.now(),
                               firstDate: DateTime.now(),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 365)),
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 365)),
                             );
                             if (fecha != null) {
                               setState(() => _fechaInicio = fecha);
@@ -947,8 +911,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                                   ? DateFormat('dd/MM/yyyy')
                                       .format(_fechaInicio!)
                                   : 'Seleccionar',
-                              style: const TextStyle(
-                                  color: AppTheme.textPrimary),
+                              style:
+                                  const TextStyle(color: AppTheme.textPrimary),
                             ),
                           ),
                         ),
@@ -974,12 +938,10 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                             final fecha = await showDatePicker(
                               context: context,
                               initialDate: _fechaFin ??
-                                  DateTime.now()
-                                      .add(const Duration(days: 30)),
-                              firstDate:
-                                  _fechaInicio ?? DateTime.now(),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 365)),
+                                  DateTime.now().add(const Duration(days: 30)),
+                              firstDate: _fechaInicio ?? DateTime.now(),
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 365)),
                             );
                             if (fecha != null) {
                               setState(() => _fechaFin = fecha);
@@ -993,11 +955,10 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                             ),
                             child: Text(
                               _fechaFin != null
-                                  ? DateFormat('dd/MM/yyyy')
-                                      .format(_fechaFin!)
+                                  ? DateFormat('dd/MM/yyyy').format(_fechaFin!)
                                   : 'Seleccionar',
-                              style: const TextStyle(
-                                  color: AppTheme.textPrimary),
+                              style:
+                                  const TextStyle(color: AppTheme.textPrimary),
                             ),
                           ),
                         ),
@@ -1016,10 +977,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textSecondary,
-                        side: const BorderSide(
-                            color: AppTheme.textSecondary),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: AppTheme.textSecondary),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1030,16 +989,13 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (_guardando ||
-                              widget.servicios.isEmpty)
+                      onPressed: (_guardando || widget.servicios.isEmpty)
                           ? null
                           : _guardar,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryOrange,
-                        disabledBackgroundColor:
-                            AppTheme.textSecondary,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16),
+                        disabledBackgroundColor: AppTheme.textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1073,19 +1029,16 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
-      print('⚠️ Validación del formulario falló');
       setState(() => _guardando = false);
       return;
     }
 
     if (_servicioSeleccionado == null) {
-      print('⚠️ No hay servicio seleccionado');
       setState(() => _guardando = false);
       return;
     }
 
     if (widget.servicios.isEmpty) {
-      print('⚠️ Lista de servicios vacía');
       setState(() => _guardando = false);
       return;
     }
@@ -1095,30 +1048,23 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('⚠️ Usuario no autenticado');
         setState(() => _guardando = false);
         return;
       }
 
       final idToken = await user.getIdToken();
-      print('✅ Token obtenido');
-
       // Obtener datos del servicio seleccionado
       final servicio = widget.servicios.firstWhere(
         (s) => s['id'].toString() == _servicioSeleccionado,
         orElse: () => throw Exception('Servicio no encontrado'),
       );
 
-      print(
-          '📋 Servicio seleccionado: ${servicio['nombre']} (${servicio['id']})');
-
       final descuento = double.parse(_descuentoController.text);
       final precioOriginalNum = servicio['precio'] ?? 0;
       final precioOriginal =
           (precioOriginalNum is num) ? precioOriginalNum.toDouble() : 0.0;
-      final precioConDescuento =
-          double.parse((precioOriginal * (1 - descuento / 100))
-              .toStringAsFixed(2));
+      final precioConDescuento = double.parse(
+          (precioOriginal * (1 - descuento / 100)).toStringAsFixed(2));
 
       final payload = {
         'comercio_id': widget.comercioId,
@@ -1135,16 +1081,9 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
         'activo': true,
       };
 
-      print('📦 Payload: ${json.encode(payload)}');
-
       final url = widget.promocion == null
           ? Uri.parse('$apiBaseUrl/api/promociones')
-          : Uri.parse(
-              '$apiBaseUrl/api/promociones/${widget.promocion!['id']}');
-
-      print('🌐 URL: $url');
-      print('🔧 Método: ${widget.promocion == null ? 'POST' : 'PUT'}');
-
+          : Uri.parse('$apiBaseUrl/api/promociones/${widget.promocion!['id']}');
       final response = widget.promocion == null
           ? await http.post(
               url,
@@ -1162,12 +1101,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
               },
               body: json.encode(payload),
             );
-
-      print('📡 Status Code: ${response.statusCode}');
-      print('📄 Response Body: ${response.body}');
-
       if (response.statusCode == 201 || response.statusCode == 200) {
-        print('✅ Promoción guardada exitosamente');
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1181,20 +1115,16 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
           widget.onGuardar();
         }
       } else {
-        print(
-            '❌ Error en la respuesta: ${response.statusCode} - ${response.body}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content:
-                  Text('Error del servidor: ${response.statusCode}'),
+              content: Text('Error del servidor: ${response.statusCode}'),
               backgroundColor: AppTheme.errorRed,
             ),
           );
         }
       }
     } catch (e) {
-      print('❌ Error guardando promoción: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

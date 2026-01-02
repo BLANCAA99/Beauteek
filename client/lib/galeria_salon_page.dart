@@ -47,7 +47,8 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       final idToken = await user.getIdToken();
 
       // Verificar si el usuario es el dueño del salón
-      final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
+      final comercioUrl =
+          Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
       final comercioResponse = await http.get(
         comercioUrl,
         headers: {
@@ -58,16 +59,13 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
 
       if (comercioResponse.statusCode == 200) {
         final comercioData = json.decode(comercioResponse.body);
-        final uidDueno = comercioData['uid_usuario'];
+        final uidDueno = comercioData['uid_negocio'];
         _esDuenoSalon = (uidDueno == user.uid);
-        print('📸 [Galería] ¿Es dueño del salón? $_esDuenoSalon');
       }
 
       // 1. Traer servicios (MISMA RUTA QUE EN GestionarPromociones y SalonProfilePage)
       final serviciosUrl = Uri.parse(
           '$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
-      print('📸 [Galería] Cargando servicios: $serviciosUrl');
-
       final serviciosResponse = await http.get(
         serviciosUrl,
         headers: {
@@ -77,21 +75,14 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       );
 
       if (serviciosResponse.statusCode == 200) {
-        final List<dynamic> serviciosData =
-            json.decode(serviciosResponse.body);
+        final List<dynamic> serviciosData = json.decode(serviciosResponse.body);
         _servicios =
             serviciosData.map((s) => s as Map<String, dynamic>).toList();
-        print('📸 [Galería] Servicios cargados: ${_servicios.length}');
-      } else {
-        print(
-            '❌ [Galería] Error obteniendo servicios: ${serviciosResponse.body}');
-      }
+      } else {}
 
       // 2. Traer fotos de la galería
       final fotosUrl = Uri.parse(
           '$apiBaseUrl/api/galeria-fotos/comercio/${widget.comercioId}');
-      print('📸 [Galería] Cargando fotos: $fotosUrl');
-
       final fotosResponse = await http.get(
         fotosUrl,
         headers: {
@@ -102,20 +93,14 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
 
       if (fotosResponse.statusCode == 200) {
         final List<dynamic> fotosData = json.decode(fotosResponse.body);
-        _fotos =
-            fotosData.map((f) => f as Map<String, dynamic>).toList();
-        print('📸 [Galería] Fotos cargadas: ${_fotos.length}');
-      } else {
-        print(
-            '❌ [Galería] Error obteniendo fotos: ${fotosResponse.body}');
-      }
+        _fotos = fotosData.map((f) => f as Map<String, dynamic>).toList();
+      } else {}
 
       // Si hay servicios, seleccionamos el primero por defecto (para subir nuevas fotos)
       if (_servicios.isNotEmpty && _servicioSeleccionado == null) {
         _servicioSeleccionado = _servicios.first['id'].toString();
       }
     } catch (e) {
-      print('❌ [Galería] Error cargando datos: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -143,15 +128,13 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       ),
       body: _isLoading
           ? const Center(
-              child:
-                  CircularProgressIndicator(color: AppTheme.primaryOrange),
+              child: CircularProgressIndicator(color: AppTheme.primaryOrange),
             )
           : _fotos.isEmpty
               ? _buildEmptyState()
               : GridView.builder(
                   padding: const EdgeInsets.all(16),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
@@ -190,8 +173,8 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
                                     ? Image.network(
                                         url,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error,
-                                            stackTrace) {
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
                                           return Container(
                                             color: AppTheme.darkBackground,
                                             child: const Icon(
@@ -350,7 +333,7 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
 
       // 2. Subir a Cloudinary (mismo config que EditProfilePage)
       final cloudinary = CloudinaryPublic(
-        'dskg1hw9n',        // 👈 tu cloud name
+        'dskg1hw9n', // 👈 tu cloud name
         'Imagenes_Beauteek', // 👈 tu upload preset / folder
         cache: false,
       );
@@ -363,8 +346,6 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       );
 
       final fotoUrl = uploadResponse.secureUrl;
-      print('✅ [Galería] Imagen subida a Cloudinary: $fotoUrl');
-
       // 3. Guardar registro en tu API /api/galeria-fotos
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -389,8 +370,6 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
       };
 
       final url = Uri.parse('$apiBaseUrl/api/galeria-fotos');
-      print('🌐 [Galería] Guardando foto en API: $url');
-      print('📦 Payload: ${json.encode(body)}');
 
       final resp = await http.post(
         url,
@@ -400,10 +379,6 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
         },
         body: json.encode(body),
       );
-
-      print('📡 [Galería] Status guardar foto: ${resp.statusCode}');
-      print('📄 [Galería] Body: ${resp.body}');
-
       if (resp.statusCode == 201 || resp.statusCode == 200) {
         // cerrar sheet
         Navigator.pop(sheetContext);
@@ -430,7 +405,6 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
         }
       }
     } catch (e) {
-      print('❌ [Galería] Error subiendo foto: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

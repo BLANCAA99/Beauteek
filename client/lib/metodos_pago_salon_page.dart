@@ -82,7 +82,6 @@ class _MetodosPagoSalonPageState extends State<MetodosPagoSalonPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error cargando métodos de pago: $e');
       setState(() => _isLoading = false);
     }
   }

@@ -30,7 +30,6 @@ class _ChatBotPageState extends State<ChatBotPage> {
   Future<void> _initializeBot() async {
     _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
     setState(() => _isInitialized = true);
-    print('✅ Bot inicializado - Session: $_sessionId');
   }
 
   void _addWelcomeMessage() {
@@ -60,16 +59,12 @@ class _ChatBotPageState extends State<ChatBotPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
-          print('✅ Respuesta de Dialogflow: ${data['intent']}');
           return data['response'] ?? _getLocalResponse(text);
         }
       }
-      
-      print('⚠️ Error en API, usando respuesta local');
       return _getLocalResponse(text);
       
     } catch (e) {
-      print('❌ Error llamando al backend: $e');
       return _getLocalResponse(text);
     }
   }
@@ -130,7 +125,6 @@ class _ChatBotPageState extends State<ChatBotPage> {
       
       _scrollToBottom();
     } catch (e) {
-      print('❌ Error enviando mensaje: $e');
       setState(() {
         _messages.add({
           'text': 'Lo siento, ocurrió un error. Por favor intenta de nuevo.',

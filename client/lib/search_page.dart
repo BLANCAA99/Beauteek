@@ -52,9 +52,6 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    print(
-        '🔍 SearchPage initialized - mode: ${widget.mode}, userId: ${widget.userId}');
-
     if (widget.mode == 'search') {
       _cargarSalonesPorPais();
     } else if (widget.mode == 'category' && widget.salonesFiltrados != null) {
@@ -74,7 +71,6 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _cargarSalonesPorPais() async {
     try {
       if (widget.userId == null) {
-        print('⚠️ userId es null');
         setState(() => _isLoading = false);
         return;
       }
@@ -97,7 +93,6 @@ class _SearchPageState extends State<SearchPage> {
       ).timeout(const Duration(seconds: 30));
       
       if (ubicacionResponse.statusCode != 200) {
-        print('⚠️ Cliente sin ubicación principal');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -119,9 +114,7 @@ class _SearchPageState extends State<SearchPage> {
         _userLat = userLat;
         _userLng = userLng;
       });
-
-      print('🌍 País del cliente: $pais');
-      print('📍 Ubicación del cliente: ($userLat, $userLng)');
+      
 
       // NUEVO: Buscar salones por país desde colección ubicaciones
       final salonesUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/salones/pais/$pais');
@@ -136,9 +129,6 @@ class _SearchPageState extends State<SearchPage> {
       final List<dynamic> salones = salonesResponse.statusCode == 200 
           ? json.decode(salonesResponse.body) 
           : [];
-
-      print('📊 Salones encontrados en $pais: ${salones.length}');
-
       // Calcular distancia para cada salón
       final salonesConDistancia = salones.map<Map<String, dynamic>>((salon) {
         final salonMap = salon as Map<String, dynamic>;
@@ -175,12 +165,11 @@ class _SearchPageState extends State<SearchPage> {
         _isLoading = false;
       });
 
-      print('✅ ${_resultados.length} salones cargados en $pais (ordenados por distancia)');
+      
       
       // Actualizar marcadores inmediatamente al cargar los salones
       _actualizarMarcadores();
     } catch (e) {
-      print('❌ Error: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -224,7 +213,6 @@ class _SearchPageState extends State<SearchPage> {
           url,
           mode: LaunchMode.externalApplication,
         );
-        print('📍 Abriendo Google Maps para: $nombreSalon');
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -236,7 +224,6 @@ class _SearchPageState extends State<SearchPage> {
         }
       }
     } catch (e) {
-      print('❌ Error abriendo Google Maps: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -593,9 +580,6 @@ class _SearchPageState extends State<SearchPage> {
 
         return GestureDetector(
           onTap: () {
-            print('🔍 Navegando a salon: ${salon['nombre']}');
-            print('   comercioId: ${salon['id']}');
-
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -911,7 +895,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
         }
       }
     } catch (e) {
-      print('❌ Error solicitando permisos: $e');
     }
   }
 
@@ -924,7 +907,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
 
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        print('⚠️ Permiso de ubicación denegado');
         if (mounted) {
           _showSnackBar(
               'Permiso de ubicación denegado. Usando ubicación por defecto.');
@@ -941,8 +923,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
       ).timeout(
         const Duration(seconds: 12),
         onTimeout: () {
-          print(
-              '⏱️ Timeout obteniendo ubicación, usando coordenadas por defecto');
           return Position(
             latitude: 14.0723,
             longitude: -87.1921,
@@ -969,11 +949,8 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
         _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(newPosition, 15),
         );
-
-        print('✅ Ubicación actual obtenida: $newPosition');
       }
     } catch (e) {
-      print('❌ Error obteniendo ubicación: $e');
       if (mounted) {
         _showSnackBar('No se pudo obtener tu ubicación actual');
       }
@@ -997,7 +974,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
           ),
         };
       });
-      print('📍 Marcador actualizado en: $position');
     }
   }
 
@@ -1049,7 +1025,6 @@ class _MapLocationSelectorState extends State<_MapLocationSelector> {
             ),
             onMapCreated: (controller) {
               _mapController = controller;
-              print('📍 Mapa creado. Marcadores actuales: ${_markers.length}');
             },
             onTap: _onMapTap,
             markers: _markers,

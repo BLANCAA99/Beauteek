@@ -50,7 +50,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error cargando datos: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -66,9 +65,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       final reporteUrl = Uri.parse(
         '$apiBaseUrl/api/reportes/cliente/$_clienteId?periodo=$_periodoSeleccionado',
       );
-
-      print('🔍 Llamando a: $reporteUrl');
-
       final response = await http.get(
         reporteUrl,
         headers: {
@@ -76,17 +72,11 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
           'Authorization': 'Bearer $idToken',
         },
       );
-
-      print('📊 Status: ${response.statusCode}');
-      print('📊 Body: ${response.body}');
-
       if (response.statusCode == 200) {
         setState(() {
           _datosReporte = json.decode(response.body) as Map<String, dynamic>;
-          print('✅ Datos cargados: $_datosReporte');
         });
       } else {
-        print('❌ Error en respuesta: ${response.statusCode} - ${response.body}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -97,7 +87,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
         }
       }
     } catch (e) {
-      print('❌ Error cargando reporte: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -130,9 +119,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       final url = Uri.parse(
         '$apiBaseUrl/api/reportes/cliente/$_clienteId/gastos-por-salon',
       );
-
-      print('🔍 Cargando gastos por salón: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -144,11 +130,9 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
       if (response.statusCode == 200) {
         setState(() {
           _datosGastosPorSalon = json.decode(response.body) as Map<String, dynamic>;
-          print('✅ Gastos por salón cargados: $_datosGastosPorSalon');
         });
       }
     } catch (e) {
-      print('❌ Error cargando gastos por salón: $e');
     }
   }
 
@@ -226,7 +210,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       await _compartirPDF(pdf, 'mi_resumen_general');
     } catch (e) {
-      print('Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -273,7 +256,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       await _compartirPDF(pdf, 'mis_salones_visitados');
     } catch (e) {
-      print('Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -313,7 +295,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       await _compartirPDF(pdf, 'mis_servicios_frecuentes');
     } catch (e) {
-      print('Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -360,7 +341,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       await _compartirPDF(pdf, 'mi_historial_citas');
     } catch (e) {
-      print('Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -427,7 +407,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
 
       await _compartirPDF(pdf, 'mis_gastos_por_salon');
     } catch (e) {
-      print('Error: $e');
       _mostrarError('Error al generar el reporte');
     } finally {
       setState(() => _isLoading = false);
@@ -458,7 +437,6 @@ class _ReportesClientePageState extends State<ReportesClientePage> {
         );
       }
     } catch (e) {
-      print('Error compartiendo PDF: $e');
       _mostrarError('Error al compartir el reporte');
     }
   }

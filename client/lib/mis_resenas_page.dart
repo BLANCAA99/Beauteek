@@ -40,9 +40,6 @@ class _MisResenasPageState extends State<MisResenasPage> {
       // Obtener reseñas del usuario
       final resenasUrl = Uri.parse(
           '$apiBaseUrl/api/resenas?usuario_cliente_id=${user.uid}');
-
-      print('🔍 Cargando mis reseñas: $resenasUrl');
-
       final resenasResponse = await http.get(
         resenasUrl,
         headers: {
@@ -85,7 +82,6 @@ class _MisResenasPageState extends State<MisResenasPage> {
                 fotoSalon = usuarioData['foto_url'];
               }
             } catch (e) {
-              print('⚠️ Error obteniendo usuario salón: $e');
             }
           }
 
@@ -100,8 +96,6 @@ class _MisResenasPageState extends State<MisResenasPage> {
           _misResenas = resenasConSalon;
           _isLoading = false;
         });
-
-        print('✅ ${_misResenas.length} reseñas cargadas');
       } else {
         setState(() {
           _misResenas = [];
@@ -109,7 +103,6 @@ class _MisResenasPageState extends State<MisResenasPage> {
         });
       }
     } catch (e) {
-      print('❌ Error: $e');
       setState(() {
         _misResenas = [];
         _isLoading = false;

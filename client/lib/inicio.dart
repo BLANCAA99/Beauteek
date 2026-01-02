@@ -29,7 +29,6 @@ class _InicioPageState extends State<InicioPage> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        print('⚠️ No hay usuario autenticado');
         if (!mounted) return;
         setState(() {
           _rolUsuario = 'cliente';
@@ -43,8 +42,6 @@ class _InicioPageState extends State<InicioPage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
-      print('🔍 Obteniendo rol del usuario: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -54,18 +51,11 @@ class _InicioPageState extends State<InicioPage> {
       ).timeout(
         const Duration(seconds: 8),
         onTimeout: () {
-          print('⏱️ Timeout obteniendo usuario');
           throw Exception('Timeout al obtener datos del usuario');
         },
       );
-
-      print('📥 Status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final userData = json.decode(response.body) as Map<String, dynamic>;
-
-        print('👔 Rol detectado: ${userData['rol']}');
-
         if (!mounted) return;
 
         setState(() {
@@ -73,7 +63,6 @@ class _InicioPageState extends State<InicioPage> {
           _isLoading = false;
         });
       } else {
-        print('❌ Error HTTP: ${response.statusCode}');
         if (!mounted) return;
         setState(() {
           _rolUsuario = 'cliente';
@@ -81,7 +70,6 @@ class _InicioPageState extends State<InicioPage> {
         });
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       setState(() {
         _rolUsuario = 'cliente';

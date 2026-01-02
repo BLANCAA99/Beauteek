@@ -97,7 +97,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
             : null,
       };
 
-      print('📤 Enviando dirección: ${json.encode(payload)}');
+      
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step2');
       final response = await http
@@ -110,10 +110,6 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
             body: json.encode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       if (response.statusCode == 200) {
         if (!mounted) return;
 
@@ -135,7 +131,6 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
                        'No especificado';
             }
           } catch (geoError) {
-            print('⚠️ Error en geocodificación: $geoError');
           }
 
           final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones');
@@ -159,10 +154,8 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
           ).timeout(const Duration(seconds: 30));
           
           if (ubicacionResponse.statusCode == 201) {
-            print('✅ Ubicación guardada en colección ubicaciones');
           }
         } catch (ubicacionError) {
-          print('❌ Error guardando ubicación: $ubicacionError');
           // No bloquear el flujo si falla, solo registrar
         }
 
@@ -187,12 +180,10 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
           final data = json.decode(response.body);
           msg = data['message'] ?? data['error'] ?? msg;
         } catch (e) {
-          print('Error parseando respuesta: $e');
         }
         throw Exception(msg);
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),

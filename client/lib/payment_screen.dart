@@ -16,6 +16,8 @@ class PaymentScreen extends StatefulWidget {
   final String salonName;
   final double? precioOriginal;
   final double? descuento;
+  final bool? crearCitaDespuesPago;
+  final Map<String, dynamic>? datosCita;
 
   const PaymentScreen({
     Key? key,
@@ -24,6 +26,8 @@ class PaymentScreen extends StatefulWidget {
     required this.salonName,
     this.precioOriginal,
     this.descuento,
+    this.crearCitaDespuesPago,
+    this.datosCita,
   }) : super(key: key);
 
   @override
@@ -36,7 +40,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final _expiryController = TextEditingController();
   final _cvvController = TextEditingController();
   final _nameController = TextEditingController();
-  
+
   bool _isProcessing = false;
   // ✅ NUEVO: Sin comisión al cliente
   double get total => widget.monto;
@@ -81,7 +85,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Resumen de pago
               Card(
                 elevation: 0,
@@ -93,11 +97,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      if (widget.precioOriginal != null && widget.descuento != null) ...[
-                        _buildPriceRow('Precio original', widget.precioOriginal!),
+                      if (widget.precioOriginal != null &&
+                          widget.descuento != null) ...[
+                        _buildPriceRow(
+                            'Precio original', widget.precioOriginal!),
                         const SizedBox(height: 8),
-                        _buildDiscountRow('Descuento (-${widget.descuento!.toStringAsFixed(0)}%)', 
-                          widget.precioOriginal! - widget.monto),
+                        _buildDiscountRow(
+                            'Descuento (-${widget.descuento!.toStringAsFixed(0)}%)',
+                            widget.precioOriginal! - widget.monto),
                         Divider(color: Color(0xFF637588).withOpacity(0.3)),
                         _buildPriceRow('Total a pagar', total, isBold: true),
                       ] else ...[
@@ -110,7 +117,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               const Text(
                 'Datos de la tarjeta',
                 style: TextStyle(
@@ -120,7 +127,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Número de tarjeta
               TextFormField(
                 controller: _cardNumberController,
@@ -160,13 +167,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Nombre en la tarjeta
               TextFormField(
                 controller: _nameController,
                 decoration: InputDecoration(
                   labelText: 'Nombre en la Tarjeta',
-                  prefixIcon: Icon(Icons.person_outline, color: Color(0xFFEA963A)),
+                  prefixIcon:
+                      Icon(Icons.person_outline, color: Color(0xFFEA963A)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -190,7 +198,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Vencimiento y CVV
               Row(
                 children: [
@@ -269,7 +277,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ],
               ),
               const SizedBox(height: 30),
-              
+
               // Botón de pago
               SizedBox(
                 width: double.infinity,
@@ -374,9 +382,47 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       final idToken = await user.getIdToken();
 
-      // ✅ Payload para pagos
+      // 🔹 SI NECESITA CREAR LA CITA PRIMERO (pago en línea adelantado)
+      String citaIdFinal = widget.citaId;
+
+      if (widget.crearCitaDespuesPago == true && widget.datosCita != null) {
+        // Primero crear la cita
+        final citaUrl = Uri.parse('$apiBaseUrl/citas');
+        final citaResponse = await http
+            .post(
+              citaUrl,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+              body: json.encode(widget.datosCita),
+            )
+            .timeout(const Duration(seconds: 30));
+
+        if (citaResponse.statusCode != 201) {
+          throw Exception('No se pudo crear la cita: ${citaResponse.body}');
+        }
+
+        // Extraer el ID de la cita creada
+        final citaData = json.decode(citaResponse.body);
+        if (citaData.containsKey('citaId')) {
+          citaIdFinal = citaData['citaId']?.toString() ?? '';
+        } else if (citaData.containsKey('id')) {
+          citaIdFinal = citaData['id']?.toString() ?? '';
+        } else if (citaData.containsKey('cita_id')) {
+          citaIdFinal = citaData['cita_id']?.toString() ?? '';
+        } else if (citaData is Map && citaData.containsKey('cita')) {
+          citaIdFinal = citaData['cita']?['id']?.toString() ?? '';
+        }
+
+        if (citaIdFinal.isEmpty) {
+          throw Exception('No se pudo obtener el ID de la cita creada');
+        }
+      }
+
+      // ✅ Ahora sí procesar el pago con el citaId correcto
       final payload = {
-        'citaId': widget.citaId,
+        'citaId': citaIdFinal,
         'clienteId': user.uid,
         'monto': widget.monto,
         'numeroTarjeta': _cardNumberController.text.replaceAll(' ', ''),
@@ -384,8 +430,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
         'fechaVencimiento': _expiryController.text,
         'cvv': _cvvController.text,
       };
-
-      print('📤 Payload pago: ${json.encode(payload)}');
 
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/pagos'),
@@ -396,27 +440,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
         body: json.encode(payload),
       );
 
-      print('📤 Request pago: ${Uri.parse('$apiBaseUrl/api/pagos')}');
-      print('📥 Status pago: ${response.statusCode}');
-      print('📥 Response pago: ${response.body}');
-
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final pagoData = json.decode(response.body);
-        
+
         // Mostrar diálogo de éxito con opción de descargar recibo
         await _mostrarDialogoExito(pagoData);
-        
-        // Redirigir al inicio del cliente después del pago
+
+        // Retornar true para indicar que el pago fue exitoso
         if (!mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil('/inicio_cliente', (route) => false);
+        Navigator.pop(context, true);
       } else {
         final error = json.decode(response.body);
-        throw Exception(error['mensaje'] ?? error['error'] ?? 'Error al procesar el pago');
+        throw Exception(
+            error['mensaje'] ?? error['error'] ?? 'Error al procesar el pago');
       }
     } catch (e) {
-      print('❌ Error procesando pago: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -447,7 +487,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 color: Colors.green.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle, color: Colors.green, size: 32),
+              child:
+                  const Icon(Icons.check_circle, color: Colors.green, size: 32),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -475,7 +516,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               child: Column(
                 children: [
-                  _buildInfoRow('Monto pagado', 'L${widget.monto.toStringAsFixed(2)}'),
+                  _buildInfoRow(
+                      'Monto pagado', 'L${widget.monto.toStringAsFixed(2)}'),
                   const Divider(),
                   _buildInfoRow('Referencia', pagoData['id'] ?? 'N/A'),
                 ],
@@ -499,10 +541,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
               if (mounted) Navigator.pop(context);
             },
             icon: const Icon(Icons.download, color: Colors.white),
-            label: const Text('Descargar Recibo', style: TextStyle(color: Colors.white)),
+            label: const Text('Descargar Recibo',
+                style: TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEA963A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],
@@ -517,7 +561,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -537,29 +583,34 @@ class _PaymentScreenState extends State<PaymentScreen> {
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('RECIBO DE PAGO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              pw.Text('RECIBO DE PAGO',
+                  style: pw.TextStyle(
+                      fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 8),
-              pw.Text('Beauteek - Plataforma de Belleza', style: pw.TextStyle(fontSize: 12)),
+              pw.Text('Beauteek - Plataforma de Belleza',
+                  style: pw.TextStyle(fontSize: 12)),
               pw.Divider(),
               pw.SizedBox(height: 20),
-              
-              pw.Text('INFORMACION DEL PAGO', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text('INFORMACION DEL PAGO',
+                  style: pw.TextStyle(
+                      fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Text('Fecha: $fechaStr'),
               pw.Text('Referencia: ${pagoData['id'] ?? 'N/A'}'),
-              pw.Text('Cliente: ${user.displayName ?? user.email ?? 'Cliente'}'),
+              pw.Text(
+                  'Cliente: ${user.displayName ?? user.email ?? 'Cliente'}'),
               pw.SizedBox(height: 20),
-              
-              pw.Text('DETALLES DEL SERVICIO', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text('DETALLES DEL SERVICIO',
+                  style: pw.TextStyle(
+                      fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Text('Salon: ${widget.salonName}'),
               pw.Text('Cita ID: ${widget.citaId}'),
               pw.SizedBox(height: 20),
-              
               pw.Divider(),
               pw.SizedBox(height: 10),
-              
-              if (widget.precioOriginal != null && widget.descuento != null) ...[
+              if (widget.precioOriginal != null &&
+                  widget.descuento != null) ...[
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
@@ -570,26 +621,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('Descuento (-${widget.descuento!.toStringAsFixed(0)}%):'),
-                    pw.Text('-L${(widget.precioOriginal! - widget.monto).toStringAsFixed(2)}'),
+                    pw.Text(
+                        'Descuento (-${widget.descuento!.toStringAsFixed(0)}%):'),
+                    pw.Text(
+                        '-L${(widget.precioOriginal! - widget.monto).toStringAsFixed(2)}'),
                   ],
                 ),
                 pw.Divider(),
               ],
-              
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('TOTAL PAGADO:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('L${widget.monto.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('TOTAL PAGADO:',
+                      style: pw.TextStyle(
+                          fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('L${widget.monto.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                          fontSize: 16, fontWeight: pw.FontWeight.bold)),
                 ],
               ),
-              
               pw.SizedBox(height: 30),
               pw.Divider(),
               pw.SizedBox(height: 10),
-              pw.Text('Gracias por usar Beauteek', style: const pw.TextStyle(fontSize: 12)),
-              pw.Text('Este es un comprobante de pago electronico', style: const pw.TextStyle(fontSize: 10)),
+              pw.Text('Gracias por usar Beauteek',
+                  style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('Este es un comprobante de pago electronico',
+                  style: const pw.TextStyle(fontSize: 10)),
             ],
           ),
         ),
@@ -617,7 +674,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
         );
       }
     } catch (e) {
-      print('❌ Error generando recibo: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -638,14 +694,14 @@ class _CardNumberFormatter extends TextInputFormatter {
   ) {
     final text = newValue.text.replaceAll(' ', '');
     final buffer = StringBuffer();
-    
+
     for (int i = 0; i < text.length; i++) {
       buffer.write(text[i]);
       if ((i + 1) % 4 == 0 && i + 1 != text.length) {
         buffer.write(' ');
       }
     }
-    
+
     return TextEditingValue(
       text: buffer.toString(),
       selection: TextSelection.collapsed(offset: buffer.length),
@@ -661,14 +717,14 @@ class _ExpiryDateFormatter extends TextInputFormatter {
   ) {
     final text = newValue.text.replaceAll('/', '');
     final buffer = StringBuffer();
-    
+
     for (int i = 0; i < text.length; i++) {
       buffer.write(text[i]);
       if (i == 1 && text.length > 2) {
         buffer.write('/');
       }
     }
-    
+
     return TextEditingValue(
       text: buffer.toString(),
       selection: TextSelection.collapsed(offset: buffer.length),

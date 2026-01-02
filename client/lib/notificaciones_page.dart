@@ -156,7 +156,6 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error cargando notificaciones: $e');
       setState(() => _isLoading = false);
     }
   }

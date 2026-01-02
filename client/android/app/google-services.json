@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "267162092585-qal0o124lg7iu4eggmov30enahjlff33.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.beauteek.client",
+            "certificate_hash": "6dbc9c1b8790fe95c190a30ee0111fc83779b0df"
+          }
+        },
+        {
           "client_id": "267162092585-gvfej9f3r5gvpkt2ct7j14qslid3a34u.apps.googleusercontent.com",
           "client_type": 3
         }

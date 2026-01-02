@@ -86,7 +86,6 @@ class _EditServicesPageState extends State<EditServicesPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('❌ Error: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -131,7 +130,6 @@ class _EditServicesPageState extends State<EditServicesPage> {
         _usarCategoriasFallback();
       }
     } catch (e) {
-      print('❌ Error: $e');
       _usarCategoriasFallback();
     }
   }
@@ -610,7 +608,6 @@ class _EditServicesPageState extends State<EditServicesPage> {
                             Navigator.pop(context, true);
                           }
                         } catch (e) {
-                          print('❌ Error: $e');
                         }
                       }
                     },

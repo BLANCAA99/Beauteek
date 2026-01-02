@@ -174,9 +174,33 @@ class _LoginScreenState extends State<LoginScreen>
 
       final userData = json.decode(response.body) as Map<String, dynamic>;
       final rol = userData['rol'] as String?;
-      final ubicacion = userData['ubicacion'];
 
-      // 3) Mostrar mensaje de éxito y transición suave
+      // 3) Verificar si el cliente tiene ubicación guardada en la colección ubicaciones
+      bool tieneUbicacion = false;
+      if (rol == 'cliente') {
+        try {
+          final ubicacionesUrl =
+              Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/${user.uid}');
+          final ubicacionesResponse = await http.get(
+            ubicacionesUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          ).timeout(const Duration(seconds: 10));
+
+          if (ubicacionesResponse.statusCode == 200) {
+            final ubicacionesData =
+                json.decode(ubicacionesResponse.body) as List;
+            tieneUbicacion = ubicacionesData.isNotEmpty;
+          }
+        } catch (e) {
+          // Si falla la consulta, asumimos que no tiene ubicación
+          tieneUbicacion = false;
+        }
+      }
+
+      // 4) Mostrar mensaje de éxito y transición suave
       if (!mounted) return;
 
       setState(() {
@@ -191,8 +215,8 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (!mounted) return;
 
-      // 4) Redirigir: Clientes sin ubicación → SetupLocationPage, sino → InicioPage (router)
-      if (rol == 'cliente' && ubicacion == null) {
+      // 5) Redirigir: Clientes sin ubicación → SetupLocationPage, sino → InicioPage (router)
+      if (rol == 'cliente' && !tieneUbicacion) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
@@ -244,10 +268,27 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ───────── Login/registro con Google ─────────
   Future<void> registerWithGoogle() async {
-    setState(() => errorMsg = '');
+    setState(() {
+      errorMsg = '';
+      _isLoading = true;
+      _loadingMessage = 'Conectando con Google...';
+    });
+
     try {
+      // 1. Cerrar sesión previa de Google (limpiar caché)
+      await _googleSignIn.signOut();
+
+      // 2. Iniciar sesión con Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return; // cancelado
+      if (googleUser == null) {
+        // Usuario canceló
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _loadingMessage = 'Autenticando con Firebase...');
 
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -259,10 +300,17 @@ class _LoginScreenState extends State<LoginScreen>
           await FirebaseAuth.instance.signInWithCredential(credential);
       final user = userCred.user;
       if (user == null) {
-        setState(() => errorMsg =
-            'No se pudo iniciar sesión con Google. Intenta nuevamente.');
+        if (!mounted) return;
+        setState(() {
+          errorMsg =
+              'No se pudo iniciar sesión con Google. Intenta nuevamente.';
+          _isLoading = false;
+        });
         return;
       }
+
+      if (!mounted) return;
+      setState(() => _loadingMessage = 'Verificando usuario...');
 
       // Verificar si el usuario ya existe en tu API
       final idToken = await user.getIdToken();
@@ -274,78 +322,149 @@ class _LoginScreenState extends State<LoginScreen>
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 5));
 
+      bool needsToCreateUser = false;
       Map<String, dynamic>? userData;
 
       if (checkResponse.statusCode == 404) {
-        // Usuario NO existe, crear perfil automáticamente
-        print('🆕 Usuario nuevo con Google, creando perfil...');
-
-        final displayName = user.displayName ?? '';
-
-        final createUrl = Uri.parse('$apiBaseUrl/api/users');
-        final createPayload = {
-          'uid': user.uid,
-          'nombre_completo':
-              displayName.isNotEmpty ? displayName : 'Usuario de Google',
-          'email': user.email ?? '',
-          'telefono': user.phoneNumber ?? '',
-          'rol': 'cliente',
-          'foto_url': user.photoURL ?? '',
-          'fecha_creacion': DateTime.now().toIso8601String(),
-        };
-
-        print('📤 Creando usuario: ${json.encode(createPayload)}');
-
-        final createResponse = await http
-            .post(
-              createUrl,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $idToken',
-              },
-              body: json.encode(createPayload),
-            )
-            .timeout(const Duration(seconds: 10));
-
-        if (createResponse.statusCode == 201 ||
-            createResponse.statusCode == 200) {
-          print('✅ Usuario creado exitosamente');
-          userData = json.decode(createResponse.body) as Map<String, dynamic>;
-        } else {
-          throw Exception(
-              'Error al crear usuario: ${createResponse.statusCode} - ${createResponse.body}');
-        }
+        needsToCreateUser = true;
       } else if (checkResponse.statusCode == 200) {
-        print('✅ Usuario existente encontrado');
         userData = json.decode(checkResponse.body) as Map<String, dynamic>;
       } else {
         throw Exception(
             'Error al verificar usuario: ${checkResponse.statusCode}');
       }
+      if (needsToCreateUser) {
+        if (!mounted) {
+          return;
+        }
 
-      final rol = userData['rol'] as String?;
-      final ubicacion = userData['ubicacion'];
+        setState(() => _loadingMessage = 'Creando tu perfil...');
 
-      await _showToast('¡Bienvenido!');
+        final displayName = user.displayName ?? 'Usuario Google';
+        final email = user.email ?? '';
+        final photoUrl = user.photoURL ?? '';
+
+        final createUrl = Uri.parse('$apiBaseUrl/api/users');
+
+        // ⚠️ IMPORTANTE: Usar el mismo formato que register_screen.dart
+        final createPayload = {
+          'uid': user.uid,
+          'nombre_completo': displayName,
+          'email': email,
+          'telefono': 'pendiente',
+          'rol': 'cliente',
+          'foto_url': photoUrl.isNotEmpty
+              ? photoUrl
+              : 'https://example.com/no_aplica.jpg',
+          'fecha_nacimiento': 'no_aplica',
+          'genero': 'no_aplica',
+          'estado': 'activo',
+        };
+
+        final createResponse = await http
+            .post(
+              createUrl,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(createPayload),
+            )
+            .timeout(const Duration(seconds: 6));
+
+        if (createResponse.statusCode == 201 ||
+            createResponse.statusCode == 200) {
+          userData = json.decode(createResponse.body) as Map<String, dynamic>;
+        } else {
+          if (!mounted) return;
+          setState(() {
+            errorMsg =
+                'Error al crear tu perfil. Por favor, intenta nuevamente.';
+            _isLoading = false;
+          });
+
+          // Cerrar sesión de Firebase para que pueda intentar de nuevo
+          await FirebaseAuth.instance.signOut();
+          return;
+        }
+      }
+
+      // Ya tenemos userData (sea porque existía o porque se creó)
+      final rol = userData?['rol'] as String?;
+
+      // Verificar si el cliente tiene ubicación guardada en la colección ubicaciones
+      bool tieneUbicacion = false;
+      if (rol == 'cliente') {
+        try {
+          final ubicacionesUrl =
+              Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/${user.uid}');
+          final ubicacionesResponse = await http.get(
+            ubicacionesUrl,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+          ).timeout(const Duration(seconds: 5));
+
+          if (ubicacionesResponse.statusCode == 200) {
+            final ubicacionesData =
+                json.decode(ubicacionesResponse.body) as List;
+            tieneUbicacion = ubicacionesData.isNotEmpty;
+          }
+        } catch (e) {
+          // Si falla la consulta, asumimos que no tiene ubicación
+          tieneUbicacion = false;
+        }
+      }
+
       if (!mounted) return;
 
-      // Redirigir según rol y ubicación
-      if (rol == 'cliente' && ubicacion == null) {
+      await _showToast('¡Bienvenido!');
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      // Redirigir: clientes sin ubicación van a SetupLocationPage
+      if (rol == 'cliente' && !tieneUbicacion) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
       } else {
-        // InicioPage es un router que decide si mostrar InicioClientePage o InicioSalonPage
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const InicioPage()),
         );
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String mensaje = 'Error al iniciar sesión con Google';
+
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          mensaje = 'Este correo ya está registrado con otro método. '
+              'Inicia sesión con tu correo y contraseña.';
+          break;
+        case 'invalid-credential':
+          mensaje = 'Credenciales de Google inválidas. Intenta nuevamente.';
+          break;
+        case 'operation-not-allowed':
+          mensaje = 'El inicio de sesión con Google no está habilitado.';
+          break;
+        case 'user-disabled':
+          mensaje = 'Esta cuenta ha sido deshabilitada.';
+          break;
+        default:
+          mensaje = 'Error de autenticación: ${e.message}';
+      }
+
+      setState(() {
+        errorMsg = mensaje;
+        _isLoading = false;
+      });
     } catch (e) {
-      print('❌ Error en registerWithGoogle: $e');
-      setState(() =>
-          errorMsg = 'Error al iniciar sesión con Google. Intenta nuevamente.');
+      if (!mounted) return;
+      setState(() {
+        errorMsg = 'Error inesperado. Por favor, intenta de nuevo.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -730,7 +849,7 @@ class _LoginScreenState extends State<LoginScreen>
                 style: AppTheme.bodyMedium.copyWith(
                   color: AppTheme.textSecondary,
                   fontSize: 13,
-                ),
+                ), //
               ),
             ),
             Expanded(

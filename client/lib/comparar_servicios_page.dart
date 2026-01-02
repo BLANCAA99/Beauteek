@@ -59,9 +59,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
         return;
       }
       final idToken = idTokenNullable;
-      
-      print('🔍 Buscando servicios: "${widget.servicioNombre}"');
-
       // Obtener ubicación del cliente primero
       final userId = user.uid;
       final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
@@ -74,7 +71,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       ).timeout(const Duration(seconds: 10));
 
       if (ubicacionResponse.statusCode != 200) {
-        print('⚠️ No se pudo obtener ubicación del cliente');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
@@ -83,7 +79,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       final userLat = (ubicacionData['lat'] as num).toDouble();
       final userLng = (ubicacionData['lng'] as num).toDouble();
       
-      print('📍 Ubicación cliente: ($userLat, $userLng)');
+      
 
       // Obtener todos los comercios
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
@@ -96,14 +92,11 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       ).timeout(const Duration(seconds: 10));
 
       if (comerciosResponse.statusCode != 200) {
-        print('❌ Error obteniendo comercios: ${comerciosResponse.statusCode}');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
       final List<dynamic> comercios = json.decode(comerciosResponse.body);
-      print('📊 Comercios obtenidos: ${comercios.length}');
-
       // Para cada comercio, obtener sus servicios
       List<Map<String, dynamic>> serviciosEncontrados = [];
 
@@ -156,12 +149,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
             }
           }
         } catch (e) {
-          print('⚠️ Error obteniendo servicios del comercio ${comercio['id']}: $e');
         }
       }
-
-      print('✅ Servicios encontrados: ${serviciosEncontrados.length}');
-
       // Ordenar por precio (menor a mayor)
       serviciosEncontrados.sort((a, b) => 
         (a['precio'] as double).compareTo(b['precio'] as double));
@@ -173,7 +162,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
         });
       }
     } catch (e) {
-      print('❌ Error buscando servicios: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -186,8 +174,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     String idToken,
   ) async {
     try {
-      print('🔍 Buscando foto para servicio: $servicioId en comercio: $comercioId');
-      
       final galeriaUrl = Uri.parse('$apiBaseUrl/api/galeria-fotos/comercio/$comercioId');
       final galeriaResponse = await http.get(
         galeriaUrl,
@@ -196,36 +182,23 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 3));
-
-      print('📸 Response status galería: ${galeriaResponse.statusCode}');
-
       if (galeriaResponse.statusCode == 200) {
         final List<dynamic> fotos = json.decode(galeriaResponse.body);
-        print('📸 Total fotos encontradas: ${fotos.length}');
-        
         // Buscar primera foto que tenga el servicio_id
         for (var foto in fotos) {
-          print('📸 Comparando servicio_id: ${foto['servicio_id']} con $servicioId');
           if (foto['servicio_id'] == servicioId) {
             final url = foto['foto_url'] as String?;
-            print('✅ Foto encontrada para servicio: $url');
             return url;
           }
         }
-
-        print('⚠️ No se encontró foto específica del servicio');
-
         // Si no hay foto específica del servicio, usar la primera foto del salón
         if (fotos.isNotEmpty) {
           final url = fotos.first['foto_url'] as String?;
-          print('📸 Usando primera foto del salón: $url');
           return url;
         }
       }
     } catch (e) {
-      print('⚠️ Error obteniendo foto del servicio: $e');
     }
-    print('❌ No se encontró ninguna foto');
     return null;
   }
 
@@ -265,7 +238,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       // Calcular distancia usando fórmula Haversine
       return _calcularDistanciaHaversine(userLat, userLng, comercioLat, comercioLng);
     } catch (e) {
-      print('⚠️ Error calculando distancia: $e');
       return 999.0;
     }
   }

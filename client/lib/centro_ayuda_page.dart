@@ -60,7 +60,6 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
         });
       }
     } catch (e) {
-      print('Error cargando rol del usuario: $e');
       setState(() {
         _userRole = 'cliente';
         _isLoading = false;
@@ -109,7 +108,8 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
                       style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Escribe aquí tu consulta...',
-                        hintStyle: const TextStyle(color: AppTheme.textSecondary),
+                        hintStyle:
+                            const TextStyle(color: AppTheme.textSecondary),
                         filled: true,
                         fillColor: AppTheme.darkBackground,
                         border: OutlineInputBorder(
@@ -123,36 +123,40 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: isEnviando ? null : () {
-                    Navigator.of(dialogContext).pop();
-                  },
+                  onPressed: isEnviando
+                      ? null
+                      : () {
+                          Navigator.of(dialogContext).pop();
+                        },
                   child: const Text(
                     'Cancelar',
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: isEnviando ? null : () async {
-                    if (problemaController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Por favor describe tu problema'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                  onPressed: isEnviando
+                      ? null
+                      : () async {
+                          if (problemaController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Por favor describe tu problema'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
-                    setDialogState(() {
-                      isEnviando = true;
-                    });
+                          setDialogState(() {
+                            isEnviando = true;
+                          });
 
-                    await _enviarCorreoSoporte(problemaController.text);
+                          await _enviarCorreoSoporte(problemaController.text);
 
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryOrange,
                     foregroundColor: Colors.white,
@@ -166,7 +170,8 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Text('Enviar'),
@@ -182,14 +187,31 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
   Future<void> _enviarCorreoSoporte(String mensaje) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final userEmail = user?.email ?? 'usuario-sin-email';
-      final userName = user?.displayName ?? 'Usuario';
-      final userId = user?.uid ?? 'sin-uid';
+      if (user == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Debes iniciar sesión para enviar un mensaje'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
 
-      // Intentar enviar a través del backend
-      final response = await http.post(
+      final userEmail = user.email ?? 'usuario-sin-email';
+      final userName = user.displayName ?? 'Usuario';
+      final userId = user.uid;
+      final idToken = await user.getIdToken();
+
+      // Enviar a través del backend con token de autorización
+      final response = await http
+          .post(
         Uri.parse('$apiBaseUrl/api/soporte/enviar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
         body: json.encode({
           'nombre': userName,
           'email': userEmail,
@@ -197,7 +219,8 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
           'mensaje': mensaje,
           'destino': 'gpt.krew@gmail.com',
         }),
-      ).timeout(
+      )
+          .timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw Exception('Timeout');
@@ -209,21 +232,21 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Mensaje enviado con éxito. Te contactaremos pronto.'),
+            content:
+                Text('Mensaje enviado con éxito. Te contactaremos pronto.'),
             backgroundColor: AppTheme.primaryOrange,
           ),
         );
       } else {
-        throw Exception('Error del servidor');
+        throw Exception('Error del servidor: ${response.statusCode}');
       }
     } catch (e) {
       if (!mounted) return;
-      
-      // Aunque falle el endpoint, mostramos mensaje de éxito
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mensaje registrado. Te contactaremos pronto.'),
-          backgroundColor: AppTheme.primaryOrange,
+        SnackBar(
+          content: Text('Error al enviar el mensaje: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }

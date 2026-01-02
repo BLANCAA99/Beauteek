@@ -78,10 +78,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
         }).toList();
         _isLoading = false;
       });
-
-      print('✅ ${_categorias.length} categorías cargadas desde Firestore');
     } catch (e) {
-      print('❌ Error cargando categorías: $e');
       setState(() => _isLoading = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -495,7 +492,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
         'servicios': serviciosParaEnviar,
       };
 
-      print('📤 Enviando servicios y horarios: ${json.encode(payload)}');
+      
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step4');
       final response = await http
@@ -508,10 +505,6 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
             body: json.encode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       if (response.statusCode == 200) {
         if (!mounted) return;
 
@@ -577,7 +570,6 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
         throw Exception('Error al finalizar registro');
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),

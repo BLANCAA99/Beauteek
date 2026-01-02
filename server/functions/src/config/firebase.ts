@@ -1,8 +1,10 @@
 // functions/src/firebase.ts
-import { initializeApp, getApps, applicationDefault, App } from "firebase-admin/app";
+import { initializeApp, getApps, applicationDefault, App, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
 import * as admin from "firebase-admin";
+import * as path from "path";
+import * as fs from "fs";
 
 const DEBUG = process.env.FIREBASE_DEBUG === "true";
 
@@ -37,12 +39,22 @@ try {
     app = already[0];
     dlog("AdminApp reutilizada:", app.name);
   } else {
-    // Usamos ADC (Application Default Credentials). Si estás local, apunta a tu JSON con GOOGLE_APPLICATION_CREDENTIALS
-    app = initializeApp({
-      // Si deseas forzar credenciales por archivo (opcional):
-      // credential: process.env.GOOGLE_APPLICATION_CREDENTIALS ? cert(require(process.env.GOOGLE_APPLICATION_CREDENTIALS)) : applicationDefault(),
-      credential: applicationDefault(),
-    });
+    // Usar serviceAccountKey.json para habilitar notificaciones push
+    const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
+    const serviceAccountExists = fs.existsSync(serviceAccountPath);
+    
+    if (serviceAccountExists) {
+      console.log("✅ Usando serviceAccountKey.json - Notificaciones push HABILITADAS");
+      app = initializeApp({
+        credential: cert(serviceAccountPath),
+        projectId: 'beauteek-b595e',
+      });
+    } else {
+      console.error("❌ serviceAccountKey.json NO encontrado - Las notificaciones NO funcionarán");
+      app = initializeApp({
+        credential: applicationDefault(),
+      });
+    }
     dlog("AdminApp inicializada:", app.name);
   }
 } catch (e: any) {

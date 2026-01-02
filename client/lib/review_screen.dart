@@ -129,9 +129,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
           );
           fotoUrl = response.secureUrl;
-          print('✅ Foto subida a Cloudinary: $fotoUrl');
         } catch (e) {
-          print('⚠️ Error subiendo foto: $e');
           // Continuar sin foto si falla
         } finally {
           if (mounted) {
@@ -174,7 +172,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       };
 
       final url = Uri.parse('$apiBaseUrl/api/resenas');
-      print('📤 Enviando reseña: ${json.encode(payload)}');
+      
 
       final response = await http.post(
         url,
@@ -184,9 +182,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
         },
         body: json.encode(payload),
       );
-
-      print('📥 Response: ${response.statusCode}');
-
       if (response.statusCode == 201) {
         if (!mounted) return;
 
@@ -202,8 +197,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error enviando reseña: $e');
-      
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(

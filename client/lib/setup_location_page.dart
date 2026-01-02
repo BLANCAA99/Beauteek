@@ -68,10 +68,8 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
           pais = place.country;
           ciudad = place.locality ?? place.administrativeArea;
           direccionCompleta = '${place.street ?? ''}, ${place.locality ?? ''}, ${place.country ?? ''}'.trim();
-          print('🌍 País detectado: $pais, Ciudad: $ciudad');
         }
       } catch (e) {
-        print('⚠️ Error obteniendo país: $e');
         pais = 'Honduras'; // Fallback
       }
 
@@ -105,9 +103,6 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
       if (response.statusCode != 201) {
         throw Exception('Error al guardar ubicación');
       }
-
-      print('✅ Ubicación guardada en colección ubicaciones');
-
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
@@ -115,7 +110,6 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
         (route) => false,
       );
     } catch (e) {
-      print('❌ Error guardando ubicación: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

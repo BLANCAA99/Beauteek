@@ -38,9 +38,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
       // Obtener favoritos del usuario
       final favoritosUrl =
           Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
-
-      print('🔍 Cargando favoritos: $favoritosUrl');
-
       final favoritosResponse = await http.get(
         favoritosUrl,
         headers: {
@@ -99,7 +96,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
                           propietarioData['foto_url'] as String?;
                     }
                   } catch (e) {
-                    print('⚠️ Error obteniendo foto: $e');
                   }
                 }
 
@@ -113,7 +109,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
                 });
               }
             } catch (e) {
-              print('⚠️ Error obteniendo comercio: $e');
             }
           }
         }
@@ -122,8 +117,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
           _favoritos = favoritosConDatos;
           _isLoading = false;
         });
-
-        print('✅ ${_favoritos.length} favoritos cargados');
       } else {
         setState(() {
           _favoritos = [];
@@ -131,7 +124,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
         });
       }
     } catch (e) {
-      print('❌ Error: $e');
       setState(() {
         _favoritos = [];
         _isLoading = false;
@@ -172,7 +164,6 @@ class _FavoritosPageState extends State<FavoritosPage> {
         }
       }
     } catch (e) {
-      print('❌ Error eliminando favorito: $e');
     }
   }
 

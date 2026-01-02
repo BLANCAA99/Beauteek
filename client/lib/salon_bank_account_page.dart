@@ -81,7 +81,7 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
         'identificacion_titular': _identificacionController.text.trim(),
       };
 
-      print('📤 Enviando datos bancarios: ${json.encode(payload)}');
+      
 
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step3');
       final response = await http
@@ -94,10 +94,6 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
             body: json.encode(payload),
           )
           .timeout(const Duration(seconds: 30));
-
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       if (response.statusCode == 200) {
         if (!mounted) return;
 
@@ -123,12 +119,10 @@ class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
           final data = json.decode(response.body);
           msg = data['message'] ?? data['error'] ?? msg;
         } catch (e) {
-          print('Error parseando respuesta: $e');
         }
         throw Exception(msg);
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),

@@ -99,7 +99,6 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
         });
       }
     } catch (e) {
-      print('Error cargando datos del usuario: $e');
       setState(() {
         _userRole = 'cliente';
         _isLoading = false;

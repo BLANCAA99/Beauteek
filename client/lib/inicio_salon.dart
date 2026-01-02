@@ -68,12 +68,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('✅ Permisos de notificaciones concedidos (Salón)');
-
         final fcmToken = await messaging.getToken();
         if (fcmToken != null) {
-          print('📱 FCM Token (Salón): $fcmToken');
-
           final idToken = await user.getIdToken(true);
           try {
             await http.put(
@@ -87,17 +83,12 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                 'platform': 'android',
               }),
             );
-            print('✅ Token FCM guardado en servidor (Salón)');
-          } catch (e) {
-            print('⚠️ Error guardando token FCM: $e');
-          }
+          } catch (e) {}
         }
 
         // 🔔 Configurar listeners de notificaciones para el salón
         // Cuando la app está en primer plano
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          print(
-              '📬 Notificación recibida (Salón): ${message.notification?.title}');
           if (message.notification != null && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -118,30 +109,21 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             );
           }
         });
-      } else {
-        print('⚠️ Permisos de notificaciones denegados (Salón)');
-      }
-    } catch (e) {
-      print('⚠️ Error inicializando notificaciones: $e');
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> _obtenerDatosUsuario() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        print('⚠️ No hay usuario autenticado');
         return;
       }
 
       setState(() {
         _uidUsuario = uid;
       });
-
-      print('👤 Usuario salon: $_uidUsuario');
-    } catch (e) {
-      print('❌ Error: $e');
-    }
+    } catch (e) {}
   }
 
   // 🔹 Aquí es donde ahora tomamos foto_url desde USERS y no desde comercios
@@ -156,9 +138,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
       // 1) Obtener todos los comercios para saber cuál es el del usuario
       final url = Uri.parse('$apiBaseUrl/comercios');
-
-      print('🏢 Buscando comercios del salón: $_uidUsuario');
-
       final response = await http.get(
         url,
         headers: {
@@ -166,8 +145,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 6));
-
-      print('📥 Status (comercios): ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final List<dynamic> comercios = json.decode(response.body);
@@ -182,8 +159,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
         try {
           final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/$_uidUsuario');
-          print('🔍 Cargando datos de usuario salón: $userUrl');
-
           final userResponse = await http.get(
             userUrl,
             headers: {
@@ -191,8 +166,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
               'Authorization': 'Bearer $idToken',
             },
           ).timeout(const Duration(seconds: 6));
-
-          print('📥 Status (usuario salón): ${userResponse.statusCode}');
 
           if (userResponse.statusCode == 200) {
             final userData =
@@ -202,9 +175,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
               fotoSalon = fotoUrl;
             }
           }
-        } catch (e) {
-          print('⚠️ Error cargando foto desde users: $e');
-        }
+        } catch (e) {}
 
         if (miComercio != null) {
           setState(() {
@@ -213,10 +184,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             // foto principal del salón: primero la de users, si no, la de FirebaseAuth
             _logoSalon = fotoSalon ?? user.photoURL;
           });
-          print(
-              '✅ Datos del salón cargados: nombre=$_nombreSalon, id=$_comercioId, logo=$_logoSalon');
         } else {
-          print('⚠️ No se encontró comercio para este usuario');
           setState(() {
             _nombreSalon = 'Mi Salón';
             _logoSalon = fotoSalon ?? user.photoURL;
@@ -224,7 +192,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
         }
       }
     } catch (e) {
-      print('❌ Error cargando datos del salón: $e');
       setState(() {
         _nombreSalon = 'Mi Salón';
       });
@@ -244,8 +211,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       final finDia = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
       final url = Uri.parse('$apiBaseUrl/citas?comercio_id=$_comercioId');
-      print('🔍 Cargando citas del día para comercio $_comercioId');
-
       final response = await http.get(
         url,
         headers: {
@@ -282,13 +247,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           _citasDelDia = citasHoy.cast<Map<String, dynamic>>();
           _citasPorConfirmar = porConfirmar;
         });
-
-        print(
-            '✅ Citas del día cargadas: ${_citasDelDia.length}, por confirmar: $_citasPorConfirmar');
       }
-    } catch (e) {
-      print('❌ Error cargando citas del día: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _cargarPromociones() async {
@@ -301,8 +261,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       final idToken = await user.getIdToken();
       final url =
           Uri.parse('$apiBaseUrl/api/promociones/comercio/$_comercioId');
-      print('🔍 Cargando promociones para comercio $_comercioId');
-
       final response = await http.get(
         url,
         headers: {
@@ -336,7 +294,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
             }
             return fechaFin.isAfter(now);
           } catch (e) {
-            print('⚠️ Error parsing fecha_fin: $e');
             return false;
           }
         }).toList();
@@ -346,12 +303,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
         setState(() {
           _promociones = activas.cast<Map<String, dynamic>>();
         });
-
-        print('✅ Promociones activas cargadas: ${_promociones.length}');
       }
-    } catch (e) {
-      print('❌ Error cargando promociones: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _cargarResenas() async {
@@ -363,8 +316,6 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
-      print('🔍 Cargando reseñas para comercio $_comercioId');
-
       final response = await http.get(
         url,
         headers: {
@@ -393,12 +344,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
         setState(() {
           _resenas = recientes.cast<Map<String, dynamic>>();
         });
-
-        print('✅ Reseñas recientes cargadas: ${_resenas.length}');
       }
-    } catch (e) {
-      print('❌ Error cargando reseñas: $e');
-    }
+    } catch (e) {}
   }
 
   String _obtenerSaludo() {
@@ -1187,10 +1134,12 @@ class _ResenaCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF0D2538),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(20),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: List.generate(
@@ -1198,16 +1147,21 @@ class _ResenaCard extends StatelessWidget {
               (index) => Icon(
                 index < calificacion ? Icons.star : Icons.star_border,
                 size: 16,
-                color: Colors.orangeAccent,
+                color: const Color(0xFFEA963A),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            texto,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
+          const SizedBox(height: 10),
+          Flexible(
+            child: Text(
+              texto,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                height: 1.4,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(height: 12),
@@ -1215,15 +1169,17 @@ class _ResenaCard extends StatelessWidget {
             cliente,
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(
             fecha,
             style: const TextStyle(
-              color: Colors.white54,
+              color: Color(0xFF9CA3AF),
               fontSize: 11,
             ),
           ),

@@ -7,6 +7,9 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import {setGlobalOptions} from "firebase-functions";
 import {onRequest} from "firebase-functions/https";
 process.env.FIREBASE_DEBUG = "true";
@@ -61,10 +64,10 @@ app.use('/api/galeria-fotos', galeriaFotoRoutes);
 app.use('/api/ubicaciones', ubicacionRoutes);
 app.use('/api/suscripciones', suscripcionRoutes);
 app.use('/api/reportes', reporteRoutes);
-app.use('/soporte', soporteRoutes);
+app.use('/api/soporte', soporteRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 
-console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /soporte, /api/chatbot');
+console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /api/soporte, /api/chatbot');
 
 export const api = onRequest(
   { region: "us-central1" },

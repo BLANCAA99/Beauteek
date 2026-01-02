@@ -63,7 +63,6 @@ class ProfileInfoPage extends StatelessWidget {
         }
       }
     } catch (e) {
-      print("🔥 Error API: $e");
     }
 
     // 2. Fallback Firestore

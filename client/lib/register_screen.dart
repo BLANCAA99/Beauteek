@@ -108,7 +108,6 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   // --- Método principal de registro (LÓGICA SIN CAMBIOS) ---
   Future<void> register() async {
-    print('[register] Inicio de registro...');
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
@@ -118,21 +117,18 @@ class _RegisterScreenState extends State<RegisterScreen>
       setState(() {
         errorMsg = 'Todos los campos son requeridos';
       });
-      print('[register] Campos vacíos detectados');
       return;
     }
     if (passwordController.text.length < 6) {
       setState(() {
         errorMsg = 'La contraseña debe tener al menos 6 caracteres';
       });
-      print('Contraseña demasiado corta');
       return;
     }
     if (passwordController.text != confirmController.text) {
       setState(() {
         errorMsg = 'Las contraseñas no coinciden';
       });
-      print('[register] Contraseñas no coinciden');
       return;
     }
 
@@ -142,7 +138,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     });
 
     try {
-      print('[register] Creando usuario en Firebase Auth...');
       final credential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
@@ -152,15 +147,9 @@ class _RegisterScreenState extends State<RegisterScreen>
       final user = credential.user;
       if (user == null) {
         setState(() => errorMsg = 'No se pudo obtener el usuario.');
-        print('[register] FirebaseAuth devolvió usuario nulo');
         return;
       }
-
-      print('[register] Usuario creado en Auth: ${user.uid}, ${user.email}');
-
       final url = Uri.parse('$apiBaseUrl/api/users');
-
-      print('[register] Enviando POST al backend: $url');
       final body = {
         'uid': user.uid,
         'nombre_completo': nameController.text.trim(),
@@ -170,13 +159,8 @@ class _RegisterScreenState extends State<RegisterScreen>
         'telefono': 'pendiente',
         'rol': 'cliente',
         'foto_url': 'https://example.com/no_aplica.jpg',
-        'direccion': 'pendiente',
-        'geo_lat': 0.0,
-        'geo_lng': 0.0,
-        'estado': 'pendiente',
+        'estado': 'activo',
       };
-      print('📦 [register] Body enviado al backend: $body');
-
       final response = await http
           .post(
             url,
@@ -184,11 +168,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 10));
-
-      print('📨 [register] Respuesta del backend: ${response.statusCode}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('[register] Usuario guardado correctamente');
         if (!mounted) return;
         setState(() {
           errorMsg = '';
@@ -203,7 +183,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
       } else {
-        print('[register] Error al guardar usuario');
         if (!mounted) return;
         setState(() {
           errorMsg = 'Error al guardar usuario en la base de datos.';
@@ -211,14 +190,12 @@ class _RegisterScreenState extends State<RegisterScreen>
         });
       }
     } on FirebaseAuthException catch (e) {
-      print('[register] FirebaseAuthException: ${e.code}');
       if (!mounted) return;
       setState(() {
         errorMsg = e.message ?? 'No se pudo registrar. Verifica tus datos.';
         _isLoading = false;
       });
     } catch (e) {
-      print('[register] Excepción: $e');
       if (!mounted) return;
       setState(() {
         errorMsg = 'Error inesperado. Intenta de nuevo.';
