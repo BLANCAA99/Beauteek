@@ -11,3 +11,7 @@ node_modules/
 
 # Environment variables
 .env
+
+# Firebase service account credentials (SENSITIVE - DO NOT COMMIT)
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
