@@ -332,7 +332,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 20)); // Aumentado a 20 segundos
+      ).timeout(const Duration(seconds: 2)); // Aumentado a 2 segundos
 
       
 

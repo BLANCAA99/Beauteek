@@ -39,7 +39,7 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
     if (_selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Selecciona tu ubicación para continuar'),
+          content: Text('Selecciona tu ubicación para continuar'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -129,7 +129,7 @@ class _SetupLocationPageState extends State<SetupLocationPage> {
       onWillPop: () async {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚠️ Debes configurar tu ubicación para continuar'),
+            content: Text('Debes configurar tu ubicación para continuar'),
             backgroundColor: Colors.orange,
           ),
         );

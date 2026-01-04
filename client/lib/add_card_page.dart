@@ -14,7 +14,7 @@ class AddCardPage extends StatefulWidget {
 }
 
 class _AddCardPageState extends State<AddCardPage> {
-  // 🎨 Tema Beauteek
+  // Tema Beauteek
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _cardColor = Color(0xFF24170F);
   static const Color _fieldColor = Color(0xFF2D2117);
@@ -100,7 +100,7 @@ class _AddCardPageState extends State<AddCardPage> {
       if (response.statusCode == 201) {
         if (!mounted) return;
 
-        // 🔔 Modal personalizado al estilo "restablecer contraseña"
+        // Modal personalizado al estilo "restablecer contraseña"
         await showDialog(
           context: context,
           barrierDismissible: false,

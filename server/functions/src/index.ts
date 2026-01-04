@@ -35,6 +35,8 @@ import suscripcionRoutes from './routes/suscripcion.routes';
 import reporteRoutes from './routes/reporte.routes';
 import soporteRoutes from './routes/soporte.routes';
 import chatbotRoutes from './routes/chatbot.routes';
+import metodoPagoSalonRoutes from './routes/metodo_pago_salon.routes';
+import configuracionSalonRoutes from './routes/configuracion_salon.routes';
 
 const app = express();
 
@@ -43,9 +45,9 @@ app.use(express.json());
 
 // Agregar logs para debug
 app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path}`);
-  console.log(`📨 URL completa: ${req.originalUrl}`);
-  console.log(`📨 Base URL: ${req.baseUrl}`);
+  console.log(`${req.method} ${req.path}`);
+  console.log(`URL completa: ${req.originalUrl}`);
+  console.log(`Base URL: ${req.baseUrl}`);
   next();
 });
 
@@ -66,8 +68,10 @@ app.use('/api/suscripciones', suscripcionRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/api/soporte', soporteRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/metodos-pago-salon', metodoPagoSalonRoutes);
+app.use('/api/configuracion-salon', configuracionSalonRoutes);
 
-console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /api/soporte, /api/chatbot');
+console.log('Rutas registradas: /api/users, /comercios, /categorias_servicio, /api/ubicaciones, /api/suscripciones, /citas, /reportes, /api/soporte, /api/chatbot, /api/metodos-pago-salon, /api/configuracion-salon');
 
 export const api = onRequest(
   { region: "us-central1" },

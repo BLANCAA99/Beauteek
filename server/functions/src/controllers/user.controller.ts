@@ -3,6 +3,7 @@ import { db, admin } from "../config/firebase";
 import { FieldValue } from "firebase-admin/firestore";
 import { Usuario } from "../modelos/usuario.model";
 import { z } from "zod";
+import * as nodemailer from "nodemailer";
 
 /* =========================
    Esquemas Zod
@@ -330,7 +331,7 @@ export const registerSalonComplete = async (req: Request, res: Response): Promis
   });
 };
 
-// 🔔 Actualizar FCM token del usuario
+// Actualizar FCM token del usuario
 export const updateFCMToken = async (req: Request, res: Response): Promise<void> => {
   try {
     // req.user viene del middleware de autenticación
@@ -354,7 +355,7 @@ export const updateFCMToken = async (req: Request, res: Response): Promise<void>
       fcm_token_updated_at: FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ [updateFCMToken] Token FCM actualizado para usuario ${uid}`);
+    console.log(`[updateFCMToken] Token FCM actualizado para usuario ${uid}`);
     res.status(200).json({ message: "Token FCM actualizado" });
   } catch (error: any) {
     console.error("[updateFCMToken] Error:", error);
@@ -362,7 +363,7 @@ export const updateFCMToken = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// 🔔 Eliminar FCM token del usuario (logout)
+// Eliminar FCM token del usuario (logout)
 export const deleteFCMToken = async (req: Request, res: Response): Promise<void> => {
   try {
     const uid = (req as any).user?.uid;
@@ -378,10 +379,109 @@ export const deleteFCMToken = async (req: Request, res: Response): Promise<void>
       fcm_token_updated_at: FieldValue.delete(),
     });
 
-    console.log(`✅ [deleteFCMToken] Token FCM eliminado para usuario ${uid}`);
+    console.log(`[deleteFCMToken] Token FCM eliminado para usuario ${uid}`);
     res.status(200).json({ message: "Token FCM eliminado" });
   } catch (error: any) {
     console.error("[deleteFCMToken] Error:", error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Configurar transporter de email
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
+// Almacenamiento temporal de códigos de verificación
+const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
+
+// Generar código de 6 dígitos
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Enviar código de verificación al email
+export const sendVerificationCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !z.string().email().safeParse(email).success) {
+      res.status(400).json({ error: "Email inválido" });
+      return;
+    }
+
+    const code = generateVerificationCode();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutos
+
+    verificationCodes.set(email, { code, expiresAt });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Código de verificación - Beauteek',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #EA963A;">Verifica tu correo electrónico</h2>
+          <p>Tu código de verificación para Beauteek es:</p>
+          <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #EA963A; letter-spacing: 8px; margin: 0;">${code}</h1>
+          </div>
+          <p>Este código expirará en 10 minutos.</p>
+          <p>Si no solicitaste este código, puedes ignorar este correo.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #888; font-size: 12px;">Beauteek - Beauty Salon Booking App</p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    
+    console.log(`[sendVerificationCode] Código enviado a ${email}`);
+    res.status(200).json({ message: "Código de verificación enviado" });
+  } catch (error: any) {
+    console.error("[sendVerificationCode] Error:", error);
+    res.status(500).json({ error: "Error al enviar código de verificación" });
+  }
+};
+
+// Verificar código ingresado por el usuario
+export const verifyCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      res.status(400).json({ error: "Email y código son requeridos" });
+      return;
+    }
+
+    const storedData = verificationCodes.get(email);
+
+    if (!storedData) {
+      res.status(400).json({ error: "Código no encontrado o expirado" });
+      return;
+    }
+
+    if (Date.now() > storedData.expiresAt) {
+      verificationCodes.delete(email);
+      res.status(400).json({ error: "El código ha expirado" });
+      return;
+    }
+
+    if (storedData.code !== code) {
+      res.status(400).json({ error: "Código incorrecto" });
+      return;
+    }
+
+    verificationCodes.delete(email);
+    
+    console.log(`[verifyCode] Código verificado correctamente para ${email}`);
+    res.status(200).json({ message: "Código verificado correctamente", verified: true });
+  } catch (error: any) {
+    console.error("[verifyCode] Error:", error);
+    res.status(500).json({ error: "Error al verificar código" });
   }
 };

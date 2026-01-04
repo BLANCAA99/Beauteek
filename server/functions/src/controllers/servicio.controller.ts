@@ -45,10 +45,10 @@ export const getServicios = async (req: Request, res: Response): Promise<void> =
 
     let query = db.collection("servicios");
 
-    // ✅ Filtrar por comercio_id si viene en query params
+    // Filtrar por comercio_id si viene en query params
     if (comercio_id) {
       query = query.where("comercio_id", "==", comercio_id) as any;
-      console.log(`🔍 Filtrando servicios por comercio_id: ${comercio_id}`);
+      console.log(`Filtrando servicios por comercio_id: ${comercio_id}`);
     }
 
     const snapshot = await query.get();
@@ -57,13 +57,13 @@ export const getServicios = async (req: Request, res: Response): Promise<void> =
     );
 
     console.log(
-      `📊 Servicios encontrados: ${servicios.length}${comercio_id ? ` para comercio ${comercio_id}` : ""}`
+      `Servicios encontrados: ${servicios.length}${comercio_id ? ` para comercio ${comercio_id}` : ""}`
     );
 
     res.json(servicios);
     return;
   } catch (error: any) {
-    console.error("❌ Error obteniendo servicios:", error);
+    console.error("Error obteniendo servicios:", error);
     res.status(500).json({ error: error.message });
     return;
   }

@@ -86,7 +86,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           } catch (e) {}
         }
 
-        // 🔔 Configurar listeners de notificaciones para el salón
+        // Configurar listeners de notificaciones para el salón
         // Cuando la app está en primer plano
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           if (message.notification != null && mounted) {
@@ -716,7 +716,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      const CalendarPage(mode: 'view'),
+                                      const CalendarPage(mode: 'view', showPendingOnly: true),
                                 ),
                               );
                             },

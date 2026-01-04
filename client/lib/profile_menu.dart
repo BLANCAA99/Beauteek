@@ -46,7 +46,7 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
     _loadUserData();
   }
 
-  // ✅ Cargar datos del usuario UNA SOLA VEZ al inicio
+  // Cargar datos del usuario UNA SOLA VEZ al inicio
   Future<void> _loadUserData() async {
     if (_resolvedUid == null) {
       setState(() => _isLoading = false);
@@ -251,7 +251,7 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
     );
   }
 
-  // ✅ Construir opciones de menú basado en rol (ya cargado)
+  // Construir opciones de menú basado en rol (ya cargado)
   List<Widget> _buildMenuOptions(BuildContext context) {
     final List<Widget> opciones = [];
 
@@ -587,7 +587,7 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
     return opciones;
   }
 
-  // ✅ Construir BottomNavigationBar basado en rol (ya cargado)
+  // Construir BottomNavigationBar basado en rol (ya cargado)
   Widget _buildBottomNavBar(BuildContext context) {
     final items = <BottomNavigationBarItem>[
       const BottomNavigationBarItem(

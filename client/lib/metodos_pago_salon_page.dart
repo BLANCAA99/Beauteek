@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'theme/app_theme.dart';
@@ -59,13 +58,17 @@ class _MetodosPagoSalonPageState extends State<MetodosPagoSalonPage> {
         if (miComercio != null) {
           _comercioId = miComercio['id'];
 
-          final metodosDoc = await FirebaseFirestore.instance
-              .collection('metodos_pago_salon')
-              .doc(_comercioId)
-              .get();
+          final token = await user.getIdToken();
+          final metodosResponse = await http.get(
+            Uri.parse('$apiBaseUrl/api/metodos-pago-salon/$_comercioId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          );
 
-          if (metodosDoc.exists) {
-            final data = metodosDoc.data()!;
+          if (metodosResponse.statusCode == 200) {
+            final data = json.decode(metodosResponse.body);
             setState(() {
               _aceptaTarjeta = data['acepta_tarjeta'] ?? true;
               _aceptaTransferencia = data['acepta_transferencia'] ?? false;
@@ -102,17 +105,28 @@ class _MetodosPagoSalonPageState extends State<MetodosPagoSalonPage> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('metodos_pago_salon')
-          .doc(_comercioId)
-          .set({
-        'acepta_tarjeta': _aceptaTarjeta,
-        'acepta_transferencia': _aceptaTransferencia,
-        'acepta_pago_local': _aceptaPagoLocal,
-        'fecha_actualizacion': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final token = await user.getIdToken();
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/api/metodos-pago-salon/$_comercioId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'acepta_tarjeta': _aceptaTarjeta,
+          'acepta_transferencia': _aceptaTransferencia,
+          'acepta_pago_local': _aceptaPagoLocal,
+        }),
+      );
 
       setState(() => _isSaving = false);
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al actualizar métodos de pago');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

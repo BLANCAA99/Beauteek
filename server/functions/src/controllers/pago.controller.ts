@@ -13,7 +13,7 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    console.log(`💳 Procesando pago para cita: ${citaId}`);
+    console.log(`Procesando pago para cita: ${citaId}`);
 
     // Obtener la cita
     const citaDoc = await db.collection('citas').doc(citaId).get();
@@ -25,9 +25,9 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
 
     const citaData = citaDoc.data();
     
-    console.log('📄 Datos de la cita:', citaData);
+    console.log('Datos de la cita:', citaData);
 
-    // ✅ El cliente paga el monto completo del servicio
+    // El cliente paga el monto completo del servicio
     const montoServicio = monto || citaData?.precio || 0;
 
     // 💰 Cálculo de comisión (5% para Beauteek)
@@ -35,9 +35,9 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
     const montoComision = parseFloat((montoServicio * (porcentajeComision / 100)).toFixed(2));
     const montoSalon = parseFloat((montoServicio - montoComision).toFixed(2));
 
-    console.log(`💵 Monto total: ${montoServicio}, Comisión (5%): ${montoComision}, Monto para salón: ${montoSalon}`);
+    console.log(`Monto total: ${montoServicio}, Comisión (5%): ${montoComision}, Monto para salón: ${montoSalon}`);
 
-    // ✅ Solo incluir campos que NO sean undefined
+    // Solo incluir campos que NO sean undefined
     const pagoData: any = {
       cita_id: citaId,
       usuario_cliente_id: clienteId,
@@ -50,7 +50,7 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
       fecha_pago: FieldValue.serverTimestamp(),
     };
 
-    // ✅ Solo agregar campos opcionales si existen
+    // Solo agregar campos opcionales si existen
     if (citaData?.comercio_id) {
       pagoData.comercio_id = citaData.comercio_id;
     }
@@ -74,15 +74,15 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
       fecha_pago: FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Pago procesado exitosamente: ${pagoRef.id}`);
+    console.log(`Pago procesado exitosamente: ${pagoRef.id}`);
 
-    // 🔔 Enviar notificaciones de pago
+    // Enviar notificaciones de pago
     try {
       // Notificar al cliente
       await sendPushNotificationToUser(
         clienteId,
         {
-          title: '✅ Pago Confirmado',
+          title: 'Pago Confirmado',
           body: `Tu pago de $${montoServicio} ha sido procesado exitosamente`,
         },
         {
@@ -90,7 +90,7 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
           entityId: pagoRef.id,
         }
       );
-      console.log(`✅ Notificación de pago enviada al cliente ${clienteId}`);
+      console.log(`Notificación de pago enviada al cliente ${clienteId}`);
 
       // Notificar al salón
       if (citaData?.comercio_id) {
@@ -104,7 +104,7 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
           await sendPushNotificationToUser(
             uidSalon,
             {
-              title: '💰 Pago Recibido',
+              title: 'Pago Recibido',
               body: `Has recibido un pago. Monto a transferir: $${montoSalonParaNotif} (después de comisión 5%)`,
             },
             {
@@ -112,11 +112,11 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
               entityId: pagoRef.id,
             }
           );
-          console.log(`✅ Notificación de pago enviada al salón ${uidSalon}`);
+          console.log(`Notificación de pago enviada al salón ${uidSalon}`);
         }
       }
     } catch (notifError) {
-      console.error('⚠️ Error enviando notificaciones de pago:', notifError);
+      console.error('Error enviando notificaciones de pago:', notifError);
     }
 
     res.status(201).json({
@@ -128,7 +128,7 @@ export const createPago = async (req: Request, res: Response): Promise<void> => 
       porcentaje_comision: porcentajeComision,
     });
   } catch (error: any) {
-    console.error('❌ Error procesando pago:', error);
+    console.error('Error procesando pago:', error);
     res.status(500).json({ error: error.message });
   }
 };

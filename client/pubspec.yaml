@@ -55,6 +55,7 @@ flutter:
   uses-material-design: true
   
   assets:
+    - .env
     - assets/images/
     - assets/images/Beauteeklogin.png
     - assets/dialogflow/credentials.json

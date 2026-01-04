@@ -4,7 +4,7 @@ import 'salon_registration_form_page.dart';
 class SalonRegistrationStepsPage extends StatelessWidget {
   const SalonRegistrationStepsPage({Key? key}) : super(key: key);
 
-  // 🎨 Colores de tema Beauteek
+  // Colores de tema Beauteek
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _cardColor = Color(0xFF24170F);
   static const Color _primaryOrange = Color(0xFFEA963A);
@@ -279,7 +279,7 @@ class SalonRegistrationStepsPage extends StatelessWidget {
     );
   }
 
-  // 🎨 Colores para cada paso (ligeramente distintos)
+  // Colores para cada paso (ligeramente distintos)
   Color _getStepColor(String number) {
     switch (number) {
       case '1':

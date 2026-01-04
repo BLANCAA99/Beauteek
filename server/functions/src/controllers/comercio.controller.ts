@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 import { GeoPoint } from "firebase-admin/firestore";
 import { z } from "zod";
 
-// ✅ Tipos actualizados
+// Tipos actualizados
 interface Comercio {
   id?: string;
   uid_cliente_propietario: string;
@@ -142,18 +142,18 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    console.log('📍 Guardando ubicación:', ubicacion);
+    console.log('Guardando ubicación:', ubicacion);
     
-    // ✅ CAMBIO: Crear GeoPoint con el import correcto
+    // CAMBIO: Crear GeoPoint con el import correcto
     const geoPoint = new GeoPoint(ubicacion.latitude, ubicacion.longitude);
-    console.log('📍 GeoPoint creado:', geoPoint);
+    console.log('GeoPoint creado:', geoPoint);
 
     await db.collection("comercios").doc(comercioId).update({
       estado: "paso2_completado",
       fecha_actualizacion: new Date(),
     });
 
-    console.log('✅ Ubicación guardada correctamente');
+    console.log('Ubicación guardada correctamente');
 
     res.status(200).json({
       message: "Paso 2 completado: Ubicación agregada al comercio",
@@ -418,14 +418,14 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
     const userLng = parseFloat(lng as string);
     const radioKm = parseFloat(radio as string) || 50;
     
-    console.log(`🔍 Buscando comercios cerca de (${userLat}, ${userLng}) - Radio: ${radioKm}km`);
+    console.log(`Buscando comercios cerca de (${userLat}, ${userLng}) - Radio: ${radioKm}km`);
 
-    // 🔧 Buscar comercios activos Y en proceso de registro (paso3_completado)
+    // Buscar comercios activos Y en proceso de registro (paso3_completado)
     const comerciosSnapshot = await db
       .collection('comercios')
       .get(); // Obtener TODOS para debugging
     
-    console.log(`📊 Total de comercios en BD: ${comerciosSnapshot.size}`);
+    console.log(`Total de comercios en BD: ${comerciosSnapshot.size}`);
 
     const comerciosCercanos: any[] = [];
 
@@ -433,16 +433,16 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
       const comercio = comercioDoc.data() as Comercio;
       const comercioId = comercioDoc.id;
 
-      console.log(`🔍 Procesando comercio: ${comercio.nombre} (${comercioId}) - Estado: ${comercio.estado}`);
+      console.log(`Procesando comercio: ${comercio.nombre} (${comercioId}) - Estado: ${comercio.estado}`);
 
-      // 🔧 Permitir comercios activos Y paso3_completado (en proceso)
+      // Permitir comercios activos Y paso3_completado (en proceso)
       const estadosPermitidos = ['activo', 'paso3_completado'];
       if (!estadosPermitidos.includes(comercio.estado)) {
-        console.log(`⏭️ Comercio ${comercioId} saltado - estado: ${comercio.estado}`);
+        console.log(`Comercio ${comercioId} saltado - estado: ${comercio.estado}`);
         continue;
       }
 
-      // 🔧 CAMBIO: Buscar ubicación en la colección 'ubicaciones' en lugar del campo del comercio
+      // Buscar ubicación en la colección 'ubicaciones' en lugar del campo del comercio
       let comercioLat: number | undefined;
       let comercioLng: number | undefined;
 
@@ -459,7 +459,7 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
 
       // Si no tiene ubicación en el campo, buscar en la colección ubicaciones
       if (comercioLat === undefined || comercioLng === undefined) {
-        console.log(`📍 Buscando ubicación en colección 'ubicaciones' para ${comercioId}`);
+        console.log(`Buscando ubicación en colección 'ubicaciones' para ${comercioId}`);
         try {
           // Intentar primero con entidad_id y tipo_entidad='comercio'
           let ubicacionSnapshot = await db
@@ -472,7 +472,7 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
 
           // Si no encuentra, buscar por uid_usuario (para salones legacy)
           if (ubicacionSnapshot.empty && comercio.uid_negocio) {
-            console.log(`📍 Buscando por uid_usuario: ${comercio.uid_negocio}`);
+            console.log(`Buscando por uid_usuario: ${comercio.uid_negocio}`);
             ubicacionSnapshot = await db
               .collection('ubicaciones')
               .where('uid_usuario', '==', comercio.uid_negocio)
@@ -484,33 +484,33 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
 
           if (!ubicacionSnapshot.empty) {
             const ubicacionData = ubicacionSnapshot.docs[0].data();
-            console.log(`✅ Ubicación encontrada en colección: ${JSON.stringify(ubicacionData)}`);
+            console.log(`Ubicación encontrada en colección: ${JSON.stringify(ubicacionData)}`);
             
             if (ubicacionData.geo && ubicacionData.geo._latitude !== undefined && ubicacionData.geo._longitude !== undefined) {
               comercioLat = ubicacionData.geo._latitude;
               comercioLng = ubicacionData.geo._longitude;
-              console.log(`✅ Coordenadas extraídas: (${comercioLat}, ${comercioLng})`);
+              console.log(`Coordenadas extraídas: (${comercioLat}, ${comercioLng})`);
             } else if (ubicacionData.lat !== undefined && ubicacionData.lng !== undefined) {
               comercioLat = ubicacionData.lat;
               comercioLng = ubicacionData.lng;
-              console.log(`✅ Coordenadas extraídas (lat/lng): (${comercioLat}, ${comercioLng})`);
+              console.log(`Coordenadas extraídas (lat/lng): (${comercioLat}, ${comercioLng})`);
             }
           } else {
-            console.log(`⚠️ No se encontró ubicación en colección para comercio ${comercioId}`);
+            console.log(`No se encontró ubicación en colección para comercio ${comercioId}`);
           }
         } catch (ubicError) {
-          console.error(`❌ Error buscando ubicación para ${comercioId}:`, ubicError);
+          console.error(`Error buscando ubicación para ${comercioId}:`, ubicError);
         }
       }
 
       if (comercioLat === undefined || comercioLng === undefined) {
-        console.log(`⚠️ Comercio ${comercioId} sin coordenadas válidas - SALTANDO`);
+        console.log(`Comercio ${comercioId} sin coordenadas válidas - SALTANDO`);
         continue;
       }
 
       const distancia = calcularDistancia(userLat, userLng, comercioLat, comercioLng);
 
-      console.log(`📏 Distancia de ${comercio.nombre}: ${distancia.toFixed(2)} km`);
+      console.log(`Distancia de ${comercio.nombre}: ${distancia.toFixed(2)} km`);
 
       if (distancia <= radioKm) {
         const serviciosSnapshot = await db
@@ -544,11 +544,11 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
     }
 
     comerciosCercanos.sort((a, b) => a.distancia - b.distancia);
-    console.log(`✅ ${comerciosCercanos.length} comercios encontrados`);
+    console.log(`${comerciosCercanos.length} comercios encontrados`);
 
     res.json(comerciosCercanos);
   } catch (error: any) {
-    console.error('❌ Error en getComercioscerca:', error);
+    console.error('Error en getComercioscerca:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -566,7 +566,7 @@ export const getComerciosPorPais = async (req: Request, res: Response): Promise<
       return;
     }
     
-    console.log(`🌍 Buscando comercios en: ${pais}`);
+    console.log(`Buscando comercios en: ${pais}`);
 
     // Obtener todos los comercios activos
     const comerciosSnapshot = await db
@@ -631,10 +631,10 @@ export const getComerciosPorPais = async (req: Request, res: Response): Promise<
       }
     }
 
-    console.log(`✅ ${comerciosPorPais.length} comercios encontrados en ${pais}`);
+    console.log(`${comerciosPorPais.length} comercios encontrados en ${pais}`);
     res.json(comerciosPorPais);
   } catch (error: any) {
-    console.error('❌ Error en getComerciosPorPais:', error);
+    console.error('Error en getComerciosPorPais:', error);
     res.status(500).json({ error: error.message });
   }
 };

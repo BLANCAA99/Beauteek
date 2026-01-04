@@ -67,7 +67,7 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
-  // ✅ NUEVO: Cargar salones usando la colección ubicaciones
+  // NUEVO: Cargar salones usando la colección ubicaciones
   Future<void> _cargarSalonesPorPais() async {
     try {
       if (widget.userId == null) {
@@ -96,7 +96,7 @@ class _SearchPageState extends State<SearchPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('⚠️ Configura tu ubicación primero'),
+              content: Text('Configura tu ubicación primero'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -676,14 +676,25 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _placeholderImagen() {
-    return Container(
-      width: 110,
-      height: 110,
-      color: AppTheme.primaryOrange.withOpacity(0.2),
-      child: const Icon(
-        Icons.store,
-        color: AppTheme.primaryOrange,
-        size: 36,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Image.network(
+        'https://res.cloudinary.com/dbvwzxjyr/image/upload/v1734582858/no_image_salon_default.jpg',
+        width: 110,
+        height: 110,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 110,
+            height: 110,
+            color: AppTheme.primaryOrange.withOpacity(0.2),
+            child: const Icon(
+              Icons.store,
+              color: AppTheme.primaryOrange,
+              size: 36,
+            ),
+          );
+        },
       ),
     );
   }
@@ -737,7 +748,7 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Modo selector de ubicación
+    // Modo selector de ubicación
     if (widget.mode == 'select') {
       return _MapLocationSelector(
         onLocationSelected: widget.onLocationSelected,

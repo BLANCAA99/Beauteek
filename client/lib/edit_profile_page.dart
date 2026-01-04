@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'api_constants.dart';
@@ -39,7 +40,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _isLoading = false; // Guardar
   bool _isFetching = false; // Carga inicial
 
-  // 🎨 Colores de la pantalla tipo Beauteek
+  // Colores de la pantalla tipo Beauteek
   static const Color _backgroundColor = Color(0xFF120D07);
   static const Color _fieldColor = Color(0xFF25201A);
   static const Color _primaryOrange = Color(0xFFEA963A);
@@ -170,8 +171,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     setState(() => _isUploading = true);
 
-    final cloudinary = CloudinaryPublic('dskg1hw9n', 'Imagenes_Beauteek',
-        cache: false);
+    final cloudinary = CloudinaryPublic(
+      dotenv.env['CLOUDINARY_CLOUD_NAME']!,
+      dotenv.env['CLOUDINARY_UPLOAD_PRESET']!,
+      cache: false,
+    );
     try {
       final response = await cloudinary.uploadFile(
         CloudinaryFile.fromFile(selectedImage.path,
@@ -362,7 +366,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Ubicación actualizada a $_ciudad, $_pais. Guarda los cambios para confirmar.'),
+            content: Text('Ubicación actualizada a $_ciudad, $_pais. Guarda los cambios para confirmar.'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),

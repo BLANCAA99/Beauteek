@@ -73,10 +73,10 @@ export const crearUbicacion = async (req: Request, res: Response): Promise<void>
 
     const docRef = await db.collection('ubicaciones').add(nuevaUbicacion);
 
-    console.log(`✅ Ubicación creada: ${docRef.id} para ${uid_usuario}`);
+    console.log(`Ubicación creada: ${docRef.id} para ${uid_usuario}`);
     res.status(201).json({ id: docRef.id, ...nuevaUbicacion });
   } catch (error: any) {
-    console.error('❌ Error creando ubicación:', error);
+    console.error('Error creando ubicación:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -108,7 +108,7 @@ export const obtenerUbicacionesUsuario = async (req: Request, res: Response): Pr
 
     res.json(ubicaciones);
   } catch (error: any) {
-    console.error('❌ Error obteniendo ubicaciones:', error);
+    console.error('Error obteniendo ubicaciones:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -149,7 +149,7 @@ export const obtenerUbicacionPrincipal = async (req: Request, res: Response): Pr
 
     res.json(ubicacion);
   } catch (error: any) {
-    console.error('❌ Error obteniendo ubicación principal:', error);
+    console.error('Error obteniendo ubicación principal:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -199,10 +199,10 @@ export const actualizarUbicacion = async (req: Request, res: Response): Promise<
 
     await docRef.update(updateData);
 
-    console.log(`✅ Ubicación actualizada: ${id}`);
+    console.log(`Ubicación actualizada: ${id}`);
     res.json({ id, ...updateData });
   } catch (error: any) {
-    console.error('❌ Error actualizando ubicación:', error);
+    console.error('Error actualizando ubicación:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -249,10 +249,10 @@ export const marcarComoPrincipal = async (req: Request, res: Response): Promise<
 
     await batch.commit();
 
-    console.log(`✅ Ubicación ${id} marcada como principal`);
+    console.log(`Ubicación ${id} marcada como principal`);
     res.json({ message: 'Ubicación marcada como principal', id });
   } catch (error: any) {
-    console.error('❌ Error marcando como principal:', error);
+    console.error('Error marcando como principal:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -312,10 +312,10 @@ export const eliminarUbicacion = async (req: Request, res: Response): Promise<vo
       }
     }
 
-    console.log(`✅ Ubicación eliminada (soft): ${id}`);
+    console.log(`Ubicación eliminada (soft): ${id}`);
     res.json({ message: 'Ubicación eliminada', id });
   } catch (error: any) {
-    console.error('❌ Error eliminando ubicación:', error);
+    console.error('Error eliminando ubicación:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -333,7 +333,7 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
       return;
     }
 
-    console.log(`🌍 Buscando salones en país: ${pais}`);
+    console.log(`Buscando salones en país: ${pais}`);
 
     // Buscar ubicaciones de salones en ese país
     const ubicacionesSnapshot = await db
@@ -343,7 +343,7 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
       .where('activo', '==', true)
       .get();
 
-    console.log(`📍 Ubicaciones encontradas: ${ubicacionesSnapshot.size}`);
+    console.log(`Ubicaciones encontradas: ${ubicacionesSnapshot.size}`);
 
     // Obtener datos de comercios para cada ubicación
     const salonesPromises = ubicacionesSnapshot.docs.map(async (ubicacionDoc) => {
@@ -365,6 +365,25 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
       const comercioDoc = comerciosSnapshot.docs[0];
       const comercio = comercioDoc.data();
 
+      // Obtener foto del comercio o del propietario
+      let fotoUrl = comercio.foto_url || '';
+      if (!fotoUrl && comercio.uid_negocio) {
+        try {
+          const propietarioDoc = await db.collection('usuarios').doc(comercio.uid_negocio).get();
+          if (propietarioDoc.exists) {
+            const propietarioData = propietarioDoc.data();
+            fotoUrl = propietarioData?.foto_url || '';
+          }
+        } catch (e) {
+          console.error(`Error obteniendo foto para ${comercio.uid_negocio}:`, e);
+        }
+      }
+
+      // Si no tiene foto, usar imagen por defecto
+      if (!fotoUrl) {
+        fotoUrl = 'https://res.cloudinary.com/dbvwzxjyr/image/upload/v1734582858/no_image_salon_default.jpg';
+      }
+
       // Obtener servicios
       const serviciosSnapshot = await db
         .collection('servicios')
@@ -383,7 +402,7 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
         nombre: comercio.nombre || 'Sin nombre',
         telefono: comercio.telefono || '',
         email: comercio.email || '',
-        foto_url: comercio.foto_url || '',
+        foto_url: fotoUrl,
         descripcion: comercio.descripcion || '',
         calificacion: comercio.calificacion || 4.5,
         direccion: ubicacion.direccion_completa || comercio.direccion || '',
@@ -399,10 +418,10 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
 
     const salones = (await Promise.all(salonesPromises)).filter((s) => s !== null);
 
-    console.log(`✅ ${salones.length} salones encontrados en ${pais}`);
+    console.log(`${salones.length} salones encontrados en ${pais}`);
     res.json(salones);
   } catch (error: any) {
-    console.error('❌ Error obteniendo salones por país:', error);
+    console.error('Error obteniendo salones por país:', error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -16,6 +16,7 @@ class CalendarPage extends StatefulWidget {
   final List<Map<String, dynamic>>? servicios;
   final String? servicioId;
   final String? promocionId;
+  final bool showPendingOnly;
 
   const CalendarPage({
     Key? key,
@@ -25,6 +26,7 @@ class CalendarPage extends StatefulWidget {
     this.servicios,
     this.servicioId,
     this.promocionId,
+    this.showPendingOnly = false,
   }) : super(key: key);
 
   @override
@@ -37,6 +39,7 @@ class _CalendarPageState extends State<CalendarPage> {
   String? _userRole;
   String? _userId;
   bool _isLoading = true;
+  bool _filterPendingOnly = false;
 
   // Para modo booking
   String? _selectedServicioId;
@@ -49,6 +52,7 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
+    _filterPendingOnly = widget.showPendingOnly;
     _initializeLocale();
   }
 
@@ -67,7 +71,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
       _userId = user.uid;
 
-      // ✅ Obtener rol del usuario desde la API
+      // Obtener rol del usuario desde la API
       try {
         final idToken = await user.getIdToken();
         final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
@@ -271,7 +275,7 @@ class _CalendarPageState extends State<CalendarPage> {
             citaFecha.minute == fechaHoraCompleta.minute &&
             cita['servicio_id'] == servicioId &&
             cita['comercio_id'] ==
-                widget.comercioId; // ✅ Filtrar por salón específico
+                widget.comercioId; // Filtrar por salón específico
       });
 
       return !citaMismoServicio;
@@ -818,10 +822,16 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   List<Map<String, dynamic>> _getCitasDelDia() {
-    return _citas.where((cita) {
+    var citasDelDia = _citas.where((cita) {
       final fechaCita = cita['fecha_hora'] as DateTime;
       return _isSameDay(fechaCita, _selectedDate);
     }).toList();
+
+    if (_filterPendingOnly) {
+      citasDelDia = citasDelDia.where((cita) => cita['estado'] == 'pendiente').toList();
+    }
+
+    return citasDelDia;
   }
 
   int _getCitasCount(DateTime date) {
@@ -1245,126 +1255,198 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Widget _buildCitasList() {
     final citasDelDia = _getCitasDelDia();
+    final allPendingCitas = _filterPendingOnly
+        ? _citas.where((cita) => cita['estado'] == 'pendiente').toList()
+        : [];
 
-    if (citasDelDia.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_busy,
-              size: 64,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No hay citas para este día',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _formatDate(_selectedDate),
-              style: TextStyle(
-                color: Colors.grey.shade400,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      itemCount: citasDelDia.length,
-      itemBuilder: (context, index) {
-        final cita = citasDelDia[index];
-        final fechaHora = cita['fecha_hora'] as DateTime;
-        final hora = DateFormat('HH:mm').format(fechaHora);
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(8),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryOrange.withAlpha(26),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    hora.split(':')[0],
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryOrange,
+    return Column(
+      children: [
+        if (_userRole == 'salon')
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _filterPendingOnly
+                        ? 'Mostrando solo citas pendientes'
+                        : 'Mostrando todas las citas',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  Text(
-                    hora.split(':')[1],
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.primaryOrange,
+                ),
+                Switch(
+                  value: _filterPendingOnly,
+                  onChanged: (value) {
+                    setState(() {
+                      _filterPendingOnly = value;
+                    });
+                  },
+                  activeColor: AppTheme.primaryOrange,
+                ),
+              ],
+            ),
+          ),
+        if (_filterPendingOnly && allPendingCitas.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryOrange.withAlpha(26),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppTheme.primaryOrange,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '${allPendingCitas.length} cita${allPendingCitas.length != 1 ? "s" : ""} pendiente${allPendingCitas.length != 1 ? "s" : ""} por confirmar',
+                      style: const TextStyle(
+                        color: AppTheme.primaryOrange,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            title: Text(
-              cita['nombre_otra_persona'],
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.black87,
+          ),
+        if (citasDelDia.isEmpty)
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.event_busy,
+                    size: 64,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _filterPendingOnly
+                        ? 'No hay citas pendientes para este día'
+                        : 'No hay citas para este día',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatDate(_selectedDate),
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text(
-                  cita['servicio_nombre'] ?? 'Servicio',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 14,
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              itemCount: citasDelDia.length,
+              itemBuilder: (context, index) {
+                final cita = citasDelDia[index];
+                final fechaHora = cita['fecha_hora'] as DateTime;
+                final hora = DateFormat('HH:mm').format(fechaHora);
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(8),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'L${cita['precio']?.toStringAsFixed(2) ?? '0.00'}',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 14,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryOrange.withAlpha(26),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            hora.split(':')[0],
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryOrange,
+                            ),
+                          ),
+                          Text(
+                            hora.split(':')[1],
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.primaryOrange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    title: Text(
+                      cita['nombre_otra_persona'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text(
+                          cita['servicio_nombre'] ?? 'Servicio',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'L${cita['precio']?.toStringAsFixed(2) ?? '0.00'}',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                    ),
+                    onTap: () => _showCitaDetails(cita),
                   ),
-                ),
-              ],
+                );
+              },
             ),
-            trailing: Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade400,
-            ),
-            onTap: () => _showCitaDetails(cita),
           ),
-        );
-      },
+      ],
     );
   }
 
@@ -1558,7 +1640,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Cita marcada como finalizada'),
+            content: Text('Cita marcada como finalizada'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1638,7 +1720,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Cita cancelada exitosamente'),
+            content: Text('Cita cancelada exitosamente'),
             backgroundColor: Colors.green,
           ),
         );

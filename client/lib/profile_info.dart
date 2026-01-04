@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -63,28 +62,10 @@ class ProfileInfoPage extends StatelessWidget {
         }
       }
     } catch (e) {
+      print('Error al cargar datos del usuario: $e');
     }
 
-    // 2. Fallback Firestore
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(resolvedUid)
-        .get();
-
-    if (doc.exists && doc.data() != null) {
-      final fs = doc.data()!;
-
-      userData['fullName'] = fs['nombre_completo'] ?? '';
-      userData['phone'] = fs['telefono'] ?? '';
-      userData['photoURL'] = fs['foto_url'] ?? '';
-      userData['direccion'] = fs['direccion'] ?? '';
-      userData['dob'] = fs['fecha_nacimiento'] ?? '';
-      userData['gender'] = fs['genero'] ?? '';
-      userData['country'] = fs['pais'] ?? '';
-      userData['rol'] = fs['rol'] ?? '';
-    }
-
-    // 3. Email desde FirebaseAuth
+    // 2. Email desde FirebaseAuth
     final authUser = FirebaseAuth.instance.currentUser;
     userData['email'] = authUser?.email ?? userData['email'] ?? '-';
 

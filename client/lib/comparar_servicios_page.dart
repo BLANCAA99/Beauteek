@@ -128,6 +128,12 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   idToken,
                 );
 
+                // Obtener calificación desde reseñas
+                final calificacion = await _obtenerCalificacionComercio(
+                  comercio['id'],
+                  idToken,
+                );
+
                 // Obtener foto del servicio desde galería
                 final fotoServicio = await _obtenerFotoServicio(
                   comercio['id'],
@@ -141,8 +147,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   'precio': (servicio['precio'] ?? 0).toDouble(),
                   'duracion': servicio['duracion'] ?? 0,
                   'distancia': distancia,
-                  'rating': (comercio['rating'] ?? 4.0).toDouble(),
-                  'resenas': comercio['total_resenas'] ?? 0,
+                  'rating': calificacion['promedio'],
+                  'resenas': calificacion['total'],
                   'foto_servicio': fotoServicio,
                 });
               }
@@ -200,6 +206,39 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     } catch (e) {
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>> _obtenerCalificacionComercio(
+    String comercioId,
+    String idToken,
+  ) async {
+    try {
+      final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+      final resenasResponse = await http.get(
+        resenasUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      if (resenasResponse.statusCode == 200) {
+        final List<dynamic> resenas = json.decode(resenasResponse.body);
+        if (resenas.isEmpty) {
+          return {'promedio': 4.5, 'total': 0};
+        }
+
+        final suma = resenas.fold<double>(0, (acc, r) => acc + (r['calificacion'] ?? 0).toDouble());
+        final promedio = suma / resenas.length;
+        
+        return {
+          'promedio': double.parse(promedio.toStringAsFixed(1)),
+          'total': resenas.length,
+        };
+      }
+    } catch (e) {
+    }
+    return {'promedio': 4.5, 'total': 0};
   }
 
   Future<double> _calcularDistanciaConUbicacion(
@@ -377,10 +416,10 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
             children: [
               Expanded(
                 child: _ResumenItem(
-                  icono: Icons.euro,
+                  icono: Icons.attach_money,
                   titulo: 'Mejor Precio',
                   valor: mejorPrecio != null 
-                    ? '€${mejorPrecio['precio'].toStringAsFixed(2)}'
+                    ? 'L${mejorPrecio['precio'].toStringAsFixed(2)}'
                     : '-',
                   color: Colors.green,
                 ),
@@ -682,7 +721,7 @@ class _ServicioCard extends StatelessWidget {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.euro, color: Colors.white, size: 14),
+                              Icon(Icons.attach_money, color: Colors.white, size: 14),
                               SizedBox(width: 4),
                               Text(
                                 'Mejor Precio',
@@ -784,7 +823,7 @@ class _ServicioCard extends StatelessWidget {
 
                   // Precio destacado
                   Text(
-                    '€${precio.toStringAsFixed(2)}',
+                    'L${precio.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: AppTheme.primaryOrange,
                       fontSize: 28,
@@ -862,7 +901,7 @@ class _ServicioCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Ahorras €${ahorro.toStringAsFixed(2)} vs. opción más cara',
+                            'Ahorras L${ahorro.toStringAsFixed(2)} vs. opción más cara',
                             style: const TextStyle(
                               color: Colors.green,
                               fontSize: 12,

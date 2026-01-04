@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'api_constants.dart';
 import 'salon_address_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_card_page.dart';
+import 'api_constants.dart';
 
 class SalonRegistrationFormPage extends StatefulWidget {
   const SalonRegistrationFormPage({Key? key}) : super(key: key);
@@ -20,7 +19,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   bool _isLoading = false;
   bool _tarjetaVerificada = false;
 
-  // 🎨 Colores de tema
+  // Colores de tema
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _fieldColor = Color(0xFF242424);
   static const Color _primaryOrange = Color(0xFFEA963A);
@@ -56,134 +55,138 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     }
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('tarjetas_usuarios')
-          .where('usuario_id', isEqualTo: currentUser.uid)
-          .where('activa', isEqualTo: true)
-          .limit(1)
-          .get();
+      final token = await currentUser.getIdToken();
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/api/tarjetas'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-      if (snapshot.docs.isEmpty) {
-        if (!mounted) return;
+      if (response.statusCode == 200) {
+        final List<dynamic> tarjetas = json.decode(response.body);
+        final tarjetasActivas = tarjetas.where((t) => t['activa'] == true).toList();
+        
+        if (tarjetasActivas.isEmpty) {
+          if (!mounted) return;
 
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) {
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 420,
-                  ),
-                  child: AlertDialog(
-                    backgroundColor: const Color(0xFFFFF4EB), // cremita suave
-                    insetPadding:
-                        const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(32),
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 420,
                     ),
-                    titlePadding: EdgeInsets.zero,
-                    contentPadding:
-                        const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                    actionsPadding:
-                        const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    title: null,
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Icono dentro de recuadro suave
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.8),
-                            borderRadius: BorderRadius.circular(18),
+                    child: AlertDialog(
+                      backgroundColor: const Color(0xFFFFF4EB),
+                      insetPadding:
+                          const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      titlePadding: EdgeInsets.zero,
+                      contentPadding:
+                          const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                      actionsPadding:
+                          const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      title: null,
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: const Icon(
+                              Icons.credit_card,
+                              color: _primaryOrange,
+                              size: 30,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.credit_card,
-                            color: _primaryOrange,
-                            size: 30,
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Método de pago requerido',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1F1F1F),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Para registrar tu salón necesitas agregar un método de pago para tu suscripción.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: Color(0xFF7B6F63),
+                            ),
+                          ),
+                        ],
+                      ),
+                      actionsAlignment: MainAxisAlignment.spaceBetween,
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF8A8176),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Método de pago requerido',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F1F1F),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const AddCardPage(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryOrange,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 26,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Para registrar tu salón necesitas agregar un método de pago para tu suscripción.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.5,
-                            color: Color(0xFF7B6F63),
+                          child: const Text(
+                            'Agregar tarjeta',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    actionsAlignment: MainAxisAlignment.spaceBetween,
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          // 🔁 misma lógica que ya tenías
-                          Navigator.of(context).pop();
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text(
-                          'Cancelar',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF8A8176),
-                          ),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          // 🔁 misma lógica que ya tenías
-                          Navigator.of(context).pop();
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const AddCardPage(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryOrange,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 26,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                        ),
-                        child: const Text(
-                          'Agregar tarjeta',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-              );
-            },
-          );
-        });
-      } else {
-        setState(() => _tarjetaVerificada = true);
+                );
+              },
+            );
+          });
+        } else {
+          setState(() => _tarjetaVerificada = true);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -206,7 +209,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     if (!_tarjetaVerificada) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('⚠️ Primero debes agregar un método de pago')),
+            content: Text('Primero debes agregar un método de pago')),
       );
       return;
     }
@@ -267,7 +270,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content:
-                Text('✅ Salón creado! Ahora, agrega la dirección.')));
+                Text('Salón creado! Ahora, agrega la dirección.')));
 
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute(

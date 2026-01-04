@@ -20,13 +20,13 @@ class _RegisterScreenState extends State<RegisterScreen>
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _verificationCodeController = TextEditingController();
   String? _selectedGender;
   String errorMsg = '';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
-  // --- Controlador para animar el toast de éxito ---
   late AnimationController _toastController;
   OverlayEntry? _toastEntry;
 
@@ -44,6 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   void dispose() {
     _toastController.dispose();
     _dobController.dispose();
+    _verificationCodeController.dispose();
     super.dispose();
   }
 
@@ -106,40 +107,154 @@ class _RegisterScreenState extends State<RegisterScreen>
     _toastEntry?.remove();
   }
 
-  // --- Método principal de registro (LÓGICA SIN CAMBIOS) ---
-  Future<void> register() async {
-    if (nameController.text.trim().isEmpty ||
-        emailController.text.trim().isEmpty ||
-        passwordController.text.isEmpty ||
-        confirmController.text.isEmpty ||
-        _dobController.text.isEmpty ||
-        _selectedGender == null) {
-      setState(() {
-        errorMsg = 'Todos los campos son requeridos';
-      });
-      return;
-    }
-    if (passwordController.text.length < 6) {
-      setState(() {
-        errorMsg = 'La contraseña debe tener al menos 6 caracteres';
-      });
-      return;
-    }
-    if (passwordController.text != confirmController.text) {
-      setState(() {
-        errorMsg = 'Las contraseñas no coinciden';
-      });
-      return;
-    }
+  // Mostrar diálogo de verificación de email
+  Future<void> showVerificationDialog() async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.darkBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.email, color: AppTheme.primaryOrange),
+                  SizedBox(width: 12),
+                  Text(
+                    'Verifica tu correo',
+                    style: TextStyle(color: AppTheme.textPrimary),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hemos enviado un código de 6 dígitos a:',
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    emailController.text.trim(),
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.primaryOrange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _verificationCodeController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.bodyLarge.copyWith(
+                        letterSpacing: 8,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: '000000',
+                        border: InputBorder.none,
+                        counterText: '',
+                        contentPadding: EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _verificationCodeController.clear();
+                    Navigator.of(context).pop();
+                    setState(() => _isLoading = false);
+                  },
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (_verificationCodeController.text.trim().length != 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ingresa el código de 6 dígitos'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
 
-    setState(() {
-      errorMsg = '';
-      _isLoading = true;
-    });
+                    try {
+                      final response = await http.post(
+                        Uri.parse('$apiBaseUrl/api/users/verify-code'),
+                        headers: {'Content-Type': 'application/json'},
+                        body: json.encode({
+                          'email': emailController.text.trim(),
+                          'code': _verificationCodeController.text.trim(),
+                        }),
+                      );
 
+                      if (response.statusCode == 200) {
+                        if (!mounted) return;
+                        Navigator.of(context).pop();
+                        await completeRegistration();
+                      } else {
+                        final error = json.decode(response.body);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(error['error'] ?? 'Código incorrecto'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Error de conexión'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryOrange,
+                  ),
+                  child: const Text(
+                    'Verificar',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Completar registro después de verificar el código
+  Future<void> completeRegistration() async {
     try {
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
@@ -149,6 +264,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         setState(() => errorMsg = 'No se pudo obtener el usuario.');
         return;
       }
+
       final url = Uri.parse('$apiBaseUrl/api/users');
       final body = {
         'uid': user.uid,
@@ -161,13 +277,13 @@ class _RegisterScreenState extends State<RegisterScreen>
         'foto_url': 'https://example.com/no_aplica.jpg',
         'estado': 'activo',
       };
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 10));
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (!mounted) return;
         setState(() {
@@ -178,7 +294,6 @@ class _RegisterScreenState extends State<RegisterScreen>
         await _showSuccessToast('Registro exitoso');
         if (!mounted) return;
 
-        // Redirigir a SetupLocationPage para configurar ubicación y país
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupLocationPage()),
         );
@@ -192,13 +307,78 @@ class _RegisterScreenState extends State<RegisterScreen>
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() {
-        errorMsg = e.message ?? 'No se pudo registrar. Verifica tus datos.';
+        if (e.code == 'email-already-in-use') {
+          errorMsg = 'Este correo ya está registrado. Por favor, usa otro correo o inicia sesión.';
+        } else {
+          errorMsg = e.message ?? 'No se pudo registrar. Verifica tus datos.';
+        }
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         errorMsg = 'Error inesperado. Intenta de nuevo.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Método principal de registro - Valida y envía código
+  Future<void> register() async {
+    if (nameController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty ||
+        passwordController.text.isEmpty ||
+        confirmController.text.isEmpty ||
+        _dobController.text.isEmpty ||
+        _selectedGender == null) {
+      setState(() => errorMsg = 'Todos los campos son requeridos');
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailController.text.trim())) {
+      setState(() => errorMsg = 'Correo electrónico inválido');
+      return;
+    }
+
+    if (passwordController.text.length < 6) {
+      setState(() => errorMsg = 'La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    if (passwordController.text != confirmController.text) {
+      setState(() => errorMsg = 'Las contraseñas no coinciden');
+      return;
+    }
+
+    setState(() {
+      errorMsg = '';
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/api/users/send-verification-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'email': emailController.text.trim()}),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        await _showSuccessToast('Código enviado a tu correo');
+        if (!mounted) return;
+        await showVerificationDialog();
+      } else {
+        final error = json.decode(response.body);
+        setState(() {
+          errorMsg = error['error'] ?? 'Error al enviar código';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        errorMsg = 'Error de conexión';
         _isLoading = false;
       });
     }
@@ -439,9 +619,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
                 // Error
                 if (errorMsg.isNotEmpty)
                   Padding(
@@ -476,11 +654,13 @@ class _RegisterScreenState extends State<RegisterScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: RichText(
                       textAlign: TextAlign.center,
-                      text: TextSpan(
-                        style: AppTheme.caption.copyWith(
-                          color: AppTheme.textSecondary.withOpacity(0.9),
+                      text: const TextSpan(
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                          height: 1.4,
                         ),
-                        children: const [
+                        children: [
                           TextSpan(
                               text: 'Al registrarte, aceptas nuestros '),
                           TextSpan(

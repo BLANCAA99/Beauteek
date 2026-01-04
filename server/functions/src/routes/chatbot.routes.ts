@@ -8,7 +8,7 @@ const projectId = 'beauteek-b595e';
 const path = require('path');
 const credentialsPath = path.join(__dirname, '..', '..', 'credentials.json');
 
-console.log('🔑 Cargando credenciales desde:', credentialsPath);
+console.log('Cargando credenciales desde:', credentialsPath);
 
 const sessionClient = new SessionsClient({
   keyFilename: credentialsPath,
@@ -42,11 +42,11 @@ router.post('/message', async (req: Request, res: Response) => {
     };
 
     // Enviar mensaje a Dialogflow
-    console.log('📤 Enviando a Dialogflow:', message);
+    console.log('Enviando a Dialogflow:', message);
     const [response] = await sessionClient.detectIntent(request);      
     const result = response.queryResult;
     
-    console.log('📥 Respuesta de Dialogflow:', {
+    console.log('Respuesta de Dialogflow:', {
       intent: result?.intent?.displayName,
       confidence: result?.intentDetectionConfidence,
       fulfillmentText: result?.fulfillmentText,
@@ -62,7 +62,7 @@ router.post('/message', async (req: Request, res: Response) => {
       intent: result?.intent?.displayName || 'default',
       confidence: result?.intentDetectionConfidence || 0,
     });  } catch (error: any) {
-    console.error('❌ Error en chatbot:', error);
+    console.error('Error en chatbot:', error);
     
     // En caso de error, devolver respuesta local
     const fallbackResponse = getFallbackResponse(req.body.message || '');
@@ -86,7 +86,7 @@ function getFallbackResponse(text: string): string {
   if (lowerText.includes('hola') || lowerText.includes('buenos') || lowerText.includes('buenas')) {
     return '¡Hola! 😊 Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
   } else if (lowerText.includes('reserva') || lowerText.includes('cita') || lowerText.includes('agendar')) {
-    return 'Para hacer una reserva, ve a la pestaña de búsqueda 🔍, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
+    return 'Para hacer una reserva, ve a la pestaña de búsqueda, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
   } else if (lowerText.includes('servicio') || lowerText.includes('qué ofrecen')) {
     return 'En Beauteek puedes encontrar servicios de peluquería, manicure, pedicure, tratamientos faciales, masajes y mucho más. Usa la búsqueda para ver todos los salones disponibles cerca de ti.';
   } else if (lowerText.includes('precio') || lowerText.includes('costo') || lowerText.includes('cuánto')) {

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login_screen.dart';
 import 'inicio.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -25,12 +27,12 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFEA963A)),
         fontFamily: 'Montserrat',
       ),
-      home: const SplashScreen(), // ✅ Cambiado aquí
+      home: const SplashScreen(), // Cambiado aquí
     );
   }
 }
 
-// ✅ SplashScreen PRIMERO, luego AuthWrapper
+// SplashScreen PRIMERO, luego AuthWrapper
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -62,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    // ✅ Espera 3 segundos y luego va a AuthWrapper
+    // Espera 3 segundos y luego va a AuthWrapper
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -100,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       width: 120, 
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.white, // ⬅️ fondo blanco dentro del marco
+                        color: Colors.white, // fondo blanco dentro del marco
                          borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
@@ -140,7 +142,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 }
 
-// ✅ AuthWrapper DESPUÉS del splash
+// AuthWrapper DESPUÉS del splash
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 

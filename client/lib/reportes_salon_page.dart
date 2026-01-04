@@ -332,7 +332,7 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
       if (mounted && result.status == ShareResultStatus.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Reporte compartido exitosamente'),
+            content: Text('Reporte compartido exitosamente'),
             backgroundColor: Colors.green,
           ),
         );

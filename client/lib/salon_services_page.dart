@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'inicio.dart';
 
 class SalonServicesPage extends StatefulWidget {
@@ -21,7 +20,7 @@ class SalonServicesPage extends StatefulWidget {
 }
 
 class _SalonServicesPageState extends State<SalonServicesPage> {
-  // 🎨 Colores de tema Beauteek
+  // Colores de tema Beauteek
   static const Color _backgroundColor = Color(0xFF101013);
   static const Color _cardColor = Color(0xFF1B1F2A);
   static const Color _cardSoftColor = Color(0xFF171A23);
@@ -57,27 +56,30 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
     _cargarCategorias();
   }
 
-  // Cargar categorías desde Firestore
+  // Cargar categorías desde API
   Future<void> _cargarCategorias() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('categorias_servicio')
-          .where('activo', isEqualTo: true)
-          .get();
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/categorias_servicio'),
+      );
 
-      setState(() {
-        _categorias = snapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'nombre': data['nombre'] ?? '',
-            'icon': data['icon'] ?? '📋',
-            'servicios_sugeridos':
-                List<String>.from(data['servicios_sugeridos'] ?? []),
-          };
-        }).toList();
-        _isLoading = false;
-      });
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _categorias = data.where((cat) => cat['activo'] == true).map((cat) {
+            return {
+              'id': cat['id'],
+              'nombre': cat['nombre'] ?? '',
+              'icon': cat['icon'] ?? '📋',
+              'servicios_sugeridos':
+                  List<String>.from(cat['servicios_sugeridos'] ?? []),
+            };
+          }).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
@@ -304,7 +306,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content:
-                                  Text('✅ Servicio agregado exitosamente'),
+                                  Text('Servicio agregado exitosamente'),
                               backgroundColor: Colors.green,
                               duration: Duration(seconds: 2),
                             ),
@@ -449,7 +451,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
   Future<void> _finalizarRegistro() async {
     if (_serviciosAgregados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Debes agregar al menos un servicio')),
+        const SnackBar(content: Text('Debes agregar al menos un servicio')),
       );
       return;
     }

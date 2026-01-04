@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_constants.dart';
 import 'theme/app_theme.dart';
 import 'package:image_picker/image_picker.dart';
@@ -333,8 +334,8 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
 
       // 2. Subir a Cloudinary (mismo config que EditProfilePage)
       final cloudinary = CloudinaryPublic(
-        'dskg1hw9n', // 👈 tu cloud name
-        'Imagenes_Beauteek', // 👈 tu upload preset / folder
+        dotenv.env['CLOUDINARY_CLOUD_NAME']!,
+        dotenv.env['CLOUDINARY_UPLOAD_PRESET']!,
         cache: false,
       );
 

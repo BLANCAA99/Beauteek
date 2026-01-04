@@ -56,7 +56,7 @@ export const createPromocion = async (req: Request, res: Response): Promise<void
 
     const docRef = await db.collection("promociones").add(payload);
 
-    // 🔔 Enviar notificación a todos los clientes sobre la nueva promoción
+    // Enviar notificación a todos los clientes sobre la nueva promoción
     try {
       // Obtener información del comercio
       const comercioDoc = await db.collection("comercios").doc(data.comercio_id).get();
@@ -65,7 +65,7 @@ export const createPromocion = async (req: Request, res: Response): Promise<void
       await sendPushNotificationByRole(
         'cliente',
         {
-          title: '🎉 Nueva Promoción Disponible',
+          title: 'Nueva Promoción Disponible',
           body: `${comercioNombre} tiene una nueva oferta en ${data.servicio_nombre}. ¡Aprovecha!`,
         },
         {
@@ -73,9 +73,9 @@ export const createPromocion = async (req: Request, res: Response): Promise<void
           entityId: docRef.id,
         }
       );
-      console.log(`✅ Notificación de nueva promoción enviada a todos los clientes`);
+      console.log(`Notificación de nueva promoción enviada a todos los clientes`);
     } catch (notifError) {
-      console.error('⚠️ Error enviando notificaciones de promoción:', notifError);
+      console.error('Error enviando notificaciones de promoción:', notifError);
     }
 
     res.status(201).json({ id: docRef.id, ...data });
@@ -94,15 +94,15 @@ export const getPromociones = async (_req: Request, res: Response): Promise<void
       (doc) => ({ id: doc.id, ...doc.data() } as Promocion)
     );
     
-    console.log(`📊 Total promociones en Firestore: ${promociones.length}`);
+    console.log(`Total promociones en Firestore: ${promociones.length}`);
     if (promociones.length > 0) {
-      console.log(`📊 Primera promoción:`, JSON.stringify(promociones[0]));
+      console.log(`Primera promoción:`, JSON.stringify(promociones[0]));
     }
     
     res.json(promociones);
     return;
   } catch (error: any) {
-    console.error('❌ Error obteniendo promociones:', error);
+    console.error('Error obteniendo promociones:', error);
     res.status(500).json({ error: error.message });
     return;
   }

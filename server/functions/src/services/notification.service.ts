@@ -26,7 +26,7 @@ export async function sendPushNotificationToUser(
     const userDoc = await db.collection('usuarios').doc(userId).get();
     
     if (!userDoc.exists) {
-      console.log(`❌ Usuario ${userId} no existe`);
+      console.log(`Usuario ${userId} no existe`);
       return false;
     }
 
@@ -34,7 +34,7 @@ export async function sendPushNotificationToUser(
     const fcmToken = userData?.fcm_token;
 
     if (!fcmToken) {
-      console.log(`⚠️ Usuario ${userId} no tiene FCM token`);
+      console.log(`Usuario ${userId} no tiene FCM token`);
       return false;
     }
 
@@ -70,24 +70,24 @@ export async function sendPushNotificationToUser(
 
     // Enviar la notificación
     const response = await messaging().send(message);
-    console.log(`✅ Notificación enviada exitosamente a ${userId}: ${response}`);
+    console.log(`Notificación enviada exitosamente a ${userId}: ${response}`);
     return true;
   } catch (error: any) {
     // Si el token es inválido, eliminarlo de Firestore
     if (error.code === 'messaging/registration-token-not-registered' || 
         error.code === 'messaging/invalid-registration-token') {
-      console.log(`🗑️ Token FCM inválido para usuario ${userId}, eliminando...`);
+      console.log(`Token FCM inválido para usuario ${userId}, eliminando...`);
       try {
         await db.collection('usuarios').doc(userId).update({
           fcm_token: null,
           platform: null,
         });
       } catch (updateError) {
-        console.error(`❌ Error al eliminar token inválido: ${updateError}`);
+        console.error(`Error al eliminar token inválido: ${updateError}`);
       }
     }
     
-    console.error(`❌ Error enviando notificación a ${userId}:`, error);
+    console.error(`Error enviando notificación a ${userId}:`, error);
     return false;
   }
 }
@@ -107,7 +107,7 @@ export async function sendPushNotificationToMultipleUsers(
   const success = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
   const failed = results.length - success;
 
-  console.log(`📊 Notificaciones enviadas: ${success} exitosas, ${failed} fallidas`);
+  console.log(`Notificaciones enviadas: ${success} exitosas, ${failed} fallidas`);
   
   return { success, failed };
 }
@@ -130,11 +130,11 @@ export async function sendPushNotificationByRole(
 
     const userIds = usersSnapshot.docs.map(doc => doc.id);
     
-    console.log(`📤 Enviando notificación a ${userIds.length} usuarios con rol '${role}'`);
+    console.log(`Enviando notificación a ${userIds.length} usuarios con rol '${role}'`);
 
     return await sendPushNotificationToMultipleUsers(userIds, payload, options);
   } catch (error) {
-    console.error(`❌ Error enviando notificaciones por rol:`, error);
+    console.error(`Error enviando notificaciones por rol:`, error);
     return { success: 0, failed: 0 };
   }
 }
@@ -178,10 +178,10 @@ export async function sendPushNotificationToTopic(
     };
 
     const response = await messaging().send(message);
-    console.log(`✅ Notificación enviada al topic '${topic}': ${response}`);
+    console.log(`Notificación enviada al topic '${topic}': ${response}`);
     return true;
   } catch (error) {
-    console.error(`❌ Error enviando notificación al topic '${topic}':`, error);
+    console.error(`Error enviando notificación al topic '${topic}':`, error);
     return false;
   }
 }
@@ -194,7 +194,7 @@ export async function sendAppointmentReminder(citaId: string, userId: string): P
     // Obtener datos de la cita
     const citaDoc = await db.collection('citas').doc(citaId).get();
     if (!citaDoc.exists) {
-      console.log(`❌ Cita ${citaId} no encontrada`);
+      console.log(`Cita ${citaId} no encontrada`);
       return false;
     }
 
@@ -220,7 +220,7 @@ export async function sendAppointmentReminder(citaId: string, userId: string): P
       }
     );
   } catch (error) {
-    console.error(`❌ Error enviando recordatorio de cita:`, error);
+    console.error(`Error enviando recordatorio de cita:`, error);
     return false;
   }
 }

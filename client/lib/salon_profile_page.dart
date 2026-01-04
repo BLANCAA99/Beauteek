@@ -45,7 +45,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
 
       final idToken = await user.getIdToken();
 
-      // ✅ Obtener comercio
+      // Obtener comercio
       final comercioUrl =
           Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
       final comercioResponse = await http.get(
@@ -59,7 +59,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
       if (comercioResponse.statusCode == 200) {
         final comercioData = json.decode(comercioResponse.body);
 
-        // ✅ Obtener foto del propietario del salón
+        // Obtener foto del propietario del salón
         String? fotoSalon;
         final uidPropietario = comercioData['uid_negocio'] as String?;
 
@@ -88,7 +88,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
           comercioData['foto_url'] = fotoSalon;
         }
 
-        // ✅ Usar /api/servicios con query param comercio_id
+        // Usar /api/servicios con query param comercio_id
         final serviciosUrl = Uri.parse(
             '$apiBaseUrl/api/servicios?comercio_id=${widget.comercioId}');
         final serviciosResponse = await http.get(
@@ -106,7 +106,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
               serviciosData.map((s) => s as Map<String, dynamic>).toList();
         }
 
-        // ✅ NUEVO: Cargar reseñas del comercio usando la ruta específica
+        // NUEVO: Cargar reseñas del comercio usando la ruta específica
         final resenasUrl = Uri.parse(
             '$apiBaseUrl/api/resenas/comercio/${widget.comercioId}');
         final resenasResponse = await http.get(
@@ -379,7 +379,7 @@ class _SalonProfilePageState extends State<SalonProfilePage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Agregado a favoritos ❤️'),
+                content: Text('Agregado a favoritos'),
                 backgroundColor: Colors.green,
                 duration: Duration(seconds: 2),
               ),

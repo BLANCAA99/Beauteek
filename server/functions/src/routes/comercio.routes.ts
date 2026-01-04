@@ -15,7 +15,7 @@ import { verifyToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// ✅ RUTAS ESPECÍFICAS PRIMERO (sin parámetros dinámicos)
+// RUTAS ESPECÍFICAS PRIMERO (sin parámetros dinámicos)
 router.get('/cerca', verifyToken, getComercioscerca);
 router.get('/pais/:pais', verifyToken, getComerciosPorPais);
 
@@ -25,8 +25,8 @@ router.post('/register-salon-step2', verifyToken, registerSalonStep2);
 router.post('/register-salon-step3', verifyToken, registerSalonStep3);
 router.post('/register-salon-step4', verifyToken, registerSalonStep4);
 
-// ✅ RUTAS CRUD
-router.post('/', verifyToken, async (req, res): Promise<void> => { // ✅ CAMBIO: Agregar Promise<void>
+// RUTAS CRUD
+router.post('/', verifyToken, async (req, res): Promise<void> => { // CAMBIO: Agregar Promise<void>
   try {
     const {
       nombre,
@@ -42,12 +42,12 @@ router.post('/', verifyToken, async (req, res): Promise<void> => { // ✅ CAMBIO
 
     if (!uid_negocio) {
       res.status(401).json({ error: "Usuario no autenticado" });
-      return; // ✅ AGREGAR return
+      return; // AGREGAR return
     }
 
     if (!ubicacion || typeof ubicacion.lat !== 'number' || typeof ubicacion.lng !== 'number') {
       res.status(400).json({ error: "ubicacion debe tener {lat, lng}" });
-      return; // ✅ AGREGAR return
+      return; // AGREGAR return
     }
 
     const admin = require('firebase-admin');

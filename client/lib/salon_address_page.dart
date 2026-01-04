@@ -23,7 +23,7 @@ class SalonAddressPage extends StatefulWidget {
 }
 
 class _SalonAddressPageState extends State<SalonAddressPage> {
-  // 🎨 Tema Beauteek
+  // Tema Beauteek
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _fieldColor = Color(0xFF22242C);
   static const Color _primaryOrange = Color(0xFFEA963A);
@@ -44,7 +44,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
   }
 
   Future<void> _openLocationPicker() async {
-    // ✅ CAMBIO: Obtener el userId del usuario actual
+    // CAMBIO: Obtener el userId del usuario actual
     final currentUser = FirebaseAuth.instance.currentUser;
 
     await Navigator.push(
@@ -52,8 +52,8 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
       MaterialPageRoute(
         builder: (_) => SearchPage(
           mode: 'select',
-          userId: currentUser?.uid, // ✅ AGREGAR userId
-          userCountry: 'Honduras', // ✅ AGREGAR país por defecto
+          userId: currentUser?.uid, // AGREGAR userId
+          userCountry: 'Honduras', // AGREGAR país por defecto
           onLocationSelected: (position, address) {
             setState(() {
               _selectedLocation = position;
@@ -72,7 +72,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
 
     if (_selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Selecciona la ubicación en el mapa')),
+        const SnackBar(content: Text('Selecciona la ubicación en el mapa')),
       );
       return;
     }
@@ -162,7 +162,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                '✅ Sucursal principal creada! Ahora registra tu cuenta bancaria.'),
+                'Sucursal principal creada! Ahora registra tu cuenta bancaria.'),
           ),
         );
 

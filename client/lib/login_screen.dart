@@ -348,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen>
 
         final createUrl = Uri.parse('$apiBaseUrl/api/users');
 
-        // ⚠️ IMPORTANTE: Usar el mismo formato que register_screen.dart
+        // IMPORTANTE: Usar el mismo formato que register_screen.dart
         final createPayload = {
           'uid': user.uid,
           'nombre_completo': displayName,

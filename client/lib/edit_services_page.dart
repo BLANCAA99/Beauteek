@@ -117,7 +117,7 @@ class _EditServicesPageState extends State<EditServicesPage> {
           return {
             'id': data['id'] as String,
             'nombre': data['nombre'] ?? data['id'],
-            'icon': data['icon'] ?? '🎨',
+            'icon': data['icon'] ?? 'palette',
             'servicios_sugeridos': sugeridos is List ? sugeridos : [],
           };
         }).toList();
@@ -140,49 +140,49 @@ class _EditServicesPageState extends State<EditServicesPage> {
         {
           'id': 'coloracion',
           'nombre': 'Coloración',
-          'icon': '🎨',
+          'icon': 'palette',
           'servicios_sugeridos': []
         },
         {
           'id': 'corte',
           'nombre': 'Corte',
-          'icon': '✂️',
+          'icon': 'scissors',
           'servicios_sugeridos': []
         },
         {
           'id': 'depilacion',
           'nombre': 'Depilación',
-          'icon': '💆',
+          'icon': 'spa',
           'servicios_sugeridos': []
         },
         {
           'id': 'facial',
           'nombre': 'Facial',
-          'icon': '✨',
+          'icon': 'stars',
           'servicios_sugeridos': []
         },
         {
           'id': 'maquillaje',
           'nombre': 'Maquillaje',
-          'icon': '💄',
+          'icon': 'makeup',
           'servicios_sugeridos': []
         },
         {
           'id': 'masajes',
           'nombre': 'Masajes',
-          'icon': '💆‍♀️',
+          'icon': 'massage',
           'servicios_sugeridos': []
         },
         {
           'id': 'tratamientos',
           'nombre': 'Tratamientos',
-          'icon': '🧖',
+          'icon': 'treatment',
           'servicios_sugeridos': []
         },
         {
           'id': 'unas',
           'nombre': 'Uñas',
-          'icon': '💅',
+          'icon': 'nails',
           'servicios_sugeridos': []
         },
       ];
@@ -292,11 +292,11 @@ class _EditServicesPageState extends State<EditServicesPage> {
   }
 
   String _getIconoCategoria(String? categoriaId) {
-    if (categoriaId == null) return '💇‍♀️';
+    if (categoriaId == null) return 'service';
     final cat = _categorias
         .cast<Map<String, dynamic>?>()
         .firstWhere((c) => c?['id'] == categoriaId, orElse: () => null);
-    return (cat?['icon'] as String?) ?? '💇‍♀️';
+    return (cat?['icon'] as String?) ?? 'service';
   }
 
   // ---------- Horarios (lista estilo mock) ----------
@@ -924,7 +924,7 @@ class _EditServicesPageState extends State<EditServicesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Eliminado'),
+              content: Text('Eliminado'),
               backgroundColor: Colors.green,
             ),
           );
@@ -972,7 +972,7 @@ class _EditServicesPageState extends State<EditServicesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Eliminado'),
+              content: Text('Eliminado'),
               backgroundColor: Colors.green,
             ),
           );

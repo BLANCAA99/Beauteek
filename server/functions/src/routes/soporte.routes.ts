@@ -15,9 +15,9 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verificar configuración de correo al iniciar
-console.log('📧 Configuración de correo:');
+console.log('Configuración de correo:');
 console.log('   - Usuario:', process.env.EMAIL_USER || 'NO CONFIGURADO');
-console.log('   - Contraseña:', process.env.EMAIL_PASSWORD ? '✓ Configurada' : '✗ NO CONFIGURADA');
+console.log('   - Contraseña:', process.env.EMAIL_PASSWORD ? 'Configurada' : 'NO CONFIGURADA');
 
 // Enviar mensaje de soporte
 router.post('/enviar', verifyToken, async (req: Request, res: Response) => {
@@ -31,7 +31,7 @@ router.post('/enviar', verifyToken, async (req: Request, res: Response) => {
     // Enviar correo electrónico directamente (sin guardar en Firestore)
     const emailDestino = destino || process.env.EMAIL_SOPORTE || 'gpt.krew@gmail.com';
     
-    console.log(`📧 Enviando mensaje de soporte de ${nombre} (${email}) a ${emailDestino}`);
+    console.log(`Enviando mensaje de soporte de ${nombre} (${email}) a ${emailDestino}`);
     
     await transporter.sendMail({
       from: process.env.EMAIL_USER || 'gpt.krew@gmail.com',
@@ -87,7 +87,7 @@ router.post('/enviar', verifyToken, async (req: Request, res: Response) => {
       `
     });
 
-    console.log(`✅ Correo de soporte enviado exitosamente a ${emailDestino}`);
+    console.log(`Correo de soporte enviado exitosamente a ${emailDestino}`);
 
     return res.json({
       success: true,
@@ -95,7 +95,7 @@ router.post('/enviar', verifyToken, async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error enviando mensaje de soporte:', error);
+    console.error('Error enviando mensaje de soporte:', error);
     console.error('Detalles:', error.message);
     return res.status(500).json({ 
       error: 'Error al enviar el mensaje',

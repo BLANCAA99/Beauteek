@@ -7,7 +7,7 @@ import { sendPushNotificationToUser } from "../services/notification.service";
 // Esquema de validación para las citas
 const citaSchema = z.object({
   usuario_cliente_id: z.string().min(1),
-  comercio_id: z.string().min(1), // ✅ Requerido
+  comercio_id: z.string().min(1), // Requerido
   servicio_id: z.string().min(1),
   servicio_nombre: z.string().optional(),
   fecha_hora: z.string().min(1),
@@ -29,7 +29,7 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
 
     const data = parsed.data;
 
-    // ✅ CAMBIO: Verificar disponibilidad del horario por comercio_id
+    //Verificar disponibilidad del horario por comercio_id
     const existingCita = await db.collection("citas")
       .where("comercio_id", "==", data.comercio_id)
       .where("fecha_hora", "==", data.fecha_hora)
@@ -48,7 +48,7 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
       fecha_creacion: FieldValue.serverTimestamp(),
     });
 
-    // 🔔 Enviar notificación al salón sobre la nueva cita
+    //Enviar notificación al salón sobre la nueva cita
     try {
       const comercioDoc = await db.collection("comercios").doc(data.comercio_id).get();
       const comercioData = comercioDoc.data();
@@ -58,7 +58,7 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
         await sendPushNotificationToUser(
           uidSalon,
           {
-            title: '🗓️ Nueva Cita Agendada',
+            title: 'Nueva Cita Agendada',
             body: `Tienes una nueva cita para ${data.servicio_nombre || 'un servicio'} el ${data.fecha_hora}`,
           },
           {
@@ -66,14 +66,14 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
             entityId: citaRef.id,
           }
         );
-        console.log(`✅ Notificación de nueva cita enviada al salón ${uidSalon}`);
+        console.log(`Notificación de nueva cita enviada al salón ${uidSalon}`);
       }
 
-      // 🔔 Enviar notificación al cliente confirmando la cita
+      //Enviar notificación al cliente confirmando la cita
       await sendPushNotificationToUser(
         data.usuario_cliente_id,
         {
-          title: '✅ Cita Confirmada',
+          title: 'Cita Confirmada',
           body: `Tu cita para ${data.servicio_nombre || 'un servicio'} ha sido agendada para el ${data.fecha_hora}`,
         },
         {
@@ -81,9 +81,9 @@ export const createCita = async (req: Request, res: Response): Promise<void> => 
           entityId: citaRef.id,
         }
       );
-      console.log(`✅ Notificación de confirmación enviada al cliente ${data.usuario_cliente_id}`);
+      console.log(`Notificación de confirmación enviada al cliente ${data.usuario_cliente_id}`);
     } catch (notifError) {
-      console.error('⚠️ Error enviando notificaciones:', notifError);
+      console.error('Error enviando notificaciones:', notifError);
       // No fallar la creación de la cita si falla la notificación
     }
 
@@ -156,7 +156,7 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
       fecha_actualizacion: FieldValue.serverTimestamp(),
     });
 
-    // 🔔 Enviar notificaciones según el cambio
+    // Enviar notificaciones según el cambio
     try {
       // Si se canceló la cita
       if (dataActualizada.estado === 'cancelada' && citaDataAnterior?.estado !== 'cancelada') {
@@ -164,7 +164,7 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
         await sendPushNotificationToUser(
           citaDataAnterior?.usuario_cliente_id,
           {
-            title: '❌ Cita Cancelada',
+            title: 'Cita Cancelada',
             body: `Tu cita para ${citaDataAnterior?.servicio_nombre || 'un servicio'} ha sido cancelada`,
           },
           {
@@ -180,7 +180,7 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
           await sendPushNotificationToUser(
             uidSalon,
             {
-              title: '❌ Cita Cancelada',
+              title: 'Cita Cancelada',
               body: `La cita de ${citaDataAnterior?.servicio_nombre || 'un servicio'} ha sido cancelada`,
             },
             {
@@ -196,7 +196,7 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
         await sendPushNotificationToUser(
           citaDataAnterior?.usuario_cliente_id,
           {
-            title: '🔄 Cita Reprogramada',
+            title: 'Cita Reprogramada',
             body: `Tu cita ha sido movida al ${dataActualizada.fecha_hora}`,
           },
           {
@@ -206,7 +206,7 @@ export const updateCita = async (req: Request, res: Response): Promise<void> => 
         );
       }
     } catch (notifError) {
-      console.error('⚠️ Error enviando notificaciones de actualización:', notifError);
+      console.error('Error enviando notificaciones de actualización:', notifError);
     }
 
     res.json({ message: "Cita actualizada" });
@@ -225,19 +225,19 @@ export const deleteCita = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// ✅ NUEVO: Obtener citas por usuario (cliente o salón)
+// Obtener citas por usuario (cliente o salón)
 export const getCitasByUsuario = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.params;
     
-    console.log(`🔍 Buscando citas para usuario: ${userId}`);
+    console.log(`Buscando citas para usuario: ${userId}`);
     
     // Buscar citas donde el usuario sea cliente
     const citasClienteSnapshot = await db.collection("citas")
       .where("usuario_cliente_id", "==", userId)
       .get();
     
-    // ✅ CAMBIO: Buscar citas donde el usuario sea dueño del comercio
+    // CAMBIO: Buscar citas donde el usuario sea dueño del comercio
     const comerciosSnapshot = await db.collection("comercios")
       .where("uid_negocio", "==", userId)
       .get();
@@ -275,7 +275,7 @@ export const getCitasByUsuario = async (req: Request, res: Response): Promise<vo
     
     const citas = Array.from(citasMap.values());
     
-    console.log(`✅ ${citas.length} citas encontradas para usuario ${userId}`);
+    console.log(`${citas.length} citas encontradas para usuario ${userId}`);
     
     if (citas.length === 0) {
       res.status(404).json({ mensaje: "No se encontraron citas para este usuario" });
@@ -284,7 +284,7 @@ export const getCitasByUsuario = async (req: Request, res: Response): Promise<vo
     
     res.json(citas);
   } catch (error: any) {
-    console.error("❌ Error obteniendo citas del usuario:", error);
+    console.error("Error obteniendo citas del usuario:", error);
     res.status(500).json({ error: error.message });
   }
 };

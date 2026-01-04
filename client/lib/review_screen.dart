@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_constants.dart';
 
 class ReviewScreen extends StatefulWidget {
@@ -34,8 +35,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
   
   final ImagePicker _picker = ImagePicker();
   final CloudinaryPublic _cloudinary = CloudinaryPublic(
-    'dskg1hw9n',
-    'Imagenes_Beauteek',
+    dotenv.env['CLOUDINARY_CLOUD_NAME']!,
+    dotenv.env['CLOUDINARY_UPLOAD_PRESET']!,
     cache: false,
   );
 
@@ -138,7 +139,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         }
       }
 
-      // ✅ Primero obtener el uid_negocio del comercio
+      // Primero obtener el uid_negocio del comercio
       final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
       final comercioResponse = await http.get(
         comercioUrl,
@@ -159,7 +160,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         throw Exception('No se encontró el UID del negocio');
       }
 
-      // ✅ CAMBIO: Usar API en lugar de Firestore
+      // CAMBIO: Usar API en lugar de Firestore
       final payload = {
         'cita_id': widget.citaId,
         'comercio_id': widget.comercioId,
@@ -187,7 +188,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Reseña enviada correctamente'),
+            content: Text('Reseña enviada correctamente'),
             backgroundColor: Colors.green,
           ),
         );

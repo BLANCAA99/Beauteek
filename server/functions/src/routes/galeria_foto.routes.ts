@@ -7,7 +7,6 @@ import {
 } from '../controllers/galeria_foto.controller';
 
 const router = Router();
-
 // GET /galeria-fotos/comercio/:comercioId - Obtener fotos de un comercio
 router.get('/comercio/:comercioId', obtenerFotosPorComercio);
 

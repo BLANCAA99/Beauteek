@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'theme/app_theme.dart';
@@ -58,13 +57,17 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
         if (miComercio != null) {
           _comercioId = miComercio['id'];
 
-          final configDoc = await FirebaseFirestore.instance
-              .collection('configuracion_salon')
-              .doc(_comercioId)
-              .get();
+          final token = await user.getIdToken();
+          final configResponse = await http.get(
+            Uri.parse('$apiBaseUrl/api/configuracion-salon/$_comercioId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          );
 
-          if (configDoc.exists) {
-            final data = configDoc.data()!;
+          if (configResponse.statusCode == 200) {
+            final data = json.decode(configResponse.body);
             setState(() {
               _notificarReservas = data['notificar_reservas'] ?? true;
               _isLoading = false;
@@ -89,15 +92,26 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('configuracion_salon')
-          .doc(_comercioId)
-          .set({
-        'notificar_reservas': _notificarReservas,
-        'fecha_actualizacion': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final token = await user.getIdToken();
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/api/configuracion-salon/$_comercioId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'notificar_reservas': _notificarReservas,
+        }),
+      );
 
       setState(() => _isSaving = false);
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al actualizar configuración');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

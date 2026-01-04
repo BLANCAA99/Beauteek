@@ -9,7 +9,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'corte',
     nombre: 'Cortes',
-    icon: '✂️',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/cgpakusext5dqk5zgdoq.png',
     servicios_sugeridos: [
       'Corte de Dama',
       'Corte de Caballero',
@@ -20,7 +20,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'coloracion',
     nombre: 'Coloración',
-    icon: '🎨',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/nhhpwj58xaymnzmp5ajt.png',
     servicios_sugeridos: [
       'Tinte Completo',
       'Mechas',
@@ -31,7 +31,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'tratamientos',
     nombre: 'Tratamientos',
-    icon: '💆',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/kaptj4lfxkomwzvo79xu.png',
     servicios_sugeridos: [
       'Tratamiento Capilar',
       'Keratina',
@@ -42,7 +42,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'unas',
     nombre: 'Uñas',
-    icon: '💅',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/ic3wfhzszxq1qj8j9yvq.png',
     servicios_sugeridos: [
       'Manicura',
       'Pedicura',
@@ -53,7 +53,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'facial',
     nombre: 'Faciales',
-    icon: '🧖',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/r2wovlxjfkgs473ouuma.png',
     servicios_sugeridos: [
       'Limpieza Facial',
       'Mascarilla',
@@ -64,7 +64,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'maquillaje',
     nombre: 'Maquillaje',
-    icon: '💄',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/v1sgcumhazh9f9ygfaoo.png',
     servicios_sugeridos: [
       'Maquillaje Social',
       'Maquillaje de Novia',
@@ -75,7 +75,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'masajes',
     nombre: 'Masajes',
-    icon: '🙌',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/ws1ppyblzttzmqc35dkg.png',
     servicios_sugeridos: [
       'Masaje Relajante',
       'Masaje Terapéutico',
@@ -86,7 +86,7 @@ const CATEGORIAS_CATALOGO = [
   {
     id: 'depilacion',
     nombre: 'Depilación',
-    icon: '✨',
+    icon: 'https://res.cloudinary.com/dskg1hw9n/image/upload/gphlt3mcwmyown40ravo.png',
     servicios_sugeridos: [
       'Depilación con Cera',
       'Depilación Láser',
@@ -97,12 +97,9 @@ const CATEGORIAS_CATALOGO = [
 ];
 
 const categoriaServicioSchema = z.object({
-  usuario_id: z.string().min(1),
   nombre: z.string().min(1),
   descripcion: z.string().optional(),
 });
-
-const normalizarNombre = (s: string) => s.trim().toLowerCase();
 
 // Inicializar catálogo (ejecutar una sola vez)
 export const inicializarCatalogo = async (req: Request, res: Response): Promise<void> => {
@@ -139,33 +136,17 @@ export const createCategoriaServicio = async (req: Request, res: Response): Prom
       return;
     }
 
-    const { usuario_id, nombre, descripcion } = parsed.data;
-    const nombre_normalizado = normalizarNombre(nombre);
-
-    // Verificar duplicado: misma categoría para el mismo usuario
-    const dupSnap = await db
-      .collection("categorias_servicio")
-      .where("usuario_id", "==", usuario_id)
-      .where("nombre_normalizado", "==", nombre_normalizado)
-      .limit(1)
-      .get();
-
-    if (!dupSnap.empty) {
-      res.status(409).json({ error: "Ya existe una categoría con ese nombre para este usuario." });
-      return;
-    }
+    const { nombre, descripcion } = parsed.data;
 
     const payload = {
-      usuario_id,
       nombre,
-      nombre_normalizado,
       descripcion: descripcion ?? null,
       fecha_creacion: FieldValue.serverTimestamp(),
       fecha_actualizacion: FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection("categorias_servicio").add(payload);
-    res.status(201).json({ id: docRef.id, usuario_id, nombre, descripcion: descripcion ?? null });
+    res.status(201).json({ id: docRef.id, nombre, descripcion: descripcion ?? null });
     return;
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -214,34 +195,6 @@ export const updateCategoriaServicio = async (req: Request, res: Response): Prom
     }
 
     const updates: any = { ...parsed.data, fecha_actualizacion: FieldValue.serverTimestamp() };
-    if (updates.nombre) {
-      updates.nombre_normalizado = normalizarNombre(updates.nombre);
-    }
-
-    // (Opcional) validar duplicado en update si cambian nombre/usuario_id
-    if (updates.nombre || updates.usuario_id) {
-      const current = await db.collection("categorias_servicio").doc(req.params.id).get();
-      if (current.exists) {
-        const currData = current.data()!;
-        const usuarioIdCheck = updates.usuario_id ?? currData.usuario_id;
-        const nombreNormCheck = updates.nombre
-          ? normalizarNombre(updates.nombre)
-          : currData.nombre_normalizado;
-
-        const dupSnap = await db
-          .collection("categorias_servicio")
-          .where("usuario_id", "==", usuarioIdCheck)
-          .where("nombre_normalizado", "==", nombreNormCheck)
-          .limit(1)
-          .get();
-
-        // si existe otro documento distinto con el mismo par (usuario_id, nombre_normalizado)
-        if (!dupSnap.empty && dupSnap.docs[0].id !== req.params.id) {
-          res.status(409).json({ error: "Ya existe una categoría con ese nombre para este usuario." });
-          return;
-        }
-      }
-    }
 
     await db.collection("categorias_servicio").doc(req.params.id).update(updates);
     res.json({ message: "Categoría actualizada" });

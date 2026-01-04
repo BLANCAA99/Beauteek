@@ -34,7 +34,7 @@ export const crearFoto = async (req: Request, res: Response) => {
       comercio_id,
       foto_url,
       descripcion: descripcion || '',
-      // 👇 se guardan también estos campos
+      //se guardan también estos campos
       servicio_id: servicio_id || null,
       servicio_nombre: servicio_nombre || '',
       fecha_creacion: new Date(),
@@ -98,7 +98,7 @@ export const eliminarFoto = async (req: Request, res: Response) => {
 /**
  * Actualizar descripción de una foto
  * PATCH /galeria-fotos/:id
- * Body: { descripcion }
+ * Body: descripcion
  */
 export const actualizarDescripcion = async (req: Request, res: Response) => {
   try {

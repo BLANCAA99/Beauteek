@@ -16,7 +16,7 @@ class _MisResenasPageState extends State<MisResenasPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _misResenas = [];
 
-  // 🎨 Colores de tema oscuro tipo mockup
+  // Colores de tema oscuro tipo mockup
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _cardColor = Color(0xFF24170F);
   static const Color _primaryOrange = Color(0xFFEA963A);

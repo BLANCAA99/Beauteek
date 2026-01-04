@@ -42,7 +42,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final _nameController = TextEditingController();
 
   bool _isProcessing = false;
-  // ✅ NUEVO: Sin comisión al cliente
+  // NUEVO: Sin comisión al cliente
   double get total => widget.monto;
 
   @override
@@ -420,7 +420,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         }
       }
 
-      // ✅ Ahora sí procesar el pago con el citaId correcto
+      // Ahora sí procesar el pago con el citaId correcto
       final payload = {
         'citaId': citaIdFinal,
         'clienteId': user.uid,

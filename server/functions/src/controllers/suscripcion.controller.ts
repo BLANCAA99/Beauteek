@@ -57,7 +57,7 @@ export const crearSuscripcion = async (req: Request, res: Response): Promise<voi
 
     const suscripcionRef = await db.collection('suscripciones').add(suscripcionData);
 
-    console.log(`✅ Suscripción creada: ${suscripcionRef.id}`);
+    console.log(`Suscripción creada: ${suscripcionRef.id}`);
 
     res.status(201).json({
       mensaje: 'Suscripción creada exitosamente',
@@ -65,7 +65,7 @@ export const crearSuscripcion = async (req: Request, res: Response): Promise<voi
       ...suscripcionData,
     });
   } catch (error: any) {
-    console.error('❌ Error creando suscripción:', error);
+    console.error('Error creando suscripción:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -89,7 +89,7 @@ export const obtenerSuscripcionPorComercio = async (req: Request, res: Response)
     const doc = snapshot.docs[0];
     res.json({ id: doc.id, ...doc.data() });
   } catch (error: any) {
-    console.error('❌ Error obteniendo suscripción:', error);
+    console.error('Error obteniendo suscripción:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -111,7 +111,7 @@ export const obtenerSuscripcionesPorDueno = async (req: Request, res: Response):
 
     res.json(suscripciones);
   } catch (error: any) {
-    console.error('❌ Error obteniendo suscripciones:', error);
+    console.error('Error obteniendo suscripciones:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -183,14 +183,14 @@ export const actualizarTarjetaSuscripcion = async (req: Request, res: Response):
 
     await db.collection('suscripciones').doc(id).update(updateData);
 
-    console.log(`✅ Tarjeta de suscripción actualizada: ${id}`);
+    console.log(`Tarjeta de suscripción actualizada: ${id}`);
 
     res.json({
       mensaje: 'Tarjeta actualizada exitosamente',
       historial_id: historialData.id,
     });
   } catch (error: any) {
-    console.error('❌ Error actualizando tarjeta:', error);
+    console.error('Error actualizando tarjeta:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -222,11 +222,11 @@ export const actualizarSuscripcion = async (req: Request, res: Response): Promis
 
     await db.collection('suscripciones').doc(id).update(updateData);
 
-    console.log(`✅ Suscripción actualizada: ${id}`);
+    console.log(`Suscripción actualizada: ${id}`);
 
     res.json({ mensaje: 'Suscripción actualizada exitosamente' });
   } catch (error: any) {
-    console.error('❌ Error actualizando suscripción:', error);
+    console.error('Error actualizando suscripción:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -248,11 +248,11 @@ export const cancelarSuscripcion = async (req: Request, res: Response): Promise<
       fecha_actualizacion: FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Suscripción cancelada: ${id}`);
+    console.log(`Suscripción cancelada: ${id}`);
 
     res.json({ mensaje: 'Suscripción cancelada exitosamente' });
   } catch (error: any) {
-    console.error('❌ Error cancelando suscripción:', error);
+    console.error('Error cancelando suscripción:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -274,7 +274,7 @@ export const obtenerHistorialTarjetas = async (req: Request, res: Response): Pro
 
     res.json(historial);
   } catch (error: any) {
-    console.error('❌ Error obteniendo historial:', error);
+    console.error('Error obteniendo historial:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -297,7 +297,7 @@ export const obtenerSuscripcionesProximasRenovar = async (req: Request, res: Res
 
     res.json(suscripciones);
   } catch (error: any) {
-    console.error('❌ Error obteniendo suscripciones próximas a renovar:', error);
+    console.error('Error obteniendo suscripciones próximas a renovar:', error);
     res.status(500).json({ error: error.message });
   }
 };

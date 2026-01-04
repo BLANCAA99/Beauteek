@@ -73,9 +73,9 @@ class _ChatBotPageState extends State<ChatBotPage> {
     final lowerText = text.toLowerCase().trim();
 
     if (lowerText.contains('hola') || lowerText.contains('buenos') || lowerText.contains('buenas')) {
-      return '¡Hola! 😊 Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
+      return '¡Hola! Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
     } else if (lowerText.contains('reserva') || lowerText.contains('cita') || lowerText.contains('agendar')) {
-      return 'Para hacer una reserva, ve a la pestaña de búsqueda 🔍, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
+      return 'Para hacer una reserva, ve a la pestaña de búsqueda, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
     } else if (lowerText.contains('servicio') || lowerText.contains('qué ofrecen')) {
       return 'En Beauteek puedes encontrar servicios de peluquería, manicure, pedicure, tratamientos faciales, masajes y mucho más. Usa la búsqueda para ver todos los salones disponibles cerca de ti.';
     } else if (lowerText.contains('precio') || lowerText.contains('costo') || lowerText.contains('cuánto')) {
@@ -85,9 +85,9 @@ class _ChatBotPageState extends State<ChatBotPage> {
     } else if (lowerText.contains('cancelar')) {
       return 'Para cancelar una cita, ve a tu calendario 📅, selecciona la cita y elige la opción de cancelar. Recuerda revisar las políticas de cancelación del salón.';
     } else if (lowerText.contains('gracias') || lowerText.contains('thank')) {
-      return '¡De nada! 😊 Estoy aquí para ayudarte. Si tienes más preguntas, no dudes en escribirme.';
+      return '¡De nada!  Estoy aquí para ayudarte. Si tienes más preguntas, no dudes en escribirme.';
     } else if (lowerText.contains('adiós') || lowerText.contains('chao') || lowerText.contains('bye')) {
-      return '¡Hasta pronto! 👋 Que tengas un excelente día. Vuelve cuando necesites ayuda.';
+      return '¡Hasta pronto! Que tengas un excelente día. Vuelve cuando necesites ayuda.';
     } else if (lowerText.contains('ayuda') || lowerText.contains('help')) {
       return 'Puedo ayudarte con:\n• Hacer reservas\n• Buscar servicios\n• Comparar precios\n• Consultar horarios\n• Cancelar citas\n\n¿Qué necesitas?';
     } else {

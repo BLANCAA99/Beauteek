@@ -20,7 +20,7 @@ class SalonBankAccountPage extends StatefulWidget {
 }
 
 class _SalonBankAccountPageState extends State<SalonBankAccountPage> {
-  // 🎨 Tema Beauteek (mismo estilo que el mock)
+  // Tema Beauteek (mismo estilo que el mock)
   static const Color _backgroundColor = Color(0xFF18100A);
   static const Color _fieldColor = Color(0xFF222736);
   static const Color _primaryOrange = Color(0xFFFF9240);

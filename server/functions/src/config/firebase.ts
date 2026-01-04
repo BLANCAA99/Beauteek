@@ -20,7 +20,7 @@ function detectCredentialSource() {
 
 // TEMPORAL: Desactivar emulador de Auth para pruebas con producción
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-  dlog("⚠️ DESACTIVANDO Auth Emulator para usar producción");
+  dlog("DESACTIVANDO Auth Emulator para usar producción");
   delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
 }
 
@@ -44,13 +44,13 @@ try {
     const serviceAccountExists = fs.existsSync(serviceAccountPath);
     
     if (serviceAccountExists) {
-      console.log("✅ Usando serviceAccountKey.json - Notificaciones push HABILITADAS");
+      console.log("Usando serviceAccountKey.json - Notificaciones push HABILITADAS");
       app = initializeApp({
         credential: cert(serviceAccountPath),
         projectId: 'beauteek-b595e',
       });
     } else {
-      console.error("❌ serviceAccountKey.json NO encontrado - Las notificaciones NO funcionarán");
+      console.error("serviceAccountKey.json NO encontrado - Las notificaciones NO funcionarán");
       app = initializeApp({
         credential: applicationDefault(),
       });

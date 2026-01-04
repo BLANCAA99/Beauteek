@@ -9,6 +9,8 @@ import {
   registerUserComplete,
   updateFCMToken,
   deleteFCMToken,
+  sendVerificationCode,
+  verifyCode,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -23,5 +25,9 @@ router.get("/salons/nearby", getSalonsNearby);
 // FCM Token routes
 router.put("/fcm-token", updateFCMToken);
 router.delete("/fcm-token", deleteFCMToken);
+
+// Email verification routes
+router.post("/send-verification-code", sendVerificationCode);
+router.post("/verify-code", verifyCode);
 
 export default router;
