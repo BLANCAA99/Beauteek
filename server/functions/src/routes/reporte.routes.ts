@@ -48,6 +48,8 @@ router.get('/salon/:comercioId', verifyToken, async (req: Request, res: Response
 
     // Procesar datos
     let ingresosTotales = 0;
+    let ingresosApp = 0;
+    let ingresosLocal = 0;
     const clientesUnicos = new Set<string>();
     const serviciosContador: { [key: string]: number } = {};
     let citasCanceladas = 0;
@@ -62,6 +64,7 @@ router.get('/salon/:comercioId', verifyToken, async (req: Request, res: Response
       const precio = parseFloat(cita.precio || 0);
       const servicioNombre = cita.servicio_nombre || 'Desconocido';
       const fechaHora = cita.fecha_hora?.toDate ? cita.fecha_hora.toDate() : new Date(cita.fecha_hora);
+      const metodoPago = cita.metodo_pago || 'local'; // 'app' o 'local'
 
       // Clientes únicos
       if (clienteId) {
@@ -99,6 +102,13 @@ router.get('/salon/:comercioId', verifyToken, async (req: Request, res: Response
       // Ingresos (solo citas completadas)
       if (estado === 'completada') {
         ingresosTotales += precio;
+        
+        // Separar ingresos por método de pago
+        if (metodoPago === 'app') {
+          ingresosApp += precio;
+        } else {
+          ingresosLocal += precio;
+        }
       }
 
       // Citas canceladas
@@ -127,6 +137,8 @@ router.get('/salon/:comercioId', verifyToken, async (req: Request, res: Response
       totalClientes: clientesUnicos.size,
       nuevosClientes,
       ingresosTotales: parseFloat(ingresosTotales.toFixed(2)),
+      ingresosApp: parseFloat(ingresosApp.toFixed(2)),
+      ingresosLocal: parseFloat(ingresosLocal.toFixed(2)),
       citasCanceladas,
       totalCitas: citas.length,
       serviciosPopulares,

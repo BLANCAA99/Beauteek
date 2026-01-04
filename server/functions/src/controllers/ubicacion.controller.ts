@@ -348,22 +348,23 @@ export const obtenerSalonesPorPais = async (req: Request, res: Response): Promis
     // Obtener datos de comercios para cada ubicación
     const salonesPromises = ubicacionesSnapshot.docs.map(async (ubicacionDoc) => {
       const ubicacion = ubicacionDoc.data() as Ubicacion;
-      const uidNegocio = ubicacion.uid_usuario;
+      const comercioId = ubicacion.uid_usuario; // Ahora uid_usuario contiene el id_documento del comercio
 
-      // Buscar el comercio por uid_negocio
-      const comerciosSnapshot = await db
-        .collection('comercios')
-        .where('uid_negocio', '==', uidNegocio)
-        .where('estado', '==', 'activo')
-        .limit(1)
-        .get();
+      // Buscar el comercio directamente por su ID de documento
+      const comercioDoc = await db.collection('comercios').doc(comercioId).get();
 
-      if (comerciosSnapshot.empty) {
+      if (!comercioDoc.exists) {
+        console.log(`Comercio no encontrado: ${comercioId}`);
         return null;
       }
 
-      const comercioDoc = comerciosSnapshot.docs[0];
       const comercio = comercioDoc.data();
+      
+      // Verificar que el comercio esté activo
+      if (comercio?.estado !== 'activo') {
+        console.log(`Comercio ${comercioId} no está activo: ${comercio?.estado}`);
+        return null;
+      }
 
       // Obtener foto del comercio o del propietario
       let fotoUrl = comercio.foto_url || '';

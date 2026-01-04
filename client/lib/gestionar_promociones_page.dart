@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'api_constants.dart';
 import 'theme/app_theme.dart';
 import 'package:intl/intl.dart';
-import 'galeria_salon_page.dart'; // 👈 NUEVO
+import 'galeria_salon_page.dart'; //NUEVO
 
 class GestionarPromocionesPage extends StatefulWidget {
   const GestionarPromocionesPage({Key? key}) : super(key: key);
@@ -150,7 +150,7 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
               backgroundColor: AppTheme.primaryOrange,
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text(
-                'Nueva Promoción',
+                'Crear Promoción',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -251,27 +251,6 @@ class _GestionarPromocionesPageState extends State<GestionarPromocionesPage> {
               color: AppTheme.textSecondary,
             ),
             textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          // 👇 Este se queda como ÚNICO botón de crear
-          ElevatedButton.icon(
-            onPressed: _crearPromocion,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryOrange,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text(
-              'Crear Promoción',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
           ),
         ],
       ),

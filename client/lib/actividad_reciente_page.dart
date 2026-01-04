@@ -287,10 +287,6 @@ class _ActividadRecientePageState extends State<ActividadRecientePage> {
     }
   }
 
-  void _procesarActividades(List<dynamic> actividadesData) {
-    // Este método ya no se necesita
-  }
-
   String _formatearFecha(DateTime fecha) {
     final ahora = DateTime.now();
     final diferencia = ahora.difference(fecha);

@@ -3,24 +3,14 @@ import { db } from "../config/firebase";
 import { FieldValue } from "firebase-admin/firestore";
 import { tarjetaSchema } from "../modelos/tarjeta.model";
 
-// Validar tarjeta (simulado - algoritmo de Luhn)
+// Validar tarjeta (solo longitud para simulación)
 function validarNumeroTarjeta(numero: string): boolean {
-  let sum = 0;
-  let isEven = false;
-
-  for (let i = numero.length - 1; i >= 0; i--) {
-    let digit = parseInt(numero[i]);
-
-    if (isEven) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-
-    sum += digit;
-    isEven = !isEven;
-  }
-
-  return sum % 10 === 0;
+  // Validar que tenga entre 13 y 19 dígitos (rango estándar de tarjetas)
+  const longitudValida = numero.length >= 13 && numero.length <= 19;
+  // Validar que solo contenga números
+  const soloNumeros = /^\d+$/.test(numero);
+  
+  return longitudValida && soloNumeros;
 }
 
 // Validar fecha de expiración

@@ -31,7 +31,8 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _salonPhoneController = TextEditingController();
-  final _rtnController = TextEditingController(); // Agregado
+  final _rtnController = TextEditingController();
+  final _verificationCodeController = TextEditingController();
 
   @override
   void initState() {
@@ -202,36 +203,97 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     _passwordController.dispose();
     _salonPhoneController.dispose();
     _rtnController.dispose();
+    _verificationCodeController.dispose();
     super.dispose();
   }
 
-  Future<void> _submitForm() async {
-    if (!_tarjetaVerificada) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Primero debes agregar un método de pago')),
-      );
-      return;
-    }
+  Future<void> _showVerificationDialog() async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFFFF4EB),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        title: const Text(
+          'Verifica tu email',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1F1F1F),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ingresa el código de 6 dígitos enviado a ${_emailController.text}',
+              style: const TextStyle(fontSize: 14, color: Color(0xFF7B6F63)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _verificationCodeController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 8,
+                color: Color(0xFF1F1F1F),
+              ),
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '000000',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _verificationCodeController.clear();
+              Navigator.of(context).pop();
+            },
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Color(0xFF8A8176)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_verificationCodeController.text.length == 6) {
+                Navigator.of(context).pop();
+                await _completarRegistroSalon();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Código inválido')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryOrange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            child: const Text(
+              'Verificar',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (!_formKey.currentState!.validate()) return;
-
-    if ((_passwordController.text.trim()).length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('La contraseña debe tener al menos 6 caracteres.')),
-      );
-      return;
-    }
-
-    if (_rtnController.text.trim().length != 14) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('El RTN debe tener exactamente 14 dígitos.')),
-      );
-      return;
-    }
-
+  Future<void> _completarRegistroSalon() async {
     setState(() => _isLoading = true);
 
     try {
@@ -240,6 +302,21 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         throw Exception('Debes iniciar sesión primero');
       }
 
+      // Verificar el código
+      final verifyResponse = await http.post(
+        Uri.parse('$apiBaseUrl/api/users/verify-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email': _emailController.text.trim(),
+          'code': _verificationCodeController.text.trim(),
+        }),
+      );
+
+      if (verifyResponse.statusCode != 200) {
+        throw Exception('Código de verificación incorrecto');
+      }
+
+      // Proceder con el registro del salón
       final idToken = await currentUser.getIdToken();
 
       final payload = {
@@ -250,8 +327,6 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         'rtn': _rtnController.text.trim(),
       };
 
-      
-
       final url = Uri.parse('$apiBaseUrl/comercios/register-salon-step1');
       final response = await http.post(
         url,
@@ -261,6 +336,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
         },
         body: json.encode(payload),
       ).timeout(const Duration(seconds: 30));
+
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         final String comercioId = responseData['comercioId'];
@@ -268,9 +344,9 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:
-                Text('Salón creado! Ahora, agrega la dirección.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Salón creado! Ahora, agrega la dirección.')),
+        );
 
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -287,7 +363,64 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')));
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (!_tarjetaVerificada) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primero debes agregar un método de pago')),
+      );
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) return;
+
+    if ((_passwordController.text.trim()).length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres.')),
+      );
+      return;
+    }
+
+    if (_rtnController.text.trim().length != 14) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El RTN debe tener exactamente 14 dígitos.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Enviar código de verificación
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/api/users/send-verification-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'email': _emailController.text.trim()}),
+      );
+
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Código enviado a tu email')),
+        );
+        
+        await _showVerificationDialog();
+      } else {
+        throw Exception('Error al enviar código de verificación');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

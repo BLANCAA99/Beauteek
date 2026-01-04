@@ -21,6 +21,68 @@ class _CambiarContrasenaPageState extends State<CambiarContrasenaPage> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _verificarProveedorAutenticacion();
+  }
+
+  Future<void> _verificarProveedorAutenticacion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Verificar si el usuario se registró con Google
+    final proveedores = user.providerData.map((info) => info.providerId).toList();
+    
+    if (proveedores.contains('google.com') && !proveedores.contains('password')) {
+      // Usuario registrado solo con Google, no puede cambiar contraseña
+      if (!mounted) return;
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.cardBackground,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.info_outline, color: Colors.blue, size: 28),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Cuenta de Google',
+                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: const Text(
+              'Tu cuenta está vinculada con Google. La contraseña se gestiona directamente desde tu cuenta de Google, no desde esta app.',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Cerrar diálogo
+                  Navigator.pop(context); // Volver atrás
+                },
+                child: const Text('Entendido', style: TextStyle(color: AppTheme.primaryOrange)),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _contrasenaActualController.dispose();
     _nuevaContrasenaController.dispose();

@@ -23,7 +23,6 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
-  late TextEditingController _addressController;
   late TextEditingController _photoUrlController;
   late TextEditingController _dobController; // Fecha de Nacimiento
   String? _selectedGender; // Género
@@ -31,6 +30,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   String _pais = '';
   String _ciudad = '';
   LatLng? _newLocation; // Nueva ubicación seleccionada
+  String _rolUsuario = 'cliente'; // Rol del usuario
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -62,8 +62,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _nameController = TextEditingController(text: finalName);
     _phoneController = TextEditingController(
         text: widget.userData['phone'] ?? widget.userData['telefono'] ?? '');
-    _addressController =
-        TextEditingController(text: widget.userData['direccion'] ?? '');
     _photoUrlController = TextEditingController(
         text: widget.userData['photoURL'] ?? widget.userData['foto_url'] ?? '');
     _dobController =
@@ -77,7 +75,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
     _photoUrlController.dispose();
     _dobController.dispose();
     super.dispose();
@@ -89,7 +86,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=cliente');
+      // Si es salón, busca ubicación del comercio (tipo=comercio)
+      // Si es cliente, busca ubicación del cliente (tipo=cliente)
+      final tipo = _rolUsuario == 'salon' ? 'comercio' : 'cliente';
+      final url = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=$tipo');
       final resp = await http.get(
         url,
         headers: {
@@ -133,16 +133,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
         final nombre = (data['nombre_completo'] ?? '').toString();
         final tel = (data['telefono'] ?? '').toString();
-        final dir = (data['direccion'] ?? '').toString();
         final foto = (data['foto_url'] ?? '').toString();
         final dob = (data['fecha_nacimiento'] ?? '').toString();
         final genero = (data['genero'] ?? '').toString();
+        final rol = (data['rol'] ?? 'cliente').toString();
 
         if (nombre.isNotEmpty) _nameController.text = nombre;
         if (tel.isNotEmpty) _phoneController.text = tel;
-        if (dir.isNotEmpty) _addressController.text = dir;
         if (foto.isNotEmpty) _photoUrlController.text = foto;
         if (dob.isNotEmpty) _dobController.text = dob;
+
+        // Guardar el rol del usuario
+        _rolUsuario = rol;
+
+        // Recargar ubicación ahora que conocemos el rol
+        _cargarUbicacion();
 
         if (genero.isNotEmpty) {
           const opciones = [
@@ -222,7 +227,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final Map<String, dynamic> profileData = {
         'nombre_completo': _nameController.text.trim(),
         'telefono': _phoneController.text.trim(),
-        'direccion': _addressController.text.trim(),
         'foto_url': _photoUrlController.text.trim(),
         'fecha_nacimiento': _dobController.text.trim(),
         'genero': _selectedGender,
@@ -559,27 +563,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               const SizedBox(height: 18),
 
-              // Dirección
-              const Text(
-                'Dirección',
-                style: TextStyle(
-                  color: _textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _addressController,
-                style: const TextStyle(color: _textPrimary),
-                decoration: _fieldDecoration('Dirección'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? 'Por favor, ingresa tu dirección'
-                        : null,
-              ),
-              const SizedBox(height: 18),
-
               // Ubicación - Solo lectura con botón para editar
               const Text(
                 'Ubicación',
@@ -668,71 +651,75 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               const SizedBox(height: 18),
 
-              // Fecha de nacimiento
-              const Text(
-                'Fecha de nacimiento',
-                style: TextStyle(
-                  color: _textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              // Fecha de nacimiento - Solo para clientes
+              if (_rolUsuario == 'cliente') ...[
+                const Text(
+                  'Fecha de nacimiento',
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _dobController,
-                style: const TextStyle(color: _textPrimary),
-                decoration: _fieldDecoration('Fecha de nacimiento')
-                    .copyWith(
-                      suffixIcon: const Icon(Icons.calendar_today,
-                          color: _textSecondary),
-                    ),
-                readOnly: true,
-                onTap: () async {
-                  DateTime? pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(1920),
-                    lastDate: DateTime.now(),
-                  );
-                  if (pickedDate != null) {
-                    setState(() {
-                      _dobController.text =
-                          pickedDate.toIso8601String().substring(0, 10);
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 18),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _dobController,
+                  style: const TextStyle(color: _textPrimary),
+                  decoration: _fieldDecoration('Fecha de nacimiento')
+                      .copyWith(
+                        suffixIcon: const Icon(Icons.calendar_today,
+                            color: _textSecondary),
+                      ),
+                  readOnly: true,
+                  onTap: () async {
+                    DateTime? pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(1920),
+                      lastDate: DateTime.now(),
+                    );
+                    if (pickedDate != null) {
+                      setState(() {
+                        _dobController.text =
+                            pickedDate.toIso8601String().substring(0, 10);
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 18),
+              ],
 
-              // Género
-              const Text(
-                'Género',
-                style: TextStyle(
-                  color: _textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              // Género - Solo para clientes
+              if (_rolUsuario == 'cliente') ...[
+                const Text(
+                  'Género',
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _selectedGender,
-                dropdownColor: _fieldColor,
-                iconEnabledColor: _textSecondary,
-                style: const TextStyle(color: _textPrimary, fontSize: 14),
-                decoration: _fieldDecoration('Género'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'Masculino', child: Text('Masculino')),
-                  DropdownMenuItem(
-                      value: 'Femenino', child: Text('Femenino')),
-                  DropdownMenuItem(value: 'Otro', child: Text('Otro')),
-                  DropdownMenuItem(
-                      value: 'Prefiero no decirlo',
-                      child: Text('Prefiero no decirlo')),
-                ],
-                onChanged: (value) =>
-                    setState(() => _selectedGender = value),
-              ),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _selectedGender,
+                  dropdownColor: _fieldColor,
+                  iconEnabledColor: _textSecondary,
+                  style: const TextStyle(color: _textPrimary, fontSize: 14),
+                  decoration: _fieldDecoration('Género'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'Masculino', child: Text('Masculino')),
+                    DropdownMenuItem(
+                        value: 'Femenino', child: Text('Femenino')),
+                    DropdownMenuItem(value: 'Otro', child: Text('Otro')),
+                    DropdownMenuItem(
+                        value: 'Prefiero no decirlo',
+                        child: Text('Prefiero no decirlo')),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _selectedGender = value),
+                ),
+              ],
 
               const SizedBox(height: 32),
 

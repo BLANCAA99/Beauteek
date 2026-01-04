@@ -248,29 +248,30 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     String idToken,
   ) async {
     try {
-      // Obtener ubicación del comercio desde usuarios collection
-      final uidUsuario = comercio['uid_usuario'];
-      if (uidUsuario == null) return 999.0;
+      // Obtener ubicación del comercio desde la colección ubicaciones usando el comercioId
+      final comercioId = comercio['id'];
+      if (comercioId == null) return 999.0;
       
-      final comercioUserUrl = Uri.parse('$apiBaseUrl/api/users/uid/$uidUsuario');
-      final comercioUserResponse = await http.get(
-        comercioUserUrl,
+      // Buscar la ubicación donde uid_usuario = comercioId
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/$comercioId');
+      final ubicacionResponse = await http.get(
+        ubicacionUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 5));
 
-      if (comercioUserResponse.statusCode != 200) return 999.0;
+      if (ubicacionResponse.statusCode != 200) return 999.0;
 
-      final comercioUserData = json.decode(comercioUserResponse.body);
-      final ubicacionComercio = comercioUserData['ubicacion'];
+      final List<dynamic> ubicaciones = json.decode(ubicacionResponse.body);
+      if (ubicaciones.isEmpty) return 999.0;
+
+      // Tomar la primera ubicación (debería ser la principal)
+      final ubicacionComercio = ubicaciones.first;
       
-      double? comercioLat, comercioLng;
-      if (ubicacionComercio is Map) {
-        comercioLat = (ubicacionComercio['_latitude'] ?? ubicacionComercio['latitude'])?.toDouble();
-        comercioLng = (ubicacionComercio['_longitude'] ?? ubicacionComercio['longitude'])?.toDouble();
-      }
+      final comercioLat = (ubicacionComercio['lat'] as num?)?.toDouble();
+      final comercioLng = (ubicacionComercio['lng'] as num?)?.toDouble();
 
       if (comercioLat == null || comercioLng == null) return 999.0;
 

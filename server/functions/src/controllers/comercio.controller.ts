@@ -148,6 +148,25 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
     const geoPoint = new GeoPoint(ubicacion.latitude, ubicacion.longitude);
     console.log('GeoPoint creado:', geoPoint);
 
+    // Crear ubicación en la colección ubicaciones con comercioId como uid_usuario
+    const nuevaUbicacion = {
+      uid_usuario: comercioId, // IMPORTANTE: Ahora es el ID del comercio, no del usuario
+      tipo_entidad: 'salon',
+      es_principal: true,
+      pais: 'Honduras', // Por defecto Honduras, se puede mejorar después
+      ciudad: '', // Se puede agregar después con geocoding
+      direccion_completa: '', // Se puede agregar después con geocoding
+      lat: ubicacion.latitude,
+      lng: ubicacion.longitude,
+      alias: comercioData.nombre || 'Mi salón',
+      fecha_creacion: new Date(),
+      fecha_actualizacion: new Date(),
+      activo: true,
+    };
+
+    await db.collection('ubicaciones').add(nuevaUbicacion);
+    console.log(`Ubicación creada para comercio: ${comercioId}`);
+
     await db.collection("comercios").doc(comercioId).update({
       estado: "paso2_completado",
       fecha_actualizacion: new Date(),
@@ -431,7 +450,7 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
 
     for (const comercioDoc of comerciosSnapshot.docs) {
       const comercio = comercioDoc.data() as Comercio;
-      const comercioId = comercioDoc.id;
+      const comercioId = (comercio as any).id_documento || comercioDoc.id;
 
       console.log(`Procesando comercio: ${comercio.nombre} (${comercioId}) - Estado: ${comercio.estado}`);
 
@@ -461,22 +480,32 @@ export const getComercioscerca = async (req: Request, res: Response): Promise<vo
       if (comercioLat === undefined || comercioLng === undefined) {
         console.log(`Buscando ubicación en colección 'ubicaciones' para ${comercioId}`);
         try {
-          // Intentar primero con entidad_id y tipo_entidad='comercio'
+          // Buscar por uid_usuario usando el comercioId (nuevo patrón)
           let ubicacionSnapshot = await db
             .collection('ubicaciones')
-            .where('entidad_id', '==', comercioId)
-            .where('tipo_entidad', '==', 'comercio')
+            .where('uid_usuario', '==', comercioId)
             .where('es_principal', '==', true)
             .limit(1)
             .get();
 
-          // Si no encuentra, buscar por uid_usuario (para salones legacy)
+          // Si no encuentra, intentar con entidad_id (fallback)
+          if (ubicacionSnapshot.empty) {
+            console.log(`Buscando por entidad_id: ${comercioId}`);
+            ubicacionSnapshot = await db
+              .collection('ubicaciones')
+              .where('entidad_id', '==', comercioId)
+              .where('tipo_entidad', '==', 'comercio')
+              .where('es_principal', '==', true)
+              .limit(1)
+              .get();
+          }
+
+          // Si aún no encuentra, buscar por uid_negocio (legacy - para migración)
           if (ubicacionSnapshot.empty && comercio.uid_negocio) {
-            console.log(`Buscando por uid_usuario: ${comercio.uid_negocio}`);
+            console.log(`Buscando por uid_usuario (legacy): ${comercio.uid_negocio}`);
             ubicacionSnapshot = await db
               .collection('ubicaciones')
               .where('uid_usuario', '==', comercio.uid_negocio)
-              .where('tipo_entidad', '==', 'salon')
               .where('es_principal', '==', true)
               .limit(1)
               .get();

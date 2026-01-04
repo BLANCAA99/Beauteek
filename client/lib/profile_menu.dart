@@ -22,6 +22,7 @@ import 'galeria_salon_page.dart';
 import 'promociones_page.dart';
 import 'gestionar_promociones_page.dart';
 import 'reportes_cliente_page.dart';
+import 'calendar_page.dart';
 
 class ProfileMenuPage extends StatefulWidget {
   final String? uid;
@@ -687,7 +688,7 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const _PlaceholderPage(title: 'Calendario'),
+                builder: (_) => const CalendarPage(),
               ),
             );
             break;

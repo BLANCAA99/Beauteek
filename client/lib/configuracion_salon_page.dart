@@ -15,9 +15,7 @@ class ConfiguracionSalonPage extends StatefulWidget {
 }
 
 class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
-  bool _notificarReservas = true;
   bool _isLoading = true;
-  bool _isSaving = false;
   String? _comercioId;
 
   @override
@@ -56,25 +54,7 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
 
         if (miComercio != null) {
           _comercioId = miComercio['id'];
-
-          final token = await user.getIdToken();
-          final configResponse = await http.get(
-            Uri.parse('$apiBaseUrl/api/configuracion-salon/$_comercioId'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          );
-
-          if (configResponse.statusCode == 200) {
-            final data = json.decode(configResponse.body);
-            setState(() {
-              _notificarReservas = data['notificar_reservas'] ?? true;
-              _isLoading = false;
-            });
-          } else {
-            setState(() => _isLoading = false);
-          }
+          setState(() => _isLoading = false);
         } else {
           setState(() => _isLoading = false);
         }
@@ -83,54 +63,6 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _guardarConfiguracion() async {
-    if (_comercioId == null) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final token = await user.getIdToken();
-      final response = await http.put(
-        Uri.parse('$apiBaseUrl/api/configuracion-salon/$_comercioId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'notificar_reservas': _notificarReservas,
-        }),
-      );
-
-      setState(() => _isSaving = false);
-
-      if (response.statusCode != 200) {
-        throw Exception('Error al actualizar configuración');
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Configuración guardada'),
-            backgroundColor: AppTheme.primaryOrange,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al guardar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -221,40 +153,7 @@ class _ConfiguracionSalonPageState extends State<ConfiguracionSalonPage> {
               );
             },
           ),
-          const SizedBox(height: 32),
-
-          const Text(
-            'NOTIFICACIONES',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _OpcionConSwitch(
-            icon: Icons.mail_rounded,
-            iconColor: AppTheme.primaryOrange,
-            backgroundColor: const Color(0xFF3B2612),
-            titulo: 'Notificar nuevas reservas',
-            value: _notificarReservas,
-            onChanged: (value) {
-              setState(() => _notificarReservas = value);
-              _guardarConfiguracion();
-            },
-          ),
           const SizedBox(height: 24),
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(
-                  color: AppTheme.primaryOrange,
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -336,69 +235,6 @@ class _OpcionCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _OpcionConSwitch extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color backgroundColor;
-  final String titulo;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _OpcionConSwitch({
-    required this.icon,
-    required this.iconColor,
-    required this.backgroundColor,
-    required this.titulo,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              titulo,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppTheme.primaryOrange,
-            activeTrackColor: AppTheme.primaryOrange.withOpacity(0.5),
-          ),
-        ],
       ),
     );
   }

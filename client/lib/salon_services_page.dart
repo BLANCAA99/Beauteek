@@ -89,6 +89,110 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
     }
   }
 
+  void _mostrarSelectorCategorias() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: _cardSoftColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Selecciona una categoría',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Elige la categoría del servicio que deseas agregar',
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListView.builder(
+              shrinkWrap: true,
+              itemCount: _categorias.length,
+              itemBuilder: (context, index) {
+                final categoria = _categorias[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: _cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        categoria['icon'],
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: _primaryOrange.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.category,
+                              color: _primaryOrange,
+                              size: 20,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    title: Text(
+                      categoria['nombre'],
+                      style: const TextStyle(
+                        color: _textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: _textSecondary,
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _mostrarFormularioServicio(categoria);
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _mostrarFormularioServicio(Map<String, dynamic> categoria) {
     final nombreController = TextEditingController();
     final descripcionController = TextEditingController();
@@ -623,110 +727,140 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               children: [
-                const Text(
-                  'Selecciona una categoría',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: _textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Agrega los servicios que ofrece tu salón',
-                  style: TextStyle(
-                    color: _textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                // Grid de categorías
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: 0.95,
-                  ),
-                  itemCount: _categorias.length,
-                  itemBuilder: (context, index) {
-                    final categoria = _categorias[index];
-                    final int cantidadServicios = _serviciosAgregados
-                        .where(
-                            (s) => s['categoria_id'] == categoria['id'])
-                        .length;
-                    final bool tieneServicios = cantidadServicios > 0;
-
-                    return InkWell(
-                      onTap: () => _mostrarFormularioServicio(categoria),
-                      borderRadius: BorderRadius.circular(22),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _cardColor,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: tieneServicios
-                                ? _primaryOrange
-                                : Colors.white12,
-                            width: tieneServicios ? 1.4 : 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.35),
-                              blurRadius: 14,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                          Container(
-                            width: 52,
-                            height: 52,
+                // Botón para añadir servicio
+                if (_serviciosAgregados.isEmpty)
+                  Center(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        GestureDetector(
+                          onTap: () => _mostrarSelectorCategorias(),
+                          child: Container(
+                            width: 80,
+                            height: 80,
                             decoration: BoxDecoration(
-                              color: _cardSoftColor,                 // o Colors.transparent
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white12),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.network(
-                                categoria['icon'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Center(
-                                    child: Icon(
-                                      Icons.category,
-                                      color: _primaryOrange,
-                                      size: 28,
-                                    ),
-                                  );
-                                },
+                              color: _cardColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _primaryOrange.withOpacity(0.5),
+                                width: 2,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.add,
+                              size: 40,
+                              color: _primaryOrange,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Añadir Servicio',
+                          style: TextStyle(
+                            color: _textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Toca para añadir',
+                          style: TextStyle(
+                            color: _textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  // Mostrar categorías con servicios como cards
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 14,
+                    children: _categorias.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final categoria = _categorias[index];
+                      final int cantidadServicios = _serviciosAgregados
+                          .where(
+                              (s) => s['categoria_id'] == categoria['id'])
+                          .length;
+                      final bool tieneServicios = cantidadServicios > 0;
 
-                            const SizedBox(height: 10),
-                            Text(
-                              categoria['nombre'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: _textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                      // Solo mostrar la card si tiene servicios
+                      if (!tieneServicios) return const SizedBox.shrink();
+
+                      return InkWell(
+                        onTap: () => _mostrarFormularioServicio(categoria),
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          width: (MediaQuery.of(context).size.width - 54) / 2,
+                          height: 180,
+                          decoration: BoxDecoration(
+                            color: _cardColor,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: _primaryOrange,
+                              width: 1.4,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 14),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: _cardSoftColor,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.network(
+                                  categoria['icon'],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Center(
+                                      child: Icon(
+                                        Icons.category,
+                                        color: _primaryOrange,
+                                        size: 28,
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            if (tieneServicios)
+                              const SizedBox(height: 10),
+                              Text(
+                                categoria['nombre'],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -744,21 +878,13 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              )
-                            else
-                              const Text(
-                                'Sin servicios aún',
-                                style: TextStyle(
-                                  color: _textSecondary,
-                                  fontSize: 11,
-                                ),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    }).toList(),
+                  ),
 
                 const SizedBox(height: 22),
 

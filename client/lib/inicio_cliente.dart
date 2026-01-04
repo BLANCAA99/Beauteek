@@ -314,28 +314,19 @@ class _InicioClientePageState extends State<InicioClientePage> {
         });
         return;
       }
-
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
       final idToken = await user.getIdToken();
-
       final url = Uri.parse(
         '$apiBaseUrl/comercios/cerca?lat=$_userLat&lng=$_userLng&radio=50',
       );
-
-      
-
       final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 2)); // Aumentado a 2 segundos
-
-      
-
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         if (!mounted) return;
         setState(() {
@@ -345,10 +336,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
         });
         return;
       }
-
       final List<dynamic> saloneData = json.decode(response.body);
       for (var s in saloneData) {
-        
       }
       final List<Map<String, dynamic>> salonesConFoto = [];
 
@@ -356,7 +345,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
         final salonMap = Map<String, dynamic>.from(salon);
         final comercioId = salonMap['id'] as String?;
         String? uidPropietario;
-        // 1️⃣ Traer detalle del comercio para obtener uid_negocio si no viene
+        // Traer detalle del comercio para obtener uid_negocio si no viene
         if (comercioId != null) {
           try {
             final detalleUrl = Uri.parse('$apiBaseUrl/comercios/$comercioId');
@@ -381,7 +370,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           }
         }
 
-        // 2️⃣ Si tenemos uid_negocio, pedir foto al endpoint /api/users/uid/{uid}
+        // Si tenemos uid_negocio, pedir foto al endpoint /api/users/uid/{uid}
         if (uidPropietario != null &&
             uidPropietario.isNotEmpty &&
             idToken != null) {
@@ -392,7 +381,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           }
         }
 
-        // 3️⃣ Calificación promedio desde reseñas
+        // Calificación promedio desde reseñas
         if (comercioId != null) {
           try {
             final resenasUrl =

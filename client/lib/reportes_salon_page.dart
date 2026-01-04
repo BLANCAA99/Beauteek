@@ -138,7 +138,9 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
       setState(() => _isLoading = true);
 
       final pdf = pw.Document();
-      final ingresos = _datosReporte!['ingresosTotales'] ?? 0.0;
+      final ingresos = (_datosReporte!['ingresosTotales'] ?? 0).toDouble();
+      final ingresosApp = (_datosReporte!['ingresosApp'] ?? 0).toDouble();
+      final ingresosLocal = (_datosReporte!['ingresosLocal'] ?? 0).toDouble();
       final totalCitas = _datosReporte!['totalCitas'] ?? 0;
 
       pdf.addPage(
@@ -158,8 +160,19 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
               pw.Text('Ingresos Totales: ${_formatearMoneda(ingresos)}',
                   style: pw.TextStyle(
                       fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 15),
+              pw.Text('Desglose por Método de Pago',
+                  style: pw.TextStyle(
+                      fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Text('Total de Citas: $totalCitas'),
+              pw.Text('Pago en la App: ${_formatearMoneda(ingresosApp)}',
+                  style: pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(height: 5),
+              pw.Text('Pago en Local: ${_formatearMoneda(ingresosLocal)}',
+                  style: pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(height: 15),
+              pw.Text('Total de Citas: $totalCitas',
+                  style: pw.TextStyle(fontSize: 12)),
             ],
           ),
         ),
@@ -466,22 +479,6 @@ class _ReportesSalonPageState extends State<ReportesSalonPage> {
                         backgroundColor: const Color(0xFF0B1F2E),
                         titulo: 'Reporte de Nuevos Clientes',
                         onDownload: hayDatos ? _descargarReporteClientes : null,
-                      ),
-                      const SizedBox(height: 16),
-                      _ReporteCard(
-                        icon: Icons.people_alt_rounded,
-                        iconColor: const Color(0xFFAF8260),
-                        backgroundColor: const Color(0xFF2A1F1A),
-                        titulo: 'Reporte de Ocupación por Empleado',
-                        hasDownload: false,
-                      ),
-                      const SizedBox(height: 16),
-                      _ReporteCard(
-                        icon: Icons.shopping_bag_rounded,
-                        iconColor: const Color(0xFF34C759),
-                        backgroundColor: const Color(0xFF0D2538),
-                        titulo: 'Reporte de Venta de Productos',
-                        hasDownload: false,
                       ),
                       const SizedBox(height: 16),
                       _ReporteCard(

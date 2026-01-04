@@ -141,7 +141,7 @@ class _SalonAddressPageState extends State<SalonAddressPage> {
               'Authorization': 'Bearer $idToken',
             },
             body: json.encode({
-              'uid_usuario': widget.uidNegocio,
+              'uid_usuario': widget.comercioId, // Cambio: comercioId en vez de uidNegocio
               'tipo_entidad': 'salon',
               'es_principal': true,
               'pais': pais,
