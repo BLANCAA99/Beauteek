@@ -308,6 +308,66 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
     );
   }
 
+  // ============ MOSTRAR ERROR DE VALIDACIÓN ============
+
+  void _mostrarErrorValidacionImagen(String mensaje) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardBackground,
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: AppTheme.errorRed, size: 28),
+            SizedBox(width: 12),
+            Text(
+              'Imagen no válida',
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              mensaje,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Requisitos de imagen:',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '✓ Formato: JPG o PNG\n✓ Tamaño máximo: 800 KB (0.78 MB)\n✓ Solo imágenes de Cloudinary',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Entendido',
+              style: TextStyle(color: AppTheme.primaryOrange, fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ============ SUBIR FOTO (Cloudinary + API) ============
 
   Future<void> _subirFotoServicio(BuildContext sheetContext) async {
@@ -394,6 +454,16 @@ class _GaleriaSalonPageState extends State<GaleriaSalonPage> {
         }
 
         await _cargarDatos();
+      } else if (resp.statusCode == 400) {
+        // Error de validación de imagen del servidor
+        final errorData = json.decode(resp.body);
+        final errorMsg = errorData['detalles'] ??
+            errorData['error'] ??
+            'Error de validación';
+
+        if (mounted) {
+          _mostrarErrorValidacionImagen(errorMsg);
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

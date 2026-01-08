@@ -32,7 +32,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool _isLoading = false;
   XFile? _selectedImage;
   bool _isUploadingImage = false;
-  
+
   final ImagePicker _picker = ImagePicker();
   final CloudinaryPublic _cloudinary = CloudinaryPublic(
     dotenv.env['CLOUDINARY_CLOUD_NAME']!,
@@ -44,6 +44,66 @@ class _ReviewScreenState extends State<ReviewScreen> {
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+
+  void _mostrarErrorValidacionImagen(String mensaje) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Color(0xFFFF453A), size: 28),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Imagen no válida',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              mensaje,
+              style: const TextStyle(
+                color: Color(0xFFD0C7FF),
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Requisitos de imagen:',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '✓ Formato: JPG o PNG\n✓ Tamaño máximo: 800 KB (0.78 MB)',
+              style: TextStyle(
+                color: Color(0xFFB3ACA5),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Entendido',
+              style: TextStyle(color: Color(0xFFEA963A), fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _seleccionarFoto() async {
@@ -61,7 +121,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library, color: Color(0xFFEA963A)),
+                leading:
+                    const Icon(Icons.photo_library, color: Color(0xFFEA963A)),
                 title: const Text('Galería'),
                 onTap: () => Navigator.pop(context, ImageSource.gallery),
               ),
@@ -121,7 +182,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       String? fotoUrl;
       if (_selectedImage != null) {
         setState(() => _isUploadingImage = true);
-        
+
         try {
           final response = await _cloudinary.uploadFile(
             CloudinaryFile.fromFile(
@@ -140,7 +201,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
       }
 
       // Primero obtener el uid_negocio del comercio
-      final comercioUrl = Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
+      final comercioUrl =
+          Uri.parse('$apiBaseUrl/comercios/${widget.comercioId}');
       final comercioResponse = await http.get(
         comercioUrl,
         headers: {
@@ -173,7 +235,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
       };
 
       final url = Uri.parse('$apiBaseUrl/api/resenas');
-      
 
       final response = await http.post(
         url,
@@ -194,12 +255,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
         );
 
         Navigator.pop(context, true);
+      } else if (response.statusCode == 400) {
+        // Error de validación de imagen del servidor
+        final errorData = json.decode(response.body);
+        final errorMsg = errorData['detalles'] ??
+            errorData['error'] ??
+            'Error de validación';
+
+        if (!mounted) return;
+        _mostrarErrorValidacionImagen(errorMsg);
       } else {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
@@ -230,7 +300,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFEA963A)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFEA963A)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -320,7 +391,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (_selectedImage != null) ...[
                     Stack(
                       children: [
@@ -348,13 +419,13 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  
+
                   OutlinedButton.icon(
                     onPressed: _isUploadingImage ? null : _seleccionarFoto,
                     icon: const Icon(Icons.add_photo_alternate),
-                    label: Text(_selectedImage == null 
-                      ? 'Agregar foto del servicio' 
-                      : 'Cambiar foto'),
+                    label: Text(_selectedImage == null
+                        ? 'Agregar foto del servicio'
+                        : 'Cambiar foto'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFEA963A),
                       side: const BorderSide(color: Color(0xFFEA963A)),

@@ -12,13 +12,14 @@ import {
   sendVerificationCode,
   verifyCode,
 } from "../controllers/user.controller";
+import { validateProfileImage } from '../middleware/image-validator.middleware';
 
 const router = Router();
 router.post("/", createUser);
 router.get("/", getUsers);
 router.post('/register', registerUserComplete);
 router.get("/uid/:uid", getUserByUid);
-router.put("/:uid", updateUser);
+router.put("/:uid", validateProfileImage, updateUser);
 router.delete("/:uid", deleteUser);
 router.get("/salons/nearby", getSalonsNearby);
 

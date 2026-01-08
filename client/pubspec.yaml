@@ -32,9 +32,12 @@ dependencies:
   
   # Google Sign In (AGREGAR ESTA LÍNEA)
   google_sign_in: ^6.1.6
-  pdf: ^3.10.7 # ✅ CAMBIO: Para generar PDF en lugar de CSV
-  path_provider: ^2.1.1 # ✅ AGREGAR: Para guardar archivos
-  share_plus: ^7.2.1 # ✅ AGREGAR: Para compartir archivos
+  
+  # SharedPreferences para almacenar datos locales
+  shared_preferences: ^2.2.2
+  pdf: ^3.10.7 #  Para generar PDF en lugar de CSV
+  path_provider: ^2.1.1 #Para guardar archivos
+  share_plus: ^7.2.1 # Para compartir archivos
   
   # URL Launcher para emails
   url_launcher: ^6.2.2
@@ -58,4 +61,3 @@ flutter:
     - .env
     - assets/images/
     - assets/images/Beauteeklogin.png
-    - assets/dialogflow/credentials.json

@@ -9,7 +9,7 @@ import 'calendar_page.dart';
 
 class CompararServiciosPage extends StatefulWidget {
   final String servicioNombre;
-  
+
   const CompararServiciosPage({
     Key? key,
     required this.servicioNombre,
@@ -61,7 +61,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       final idToken = idTokenNullable;
       // Obtener ubicación del cliente primero
       final userId = user.uid;
-      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
+      final ubicacionUrl = Uri.parse(
+          '$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
       final ubicacionResponse = await http.get(
         ubicacionUrl,
         headers: {
@@ -78,8 +79,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       final ubicacionData = json.decode(ubicacionResponse.body);
       final userLat = (ubicacionData['lat'] as num).toDouble();
       final userLng = (ubicacionData['lng'] as num).toDouble();
-      
-      
 
       // Obtener todos los comercios
       final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
@@ -102,7 +101,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
 
       for (var comercio in comercios) {
         try {
-          final serviciosUrl = Uri.parse('$apiBaseUrl/api/servicios?comercio_id=${comercio['id']}');
+          final serviciosUrl = Uri.parse(
+              '$apiBaseUrl/api/servicios?comercio_id=${comercio['id']}');
           final serviciosResponse = await http.get(
             serviciosUrl,
             headers: {
@@ -122,8 +122,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
               if (nombreServicio.contains(busqueda)) {
                 // Calcular distancia usando ubicación ya obtenida
                 final distancia = await _calcularDistanciaConUbicacion(
-                  comercio, 
-                  userLat, 
+                  comercio,
+                  userLat,
                   userLng,
                   idToken,
                 );
@@ -140,7 +140,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   servicio['id'],
                   idToken,
                 );
-                
+
                 serviciosEncontrados.add({
                   'servicio': servicio,
                   'comercio': comercio,
@@ -154,12 +154,11 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
               }
             }
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
       // Ordenar por precio (menor a mayor)
-      serviciosEncontrados.sort((a, b) => 
-        (a['precio'] as double).compareTo(b['precio'] as double));
+      serviciosEncontrados.sort(
+          (a, b) => (a['precio'] as double).compareTo(b['precio'] as double));
 
       if (mounted) {
         setState(() {
@@ -180,7 +179,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     String idToken,
   ) async {
     try {
-      final galeriaUrl = Uri.parse('$apiBaseUrl/api/galeria-fotos/comercio/$comercioId');
+      final galeriaUrl =
+          Uri.parse('$apiBaseUrl/api/galeria-fotos/comercio/$comercioId');
       final galeriaResponse = await http.get(
         galeriaUrl,
         headers: {
@@ -203,8 +203,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           return url;
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -213,7 +212,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     String idToken,
   ) async {
     try {
-      final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
+      final resenasUrl =
+          Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
       final resenasResponse = await http.get(
         resenasUrl,
         headers: {
@@ -228,16 +228,16 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
           return {'promedio': 4.5, 'total': 0};
         }
 
-        final suma = resenas.fold<double>(0, (acc, r) => acc + (r['calificacion'] ?? 0).toDouble());
+        final suma = resenas.fold<double>(
+            0, (acc, r) => acc + (r['calificacion'] ?? 0).toDouble());
         final promedio = suma / resenas.length;
-        
+
         return {
           'promedio': double.parse(promedio.toStringAsFixed(1)),
           'total': resenas.length,
         };
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return {'promedio': 4.5, 'total': 0};
   }
 
@@ -251,9 +251,10 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       // Obtener ubicación del comercio desde la colección ubicaciones usando el comercioId
       final comercioId = comercio['id'];
       if (comercioId == null) return 999.0;
-      
+
       // Buscar la ubicación donde uid_usuario = comercioId
-      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/$comercioId');
+      final ubicacionUrl =
+          Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/$comercioId');
       final ubicacionResponse = await http.get(
         ubicacionUrl,
         headers: {
@@ -269,32 +270,36 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
 
       // Tomar la primera ubicación (debería ser la principal)
       final ubicacionComercio = ubicaciones.first;
-      
+
       final comercioLat = (ubicacionComercio['lat'] as num?)?.toDouble();
       final comercioLng = (ubicacionComercio['lng'] as num?)?.toDouble();
 
       if (comercioLat == null || comercioLng == null) return 999.0;
 
       // Calcular distancia usando fórmula Haversine
-      return _calcularDistanciaHaversine(userLat, userLng, comercioLat, comercioLng);
+      return _calcularDistanciaHaversine(
+          userLat, userLng, comercioLat, comercioLng);
     } catch (e) {
       return 999.0;
     }
   }
 
-  double _calcularDistanciaHaversine(double lat1, double lon1, double lat2, double lon2) {
+  double _calcularDistanciaHaversine(
+      double lat1, double lon1, double lat2, double lon2) {
     const double radioTierra = 6371; // Radio de la Tierra en kilómetros
-    
+
     final double dLat = _gradosARadianes(lat2 - lat1);
     final double dLon = _gradosARadianes(lon2 - lon1);
-    
+
     final double a = (sin(dLat / 2) * sin(dLat / 2)) +
-        (cos(_gradosARadianes(lat1)) * cos(_gradosARadianes(lat2)) *
-         sin(dLon / 2) * sin(dLon / 2));
-    
+        (cos(_gradosARadianes(lat1)) *
+            cos(_gradosARadianes(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2));
+
     final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     final double distancia = radioTierra * c;
-    
+
     return double.parse(distancia.toStringAsFixed(1));
   }
 
@@ -305,11 +310,14 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
   void _ordenarServicios() {
     setState(() {
       if (_ordenPor == 'Precio') {
-        _serviciosEncontrados.sort((a, b) => a['precio'].compareTo(b['precio']));
+        _serviciosEncontrados
+            .sort((a, b) => a['precio'].compareTo(b['precio']));
       } else if (_ordenPor == 'Distancia') {
-        _serviciosEncontrados.sort((a, b) => a['distancia'].compareTo(b['distancia']));
+        _serviciosEncontrados
+            .sort((a, b) => a['distancia'].compareTo(b['distancia']));
       } else if (_ordenPor == 'Rating') {
-        _serviciosEncontrados.sort((a, b) => b['rating'].compareTo(a['rating']));
+        _serviciosEncontrados
+            .sort((a, b) => b['rating'].compareTo(a['rating']));
       }
     });
   }
@@ -317,31 +325,29 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
   // Obtener el servicio con mejor precio
   Map<String, dynamic>? _getMejorPrecio() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados.reduce((a, b) => 
-      a['precio'] < b['precio'] ? a : b
-    );
+    return _serviciosEncontrados
+        .reduce((a, b) => a['precio'] < b['precio'] ? a : b);
   }
 
   // Obtener el servicio más cercano
   Map<String, dynamic>? _getMasCercano() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados.reduce((a, b) => 
-      a['distancia'] < b['distancia'] ? a : b
-    );
+    return _serviciosEncontrados
+        .reduce((a, b) => a['distancia'] < b['distancia'] ? a : b);
   }
 
   // Obtener el servicio con mejor rating
   Map<String, dynamic>? _getMejorRating() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados.reduce((a, b) => 
-      a['rating'] > b['rating'] ? a : b
-    );
+    return _serviciosEncontrados
+        .reduce((a, b) => a['rating'] > b['rating'] ? a : b);
   }
 
   // Calcular ahorro respecto al precio más alto
   double _calcularAhorro(double precioActual) {
     if (_serviciosEncontrados.isEmpty) return 0;
-    final precioMax = _serviciosEncontrados.map((s) => s['precio'] as double).reduce(max);
+    final precioMax =
+        _serviciosEncontrados.map((s) => s['precio'] as double).reduce(max);
     return precioMax - precioActual;
   }
 
@@ -417,22 +423,22 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
             children: [
               Expanded(
                 child: _ResumenItem(
-                  icono: Icons.attach_money,
+                  icono: Icons.payments,
                   titulo: 'Mejor Precio',
-                  valor: mejorPrecio != null 
-                    ? 'L${mejorPrecio['precio'].toStringAsFixed(2)}'
-                    : '-',
+                  valor: mejorPrecio != null
+                      ? 'L${mejorPrecio['precio'].toStringAsFixed(2)}'
+                      : '-',
                   color: Colors.green,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _ResumenItem(
-                  icono: Icons.near_me,
+                  icono: Icons.location_on,
                   titulo: 'Más Cerca',
-                  valor: masCercano != null 
-                    ? '${masCercano['distancia'].toStringAsFixed(1)} km'
-                    : '-',
+                  valor: masCercano != null
+                      ? '${masCercano['distancia'].toStringAsFixed(1)} km'
+                      : '-',
                   color: Colors.blue,
                 ),
               ),
@@ -482,137 +488,153 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
               ),
             )
           : Column(
-        children: [
-          // Resumen comparativo
-          if (_serviciosEncontrados.isNotEmpty) _buildResumenComparativo(),
-          
-          // Filtros de ordenamiento
-          if (_serviciosEncontrados.isNotEmpty)
-            Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: _opcionesOrden.map((opcion) {
-                final isSelected = _ordenPor == opcion;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _ordenPor = opcion);
-                      _ordenarServicios();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppTheme.primaryOrange : AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            opcion,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppTheme.textSecondary,
-                              fontSize: 14,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              children: [
+                // Resumen comparativo
+                if (_serviciosEncontrados.isNotEmpty)
+                  _buildResumenComparativo(),
+
+                // Filtros de ordenamiento
+                if (_serviciosEncontrados.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: _opcionesOrden.map((opcion) {
+                        final isSelected = _ordenPor == opcion;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _ordenPor = opcion);
+                              _ordenarServicios();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppTheme.primaryOrange
+                                    : AppTheme.cardBackground,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    opcion,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : AppTheme.textSecondary,
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.keyboard_arrow_down,
+                                    size: 18,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppTheme.textSecondary,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 18,
-                            color: isSelected ? Colors.white : AppTheme.textSecondary,
-                          ),
-                        ],
-                      ),
+                        );
+                      }).toList(),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
 
-          // Lista de servicios encontrados
-          Expanded(
-            child: _serviciosEncontrados.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.search_off,
-                              size: 80,
-                              color: AppTheme.textSecondary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No se encontraron servicios',
-                              style: AppTheme.bodyLarge.copyWith(
+                // Lista de servicios encontrados
+                Expanded(
+                  child: _serviciosEncontrados.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.search_off,
+                                size: 80,
                                 color: AppTheme.textSecondary,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Intenta buscar con otro término',
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _serviciosEncontrados.length,
-                        itemBuilder: (context, index) {
-                          final item = _serviciosEncontrados[index];
-                          final servicio = item['servicio'] as Map<String, dynamic>;
-                          final comercio = item['comercio'] as Map<String, dynamic>;
-
-                          final mejorPrecio = _getMejorPrecio();
-                          final masCercano = _getMasCercano();
-                          final mejorRating = _getMejorRating();
-                          final ahorro = _calcularAhorro(item['precio']);
-
-                          return _ServicioCard(
-                            servicio: servicio,
-                            comercio: comercio,
-                            precio: item['precio'],
-                            duracion: item['duracion'],
-                            distancia: item['distancia'],
-                            rating: item['rating'],
-                            resenas: item['resenas'],
-                            fotoServicio: item['foto_servicio'],
-                            esMejorPrecio: mejorPrecio != null && 
-                              item['servicio']['id'] == mejorPrecio['servicio']['id'],
-                            esMasCercano: masCercano != null && 
-                              item['servicio']['id'] == masCercano['servicio']['id'],
-                            esMejorRating: mejorRating != null && 
-                              item['rating'] == mejorRating['rating'] && 
-                              item['rating'] >= 4.5,
-                            ahorro: ahorro,
-                            onTap: () {
-                              // Navegar al calendario con toda la información necesaria
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CalendarPage(
-                                    mode: 'booking', // Modo reserva
-                                    comercioId: comercio['id'],
-                                    salonName: comercio['nombre'] ?? 'Salón',
-                                    servicioId: servicio['id'],
-                                    servicios: [servicio], // Pasar el servicio seleccionado
-                                  ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No se encontraron servicios',
+                                style: AppTheme.bodyLarge.copyWith(
+                                  color: AppTheme.textSecondary,
                                 ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Intenta buscar con otro término',
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _serviciosEncontrados.length,
+                          itemBuilder: (context, index) {
+                            final item = _serviciosEncontrados[index];
+                            final servicio =
+                                item['servicio'] as Map<String, dynamic>;
+                            final comercio =
+                                item['comercio'] as Map<String, dynamic>;
+
+                            final mejorPrecio = _getMejorPrecio();
+                            final masCercano = _getMasCercano();
+                            final mejorRating = _getMejorRating();
+                            final ahorro = _calcularAhorro(item['precio']);
+
+                            return _ServicioCard(
+                              servicio: servicio,
+                              comercio: comercio,
+                              precio: item['precio'],
+                              duracion: item['duracion'],
+                              distancia: item['distancia'],
+                              rating: item['rating'],
+                              resenas: item['resenas'],
+                              fotoServicio: item['foto_servicio'],
+                              esMejorPrecio: mejorPrecio != null &&
+                                  item['servicio']['id'] ==
+                                      mejorPrecio['servicio']['id'],
+                              esMasCercano: masCercano != null &&
+                                  item['servicio']['id'] ==
+                                      masCercano['servicio']['id'],
+                              esMejorRating: mejorRating != null &&
+                                  item['rating'] == mejorRating['rating'] &&
+                                  item['rating'] >= 4.5,
+                              ahorro: ahorro,
+                              onTap: () {
+                                // Navegar al calendario con toda la información necesaria
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CalendarPage(
+                                      mode: 'booking', // Modo reserva
+                                      comercioId: comercio['id'],
+                                      salonName: comercio['nombre'] ?? 'Salón',
+                                      servicioId: servicio['id'],
+                                      servicios: [
+                                        servicio
+                                      ], // Pasar el servicio seleccionado
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -651,7 +673,8 @@ class _ServicioCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Priorizar foto del servicio, luego foto del comercio
-    final fotoUrl = fotoServicio ?? comercio['foto_portada'] ?? comercio['foto_url'];
+    final fotoUrl =
+        fotoServicio ?? comercio['foto_portada'] ?? comercio['foto_url'];
 
     return GestureDetector(
       onTap: onTap,
@@ -668,7 +691,8 @@ class _ServicioCard extends StatelessWidget {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
                   child: fotoUrl != null && fotoUrl.isNotEmpty
                       ? Image.network(
                           fotoUrl,
@@ -708,7 +732,8 @@ class _ServicioCard extends StatelessWidget {
                     children: [
                       if (esMejorPrecio)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.green,
                             borderRadius: BorderRadius.circular(20),
@@ -722,7 +747,8 @@ class _ServicioCard extends StatelessWidget {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.attach_money, color: Colors.white, size: 14),
+                              Icon(Icons.payments,
+                                  color: Colors.white, size: 14),
                               SizedBox(width: 4),
                               Text(
                                 'Mejor Precio',
@@ -735,10 +761,12 @@ class _ServicioCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                      if (esMejorPrecio && esMasCercano) const SizedBox(height: 6),
+                      if (esMejorPrecio && esMasCercano)
+                        const SizedBox(height: 6),
                       if (esMasCercano)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.blue,
                             borderRadius: BorderRadius.circular(20),
@@ -752,7 +780,8 @@ class _ServicioCard extends StatelessWidget {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.near_me, color: Colors.white, size: 14),
+                              Icon(Icons.near_me,
+                                  color: Colors.white, size: 14),
                               SizedBox(width: 4),
                               Text(
                                 'Más Cerca',
@@ -774,7 +803,8 @@ class _ServicioCard extends StatelessWidget {
                     top: 12,
                     right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryOrange,
                         borderRadius: BorderRadius.circular(20),
@@ -884,7 +914,8 @@ class _ServicioCard extends StatelessWidget {
                   // Indicador de ahorro
                   if (ahorro > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -912,7 +943,7 @@ class _ServicioCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                  
+
                   if (ahorro > 0) const SizedBox(height: 16),
                   if (ahorro == 0) const SizedBox(height: 16),
 

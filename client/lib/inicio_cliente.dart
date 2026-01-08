@@ -41,7 +41,10 @@ class _InicioClientePageState extends State<InicioClientePage> {
   // Estadísticas personalizadas del cliente
   int _citasPendientes = 0;
   int _totalServicios = 0;
-  int _salonesVisitados = 0;
+  int _favoritosCount = 0;
+  int _resenasRealizadas = 0;
+  int _citasCompletadas = 0;
+  int _promocionesActuales = 0;
 
   // Caché en memoria: uid_negocio -> foto_url
   final Map<String, String?> _cacheFotosSalones = {};
@@ -148,14 +151,12 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 'platform': 'android',
               }),
             );
-          } catch (e) {
-          }
+          } catch (e) {}
         }
 
         // 🔔 Configurar listeners de notificaciones
         // Cuando la app está en primer plano
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          
           if (message.notification != null && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -176,10 +177,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
             );
           }
         });
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> _obtenerDatosUsuario() async {
@@ -293,11 +292,8 @@ class _InicioClientePageState extends State<InicioClientePage> {
         final fotoSalon = propietarioData['foto_url'] as String?;
         _cacheFotosSalones[uidNegocio] = fotoSalon;
         return fotoSalon;
-      } else {
-      }
-    } catch (e) {
-      
-    }
+      } else {}
+    } catch (e) {}
 
     _cacheFotosSalones[uidNegocio] = null;
     return null;
@@ -337,8 +333,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
         return;
       }
       final List<dynamic> saloneData = json.decode(response.body);
-      for (var s in saloneData) {
-      }
+      for (var s in saloneData) {}
       final List<Map<String, dynamic>> salonesConFoto = [];
 
       for (var salon in saloneData) {
@@ -366,8 +361,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
                 salonMap['foto_url'] = fotoDesdeDetalle;
               }
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
 
         // Si tenemos uid_negocio, pedir foto al endpoint /api/users/uid/{uid}
@@ -408,8 +402,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
                     sumaCalificaciones / resenasData.length;
               }
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
         salonesConFoto.add(salonMap);
       }
@@ -421,7 +414,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
         _salonesFiltrados = _salonesDestacados;
         _isLoading = false;
       });
-      
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -467,8 +459,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           _promocionesActivas = promocionesActivas.cast<Map<String, dynamic>>();
         });
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   String _normalizarTexto(String texto) {
@@ -523,6 +514,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       final idToken = await user.getIdToken();
 
+      // Cargar citas
       final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$_uidUsuario');
       final citasResponse = await http.get(
         citasUrl,
@@ -532,58 +524,91 @@ class _InicioClientePageState extends State<InicioClientePage> {
         },
       ).timeout(const Duration(seconds: 5));
 
+      // Cargar favoritos
+      final favoritosUrl =
+          Uri.parse('$apiBaseUrl/api/favoritos/usuario/$_uidUsuario');
+      final favoritosResponse = await http.get(
+        favoritosUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      int pendientes = 0;
+      int totalServicios = 0;
+      int completadas = 0;
+
       if (citasResponse.statusCode == 200) {
         final List<dynamic> citasData = json.decode(citasResponse.body);
+        totalServicios = citasData.length;
 
         final ahora = DateTime.now();
-        int pendientes = 0;
-        Set<String> comerciosUnicos = {};
 
         for (var cita in citasData) {
           final estado = cita['estado'] as String?;
 
+          // Contar solo citas pendientes o confirmadas que sean futuras
           if (estado == 'confirmada' || estado == 'pendiente') {
-            try {
-              final fechaStr = cita['fecha'] as String?;
-              if (fechaStr != null) {
-                final fechaCita = DateTime.parse(fechaStr);
-                if (fechaCita.isAfter(ahora)) {
-                  pendientes++;
-                }
-              }
-            } catch (e) {
-            }
+            pendientes++;
           }
 
+          // Contar citas completadas
           if (estado == 'completada') {
-            final comercioId = cita['comercio_id'] as String?;
-            if (comercioId != null) {
-              comerciosUnicos.add(comercioId);
-            }
+            completadas++;
           }
         }
-
-        if (!mounted) return;
-
-        setState(() {
-          _citasPendientes = pendientes;
-          _totalServicios = citasData.length;
-          _salonesVisitados = comerciosUnicos.length;
-        });
-      } else if (citasResponse.statusCode == 404) {
-        if (!mounted) return;
-        setState(() {
-          _citasPendientes = 0;
-          _totalServicios = 0;
-          _salonesVisitados = 0;
-        });
       }
+
+      int favoritos = 0;
+      if (favoritosResponse.statusCode == 200) {
+        final List<dynamic> favoritosData = json.decode(favoritosResponse.body);
+        favoritos = favoritosData.length;
+      }
+
+      // Cargar reseñas realizadas
+      int resenas = 0;
+      try {
+        final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas');
+        final resenasResponse = await http.get(
+          resenasUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        ).timeout(const Duration(seconds: 5));
+
+        if (resenasResponse.statusCode == 200) {
+          final List<dynamic> resenasData = json.decode(resenasResponse.body);
+          // Contar solo las reseñas de este usuario
+          resenas = resenasData
+              .where((r) => r['usuario_cliente_id'] == _uidUsuario)
+              .length;
+        }
+      } catch (e) {
+        print('Error cargando reseñas: $e');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _citasPendientes = pendientes;
+        _totalServicios = totalServicios;
+        _favoritosCount = favoritos;
+        _resenasRealizadas = resenas;
+        _citasCompletadas = completadas;
+        _promocionesActuales = _promocionesActivas.length;
+      });
     } catch (e) {
+      print('❌ Error cargando estadísticas: $e');
       if (!mounted) return;
       setState(() {
         _citasPendientes = 0;
         _totalServicios = 0;
-        _salonesVisitados = 0;
+        _favoritosCount = 0;
+        _resenasRealizadas = 0;
+        _citasCompletadas = 0;
+        _promocionesActuales = 0;
       });
     }
   }
@@ -651,11 +676,9 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
             break;
           }
-        } else {
-        }
+        } else {}
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   void _mostrarModalResena(Map<String, dynamic> cita) async {
@@ -680,9 +703,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           salonName = comercioData['nombre'] ?? salonName;
         }
       }
-    } catch (e) {
-      
-    }
+    } catch (e) {}
 
     if (!mounted) return;
 
@@ -1221,185 +1242,133 @@ class _InicioClientePageState extends State<InicioClientePage> {
   Widget _buildEstadisticasSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      child: Column(
         children: [
-          // Citas pendientes
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF6B9D), Color(0xFFEA963A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF6B9D).withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          // Primera fila
+          Row(
+            children: [
+              _buildEstadisticaCard(
+                icon: Icons.event_available,
+                count: _citasPendientes,
+                label: _citasPendientes == 1
+                    ? 'Cita\npendiente'
+                    : 'Citas\npendientes',
+                gradientColors: [Color(0xFFFF6B9D), Color(0xFFEA963A)],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.event_available,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '$_citasPendientes',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _citasPendientes == 1
-                        ? 'Cita\npendiente'
-                        : 'Citas\npendientes',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.white,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              _buildEstadisticaCard(
+                icon: Icons.spa,
+                count: _totalServicios,
+                label: _totalServicios == 1
+                    ? 'Servicio\nreservado'
+                    : 'Servicios\nreservados',
+                gradientColors: [Color(0xFF667EEA), Color(0xFF764BA2)],
               ),
-            ),
+              const SizedBox(width: 12),
+              _buildEstadisticaCard(
+                icon: Icons.favorite,
+                count: _favoritosCount,
+                label: _favoritosCount == 1 ? 'Favorito' : 'Favoritos',
+                gradientColors: [Color(0xFF11998E), Color(0xFF38EF7D)],
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          // Total servicios
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF667EEA).withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          const SizedBox(height: 12),
+          // Segunda fila
+          Row(
+            children: [
+              _buildEstadisticaCard(
+                icon: Icons.check_circle,
+                count: _citasCompletadas,
+                label: _citasCompletadas == 1
+                    ? 'Cita\ncompletada'
+                    : 'Citas\ncompletadas',
+                gradientColors: [Color(0xFF56AB2F), Color(0xFFA8E063)],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.spa,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '$_totalServicios',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _totalServicios == 1
-                        ? 'Servicio\nreservado'
-                        : 'Servicios\nreservados',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.white,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              _buildEstadisticaCard(
+                icon: Icons.rate_review,
+                count: _resenasRealizadas,
+                label: _resenasRealizadas == 1
+                    ? 'Reseña\nrealizada'
+                    : 'Reseñas\nrealizadas',
+                gradientColors: [Color(0xFFF093FB), Color(0xFFF5576C)],
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Salones visitados
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF11998E), Color(0xFF38EF7D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF11998E).withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              _buildEstadisticaCard(
+                icon: Icons.local_offer,
+                count: _promocionesActuales,
+                label: _promocionesActuales == 1
+                    ? 'Promoción\nactiva'
+                    : 'Promociones\nactivas',
+                gradientColors: [Color(0xFFFA8BFF), Color(0xFF2BD2FF)],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.store_outlined,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '$_salonesVisitados',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _salonesVisitados == 1
-                        ? 'Salón\nvisitado'
-                        : 'Salones\nvisitados',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.white,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEstadisticaCard({
+    required IconData icon,
+    required int count,
+    required String label,
+    required List<Color> gradientColors,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors[0].withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.white,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1983,7 +1952,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 0),
                       child: Text(
-                        'Tu actividad',
+                        'Estadisticas',
                         style: AppTheme.heading2,
                       ),
                     ),
@@ -1992,34 +1961,22 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
                     const SizedBox(height: 24),
 
-                    // BENEFICIOS DE BEAUTEEK
-                    _buildBeneficiosBeauteek(),
-
-                    const SizedBox(height: 24),
-
                     if (_salonesDestacados.isNotEmpty) ...[
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 0),
                         child: Text(
-                          'Basado en tus visitas recientes',
-                          style: AppTheme.heading2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildVisitasRecientesSection(),
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 0),
-                        child: Text(
-                          'Nuevos salones en tu zona',
+                          'Nuevos Salones',
                           style: AppTheme.heading2,
                         ),
                       ),
                       const SizedBox(height: 8),
                       _buildNuevosSalonesSection(),
+                      const SizedBox(height: 24),
                     ],
+
+                    // BENEFICIOS DE BEAUTEEK (movido más abajo)
+                    _buildBeneficiosBeauteek(),
 
                     const SizedBox(height: 80),
                   ],

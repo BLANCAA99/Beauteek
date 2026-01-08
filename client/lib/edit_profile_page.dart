@@ -89,7 +89,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       // Si es salón, busca ubicación del comercio (tipo=comercio)
       // Si es cliente, busca ubicación del cliente (tipo=cliente)
       final tipo = _rolUsuario == 'salon' ? 'comercio' : 'cliente';
-      final url = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=$tipo');
+      final url = Uri.parse(
+          '$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=$tipo');
       final resp = await http.get(
         url,
         headers: {
@@ -104,10 +105,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
           _pais = data['pais'] ?? '';
           _ciudad = data['ciudad'] ?? '';
         });
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> _cargarUsuarioDeApi() async {
@@ -166,6 +165,65 @@ class _EditProfilePageState extends State<EditProfilePage> {
     } finally {
       if (mounted) setState(() => _isFetching = false);
     }
+  }
+
+  // --- Mostrar error de validación ---
+  void _mostrarErrorValidacion(String mensaje) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Color(0xFFFF453A), size: 28),
+            SizedBox(width: 12),
+            Text(
+              'Imagen no válida',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              mensaje,
+              style: const TextStyle(
+                color: Color(0xFFD0C7FF),
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Requisitos:',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '✓ Formato: JPG o PNG\n✓ Tamaño máximo: 800 KB',
+              style: TextStyle(
+                color: Color(0xFFB3ACA5),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Entendido',
+              style: TextStyle(color: Color(0xFFEA963A), fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- Subir imagen a Cloudinary ---
@@ -256,10 +314,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
         if (mounted) Navigator.of(context).pop(true);
       } else {
         final errorData = json.decode(response.body);
-        final errorMessage =
-            (errorData is Map && errorData['message'] != null)
-                ? errorData['message'].toString()
-                : 'Error al actualizar el perfil.';
+        final errorMessage = (errorData is Map && errorData['message'] != null)
+            ? errorData['message'].toString()
+            : 'Error al actualizar el perfil.';
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(errorMessage)));
       }
@@ -290,7 +347,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         final place = placemarks.first;
         pais = place.country ?? 'Honduras';
         ciudad = place.locality ?? place.subAdministrativeArea ?? '';
-        
+
         final partes = [
           place.street,
           place.subLocality,
@@ -299,12 +356,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
           place.administrativeArea,
           place.country,
         ].where((p) => p != null && p.isNotEmpty).toList();
-        
+
         direccionCompleta = partes.join(', ');
       }
 
-      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/$_ubicacionId');
-      
+      final ubicacionUrl =
+          Uri.parse('$apiBaseUrl/api/ubicaciones/$_ubicacionId');
+
       final Map<String, dynamic> ubicacionData = {
         'lat': _newLocation!.latitude,
         'lng': _newLocation!.longitude,
@@ -312,8 +370,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         'ciudad': ciudad,
         'direccion_completa': direccionCompleta,
       };
-
-      
 
       final ubicacionResponse = await http.put(
         ubicacionUrl,
@@ -324,15 +380,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
         body: json.encode(ubicacionData),
       );
       if (ubicacionResponse.statusCode == 200) {
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> _abrirSelectorUbicacion() async {
     LatLng? selectedPosition;
-    
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -349,14 +403,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
       setState(() {
         _newLocation = selectedPosition;
       });
-      
+
       // Actualizar la vista con la nueva ubicación
       try {
         final placemarks = await placemarkFromCoordinates(
           selectedPosition!.latitude,
           selectedPosition!.longitude,
         );
-        
+
         if (placemarks.isNotEmpty && mounted) {
           final place = placemarks.first;
           setState(() {
@@ -364,13 +418,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _ciudad = place.locality ?? place.subAdministrativeArea ?? '';
           });
         }
-      } catch (e) {
-      }
-      
+      } catch (e) {}
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ubicación actualizada a $_ciudad, $_pais. Guarda los cambios para confirmar.'),
+            content: Text(
+                'Ubicación actualizada a $_ciudad, $_pais. Guarda los cambios para confirmar.'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
@@ -406,8 +460,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: Colors.redAccent),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
@@ -433,8 +486,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: Form(
           key: _formKey,
           child: ListView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
             children: [
               if (_isFetching)
                 const Padding(
@@ -458,10 +510,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           backgroundImage: _imageFile != null
                               ? FileImage(File(_imageFile!.path))
                               : (_photoUrlController.text.isNotEmpty
-                                      ? NetworkImage(
-                                          _photoUrlController.text)
-                                      : null)
-                                  as ImageProvider<Object>?,
+                                  ? NetworkImage(_photoUrlController.text)
+                                  : null) as ImageProvider<Object>?,
                           child: _imageFile == null &&
                                   _photoUrlController.text.isEmpty
                               ? const Icon(
@@ -534,10 +584,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 controller: _nameController,
                 style: const TextStyle(color: _textPrimary),
                 decoration: _fieldDecoration('Nombre'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? 'Por favor, ingresa tu nombre'
-                        : null,
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'Por favor, ingresa tu nombre'
+                    : null,
               ),
               const SizedBox(height: 18),
 
@@ -556,10 +605,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 style: const TextStyle(color: _textPrimary),
                 decoration: _fieldDecoration('Teléfono'),
                 keyboardType: TextInputType.phone,
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? 'Por favor, ingresa tu teléfono'
-                        : null,
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'Por favor, ingresa tu teléfono'
+                    : null,
               ),
               const SizedBox(height: 18),
 
@@ -585,7 +633,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: _primaryOrange, size: 20),
+                        const Icon(Icons.location_on,
+                            color: _primaryOrange, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -628,7 +677,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         onPressed: _abrirSelectorUbicacion,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _primaryOrange,
-                          side: const BorderSide(color: _primaryOrange, width: 1.5),
+                          side: const BorderSide(
+                              color: _primaryOrange, width: 1.5),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -636,9 +686,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         ),
                         icon: const Icon(Icons.edit_location_alt, size: 18),
                         label: Text(
-                          _newLocation != null 
-                            ? 'Ubicación actualizada (guarda para confirmar)'
-                            : 'Editar ubicación en el mapa',
+                          _newLocation != null
+                              ? 'Ubicación actualizada (guarda para confirmar)'
+                              : 'Editar ubicación en el mapa',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -665,11 +715,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 TextFormField(
                   controller: _dobController,
                   style: const TextStyle(color: _textPrimary),
-                  decoration: _fieldDecoration('Fecha de nacimiento')
-                      .copyWith(
-                        suffixIcon: const Icon(Icons.calendar_today,
-                            color: _textSecondary),
-                      ),
+                  decoration: _fieldDecoration('Fecha de nacimiento').copyWith(
+                    suffixIcon:
+                        const Icon(Icons.calendar_today, color: _textSecondary),
+                  ),
                   readOnly: true,
                   onTap: () async {
                     DateTime? pickedDate = await showDatePicker(
@@ -716,8 +765,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         value: 'Prefiero no decirlo',
                         child: Text('Prefiero no decirlo')),
                   ],
-                  onChanged: (value) =>
-                      setState(() => _selectedGender = value),
+                  onChanged: (value) => setState(() => _selectedGender = value),
                 ),
               ],
 
@@ -739,8 +787,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryOrange,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                     ),

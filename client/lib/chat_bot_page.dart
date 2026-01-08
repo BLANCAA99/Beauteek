@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'api_constants.dart';
 
@@ -19,23 +20,53 @@ class _ChatBotPageState extends State<ChatBotPage> {
   bool _isSending = false;
   bool _isInitialized = false;
   String _sessionId = '';
+  String _userRole = 'cliente'; // Rol del usuario
 
   @override
   void initState() {
     super.initState();
     _initializeBot();
-    _addWelcomeMessage();
   }
 
   Future<void> _initializeBot() async {
     _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    // Obtener el rol del usuario
+    await _loadUserRole();
+    
     setState(() => _isInitialized = true);
+    
+    // Agregar mensaje de bienvenida después de cargar el rol
+    _addWelcomeMessage();
+  }
+  
+  Future<void> _loadUserRole() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('userData');
+      
+      if (userDataString != null) {
+        final userData = json.decode(userDataString);
+        setState(() {
+          _userRole = userData['rol'] as String? ?? 'cliente';
+        });
+      }
+    } catch (e) {
+      print('Error al cargar rol del usuario: $e');
+      setState(() {
+        _userRole = 'cliente';
+      });
+    }
   }
 
   void _addWelcomeMessage() {
+    final welcomeText = _userRole == 'salon'
+        ? '¡Hola! Soy el asistente virtual de Beauteek para salones. ¿En qué puedo ayudarte con tu negocio?'
+        : '¡Hola! Soy el asistente virtual de Beauteek. ¿En qué puedo ayudarte hoy?';
+    
     setState(() {
       _messages.add({
-        'text': '¡Hola! 👋 Soy el asistente virtual de Beauteek. ¿En qué puedo ayudarte hoy?',
+        'text': welcomeText,
         'isUser': false,
         'timestamp': DateTime.now(),
       });
@@ -53,6 +84,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
         body: json.encode({
           'message': text,
           'sessionId': sessionId,
+          'userRole': _userRole, // Enviar el rol del usuario
         }),
       );
 
@@ -71,27 +103,44 @@ class _ChatBotPageState extends State<ChatBotPage> {
 
   String _getLocalResponse(String text) {
     final lowerText = text.toLowerCase().trim();
+    final isSalon = _userRole == 'salon';
 
     if (lowerText.contains('hola') || lowerText.contains('buenos') || lowerText.contains('buenas')) {
-      return '¡Hola! Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
+      return isSalon
+          ? '¡Hola! Soy el asistente de Beauteek para salones. ¿Necesitas ayuda con tu negocio?'
+          : '¡Hola! Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
     } else if (lowerText.contains('reserva') || lowerText.contains('cita') || lowerText.contains('agendar')) {
-      return 'Para hacer una reserva, ve a la pestaña de búsqueda, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
+      return isSalon
+          ? 'Puedes ver las citas agendadas en tu salón desde el Calendario. Desde ahí también puedes cancelar o gestionar las citas de tus clientes.'
+          : 'Para hacer una reserva, ve a la pestaña de búsqueda, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
     } else if (lowerText.contains('servicio') || lowerText.contains('qué ofrecen')) {
-      return 'En Beauteek puedes encontrar servicios de peluquería, manicure, pedicure, tratamientos faciales, masajes y mucho más. Usa la búsqueda para ver todos los salones disponibles cerca de ti.';
+      return isSalon
+          ? 'Para editar tus servicios, ve a tu Perfil → Servicios. Ahí puedes agregar, editar o eliminar servicios, cambiar precios y duraciones.'
+          : 'En Beauteek puedes encontrar servicios de peluquería, manicure, pedicure, tratamientos faciales, masajes y mucho más. Usa la búsqueda para ver todos los salones disponibles cerca de ti.';
+    } else if (isSalon && (lowerText.contains('promocion') || lowerText.contains('descuento'))) {
+      return 'Para gestionar promociones, ve a tu Perfil → Promociones. Puedes crear ofertas especiales, definir descuentos y establecer fechas de validez.';
+    } else if (isSalon && (lowerText.contains('estadistica') || lowerText.contains('reporte'))) {
+      return 'Puedes ver las estadísticas de tu salón en Perfil → Estadísticas. También hay reportes detallados en la sección de Reportes.';
     } else if (lowerText.contains('precio') || lowerText.contains('costo') || lowerText.contains('cuánto')) {
       return 'Los precios varían según el salón y el servicio. Puedes ver los precios detallados en el perfil de cada salón o usar la función "Comparar" para ver diferentes opciones.';
     } else if (lowerText.contains('horario') || lowerText.contains('abren') || lowerText.contains('cierran')) {
-      return 'Cada salón tiene sus propios horarios. Puedes consultarlos en el perfil del salón antes de hacer tu reserva. ¿Buscas algún salón en particular?';
+      return isSalon
+          ? 'Para configurar tus horarios de atención, ve a Perfil → Configuración del Salón → Horarios. Ahí puedes establecer tu horario semanal.'
+          : 'Cada salón tiene sus propios horarios. Puedes consultarlos en el perfil del salón antes de hacer tu reserva. ¿Buscas algún salón en particular?';
     } else if (lowerText.contains('cancelar')) {
-      return 'Para cancelar una cita, ve a tu calendario 📅, selecciona la cita y elige la opción de cancelar. Recuerda revisar las políticas de cancelación del salón.';
+      return 'Para cancelar una cita, ve a tu calendario, selecciona la cita y elige la opción de cancelar. Recuerda revisar las políticas de cancelación del salón.';
     } else if (lowerText.contains('gracias') || lowerText.contains('thank')) {
-      return '¡De nada!  Estoy aquí para ayudarte. Si tienes más preguntas, no dudes en escribirme.';
+      return '¡De nada! Estoy aquí para ayudarte. Si tienes más preguntas, no dudes en escribirme.';
     } else if (lowerText.contains('adiós') || lowerText.contains('chao') || lowerText.contains('bye')) {
       return '¡Hasta pronto! Que tengas un excelente día. Vuelve cuando necesites ayuda.';
     } else if (lowerText.contains('ayuda') || lowerText.contains('help')) {
-      return 'Puedo ayudarte con:\n• Hacer reservas\n• Buscar servicios\n• Comparar precios\n• Consultar horarios\n• Cancelar citas\n\n¿Qué necesitas?';
+      return isSalon
+          ? 'Puedo ayudarte con:\n• Gestionar tus citas\n• Editar servicios y precios\n• Configurar horarios\n• Crear promociones\n• Ver estadísticas\n• Configurar métodos de pago\n\n¿Qué necesitas?'
+          : 'Puedo ayudarte con:\n• Hacer reservas\n• Buscar servicios\n• Comparar precios\n• Consultar horarios\n• Cancelar citas\n\n¿Qué necesitas?';
     } else {
-      return 'Entiendo tu consulta. Te recomiendo explorar la app para encontrar salones cercanos y sus servicios. ¿Hay algo específico en lo que pueda ayudarte?';
+      return isSalon
+          ? 'Entiendo tu consulta. Te recomiendo explorar el menú de tu perfil donde encontrarás todas las opciones para gestionar tu salón. ¿Hay algo específico en lo que pueda ayudarte?'
+          : 'Entiendo tu consulta. Te recomiendo explorar la app para encontrar salones cercanos y sus servicios. ¿Hay algo específico en lo que pueda ayudarte?';
     }
   }
 

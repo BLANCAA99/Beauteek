@@ -10,8 +10,10 @@ node_modules/
 *.local
 
 # Environment variables
+assets/dialogflow/credentials.json
 .env
 
 # Firebase service account credentials (SENSITIVE - DO NOT COMMIT)
 serviceAccountKey.json
 *-firebase-adminsdk-*.json
+credentials.json
