@@ -273,7 +273,6 @@ class _LoginScreenState extends State<LoginScreen>
       _isLoading = true;
       _loadingMessage = 'Conectando con Google...';
     });
-
     try {
       // 1. Cerrar sesión previa de Google (limpiar caché)
       await _googleSignIn.signOut();
@@ -291,6 +290,7 @@ class _LoginScreenState extends State<LoginScreen>
       setState(() => _loadingMessage = 'Autenticando con Firebase...');
 
       final googleAuth = await googleUser.authentication;
+      
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
         accessToken: googleAuth.accessToken,
@@ -298,7 +298,9 @@ class _LoginScreenState extends State<LoginScreen>
 
       final userCred =
           await FirebaseAuth.instance.signInWithCredential(credential);
+      
       final user = userCred.user;
+      
       if (user == null) {
         if (!mounted) return;
         setState(() {
@@ -308,24 +310,29 @@ class _LoginScreenState extends State<LoginScreen>
         });
         return;
       }
-
-      if (!mounted) return;
       setState(() => _loadingMessage = 'Verificando usuario...');
+      await Future.delayed(const Duration(milliseconds: 100));
 
+      String? idToken; // Declarar aquí para usar fuera del try
+      Map<String, dynamic>? userData;
+      try {
       // Verificar si el usuario ya existe en tu API
-      final idToken = await user.getIdToken();
+      idToken = await user.getIdToken();
+      
+      // DELAY: Dar tiempo para procesar el token
+      await Future.delayed(const Duration(milliseconds: 50));
+      
       final checkUrl = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
-
+      
       final checkResponse = await http.get(
         checkUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
 
       bool needsToCreateUser = false;
-      Map<String, dynamic>? userData;
 
       if (checkResponse.statusCode == 404) {
         needsToCreateUser = true;
@@ -336,11 +343,11 @@ class _LoginScreenState extends State<LoginScreen>
             'Error al verificar usuario: ${checkResponse.statusCode}');
       }
       if (needsToCreateUser) {
+        
         if (!mounted) {
-          return;
-        }
-
-        setState(() => _loadingMessage = 'Creando tu perfil...');
+          } else {
+            setState(() => _loadingMessage = 'Creando tu perfil...');
+          }
 
         final displayName = user.displayName ?? 'Usuario Google';
         final email = user.email ?? '';
@@ -362,18 +369,29 @@ class _LoginScreenState extends State<LoginScreen>
           'genero': 'no_aplica',
           'estado': 'activo',
         };
+        
+        final freshToken = await user.getIdToken(true);
+        
+        // DELAY CRÍTICO: Dar tiempo antes del POST
+        await Future.delayed(const Duration(milliseconds: 100));
 
-        final createResponse = await http
-            .post(
-              createUrl,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(createPayload),
-            )
-            .timeout(const Duration(seconds: 6));
+          final createResponse = await http
+              .post(
+                createUrl,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $freshToken',
+                },
+                body: jsonEncode(createPayload),
+              )
+              .timeout(const Duration(seconds: 20));
 
         if (createResponse.statusCode == 201 ||
             createResponse.statusCode == 200) {
           userData = json.decode(createResponse.body) as Map<String, dynamic>;
+          
+          // DELAY: Dar tiempo para que Firestore procese
+          await Future.delayed(const Duration(milliseconds: 100));
         } else {
           if (!mounted) return;
           setState(() {
@@ -387,8 +405,18 @@ class _LoginScreenState extends State<LoginScreen>
           return;
         }
       }
+      } catch (_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          errorMsg = 'Error al procesar tu cuenta. Intenta de nuevo.';
+          _isLoading = false;
+        });
+        await FirebaseAuth.instance.signOut();
+        return;
+      }
 
-      // Ya tenemos userData (sea porque existía o porque se creó)
       final rol = userData?['rol'] as String?;
 
       // Verificar si el cliente tiene ubicación guardada en la colección ubicaciones
@@ -404,7 +432,7 @@ class _LoginScreenState extends State<LoginScreen>
               'Authorization': 'Bearer $idToken',
             },
           ).timeout(const Duration(seconds: 5));
-
+          
           if (ubicacionesResponse.statusCode == 200) {
             final ubicacionesData =
                 json.decode(ubicacionesResponse.body) as List;
@@ -417,12 +445,10 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (!mounted) return;
-
       await _showToast('¡Bienvenido!');
 
       if (!mounted) return;
-      setState(() => _isLoading = false);
-
+      setState(() => _isLoading = false); 
       // Redirigir: clientes sin ubicación van a SetupLocationPage
       if (rol == 'cliente' && !tieneUbicacion) {
         Navigator.of(context).pushReplacement(

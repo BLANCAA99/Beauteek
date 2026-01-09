@@ -148,21 +148,16 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        
-        if (snapshot.hasData) {
-          return const InicioPage();
-        }
-        
-        return const LoginScreen();
-      },
-    );
+    // Solo verificamos si hay usuario persistido, NO escuchamos cambios en tiempo real
+    // Esto evita que se desmonte LoginScreen durante el flujo de registro
+    final user = FirebaseAuth.instance.currentUser;
+    
+    if (user != null) {
+      // Usuario ya autenticado previamente
+      return const InicioPage();
+    }
+    
+    // No hay usuario, mostrar login
+    return const LoginScreen();
   }
 }
