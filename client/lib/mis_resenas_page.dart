@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'api_constants.dart';
 import 'salon_profile_page.dart';
 
@@ -156,11 +157,28 @@ class _MisResenasPageState extends State<MisResenasPage> {
     final String comentario =
         (resena['comentario'] ?? '').toString().trim();
 
-    // Tomar alguna fecha en texto si viene
-    final String fechaTexto =
-        (resena['fecha'] ?? resena['fecha_creacion'] ?? '')
-            .toString()
-            .trim();
+    // Formatear fecha correctamente desde Timestamp de Firestore
+    String fechaTexto = '';
+    try {
+      final fechaData = resena['fecha'] ?? resena['fecha_creacion'];
+      if (fechaData != null) {
+        DateTime fecha;
+        if (fechaData is Map) {
+          // Formato de Firestore: {_seconds: xxx, _nanoseconds: xxx}
+          final seconds = fechaData['_seconds'] ?? fechaData['seconds'];
+          if (seconds != null) {
+            fecha = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+            fechaTexto = DateFormat('dd/MM/yyyy - HH:mm').format(fecha);
+          }
+        } else if (fechaData is String) {
+          // Si viene como string ISO
+          fecha = DateTime.parse(fechaData);
+          fechaTexto = DateFormat('dd/MM/yyyy - HH:mm').format(fecha);
+        }
+      }
+    } catch (e) {
+      fechaTexto = '';
+    }
 
     return GestureDetector(
       onTap: () {

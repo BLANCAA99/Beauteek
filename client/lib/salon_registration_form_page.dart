@@ -546,26 +546,7 @@ class _SalonRegistrationFormPageState extends State<SalonRegistrationFormPage> {
                       ),
                     ),
             ),
-            const SizedBox(height: 24),
-
-            Center(
-              child: RichText(
-                text: const TextSpan(
-                  style: TextStyle(fontSize: 14, color: _textSecondary),
-                  children: [
-                    TextSpan(text: '¿Eres estilista independiente? '),
-                    TextSpan(
-                      text: 'Regístrate aquí.',
-                      style: TextStyle(
-                        color: _primaryOrange,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 24)
           ],
         ),
       ),

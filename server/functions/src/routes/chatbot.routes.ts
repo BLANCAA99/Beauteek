@@ -30,7 +30,7 @@ router.post('/message', async (req: Request, res: Response) => {
     // Crear la sesión de Dialogflow
     const sessionPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
-    // Crear el request para Dialogflow
+    // Crear el request para Dialogflow con el contexto del rol del usuario
     const request = {
       session: sessionPath,
       queryInput: {
@@ -39,10 +39,26 @@ router.post('/message', async (req: Request, res: Response) => {
           languageCode: 'es',
         },
       },
+      queryParams: {
+        contexts: [
+          {
+            name: `${sessionPath}/contexts/user-role`,
+            lifespanCount: 50,
+            parameters: {
+              fields: {
+                rol: {
+                  stringValue: userRole,
+                  kind: 'stringValue',
+                },
+              },
+            },
+          },
+        ],
+      },
     };
 
     // Enviar mensaje a Dialogflow
-    console.log('Enviando a Dialogflow:', { message, userRole });
+    console.log('Enviando a Dialogflow:', { message, userRole, sessionPath });
     const [response] = await sessionClient.detectIntent(request);      
     const result = response.queryResult;
     
@@ -62,12 +78,15 @@ router.post('/message', async (req: Request, res: Response) => {
     const isClienteIntent = intentName.startsWith('cliente.');
     const isSalonIntent = intentName.startsWith('salon.');
     
+    // FORZAR fallback si el intent no coincide con el rol del usuario
     if (userRole === 'cliente' && isSalonIntent) {
-      // Cliente pidiendo funcionalidad de salón
-      responseText = 'Esa función es para salones. Como cliente, puedo ayudarte con: buscar salones, hacer reservas, ver servicios, comparar precios y más. ¿Qué necesitas?';
+      // Cliente pidiendo funcionalidad de salón - usar fallback local
+      console.log('⚠️ Cliente detectado con intent de salón - usando fallback');
+      responseText = getFallbackResponse(message, userRole);
     } else if (userRole === 'salon' && isClienteIntent) {
-      // Salón pidiendo funcionalidad de cliente
-      responseText = 'Esa función es para clientes. Como salón, puedo ayudarte con: gestionar citas, editar servicios, ver estadísticas, configurar horarios, crear promociones y más. ¿Qué necesitas?';
+      // Salón pidiendo funcionalidad de cliente - usar fallback local
+      console.log('⚠️ Salón detectado con intent de cliente - usando fallback');
+      responseText = getFallbackResponse(message, userRole);
     } else if (!responseText) {
       // Si no hay respuesta, usar fallback según el rol
       responseText = getFallbackResponse(message, userRole);
@@ -110,7 +129,7 @@ function getFallbackResponse(text: string, userRole: string = 'cliente'): string
       : '¡Hola! 😊 Soy el asistente de Beauteek. ¿Cómo puedo ayudarte hoy?';
   } else if (lowerText.includes('reserva') || lowerText.includes('cita') || lowerText.includes('agendar')) {
     return isSalon
-      ? 'Puedes ver las citas agendadas en tu salón desde el Calendario 📅. Desde ahí también puedes cancelar o gestionar las citas de tus clientes.'
+      ? 'Puedes ver las citas agendadas en tu salón desde el Calendario. Desde ahí también puedes cancelar o gestionar las citas de tus clientes.'
       : 'Para hacer una reserva, ve a la pestaña de búsqueda, selecciona un salón y elige el servicio que desees. ¿Te gustaría que te ayude con algo más?';
   } else if (lowerText.includes('servicio') || lowerText.includes('qué ofrecen')) {
     return isSalon

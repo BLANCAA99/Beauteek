@@ -146,5 +146,3 @@ class _OpcionCard extends StatelessWidget {
     );
   }
 }
-
-

@@ -127,7 +127,8 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final idToken = await user.getIdToken();
 
-      final url = Uri.parse('$apiBaseUrl/citas/usuario/$_userId');
+      // Llamar al nuevo endpoint que devuelve todo procesado
+      final url = Uri.parse('$apiBaseUrl/api/citas/usuario/$_userId?rol=$_userRole');
 
       final response = await http.get(
         url,
@@ -148,91 +149,21 @@ class _CalendarPageState extends State<CalendarPage> {
 
       final List<dynamic> citasData = json.decode(response.body);
 
-      final citasTemp = await Future.wait(citasData.map((data) async {
-        String nombreOtraPersona = 'Desconocido';
-
-        final user = FirebaseAuth.instance.currentUser;
-        final idToken = await user!.getIdToken();
-
-        if (_userRole == 'cliente' && data['comercio_id'] != null) {
-          try {
-            final comercioUrl =
-                Uri.parse('$apiBaseUrl/comercios/${data['comercio_id']}');
-            final comercioResponse = await http.get(
-              comercioUrl,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $idToken',
-              },
-            );
-
-            if (comercioResponse.statusCode == 200) {
-              final comercioData = json.decode(comercioResponse.body);
-              nombreOtraPersona = comercioData['nombre'] ?? 'Salón sin nombre';
-            }
-          } catch (e) {
-            // Ignorar error al obtener comercio
-          }
-        } else if (_userRole == 'salon' && data['usuario_cliente_id'] != null) {
-          try {
-            final clienteUrl = Uri.parse(
-                '$apiBaseUrl/api/users/uid/${data['usuario_cliente_id']}');
-            final clienteResponse = await http.get(
-              clienteUrl,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $idToken',
-              },
-            );
-
-            if (clienteResponse.statusCode == 200) {
-              final clienteData = json.decode(clienteResponse.body);
-              nombreOtraPersona = clienteData['nombre_completo'] ?? 'Cliente';
-            }
-          } catch (e) {
-            // Ignorar error al obtener cliente
-          }
-        }
-
-        DateTime fechaHora;
-        try {
-          if (data['fecha_hora'] is String) {
-            String fechaStr = data['fecha_hora'];
-            if (fechaStr.length == 16) {
-              fechaStr += ':00';
-            }
-            fechaHora = DateTime.parse(fechaStr);
-          } else if (data['fecha_hora'] is Map &&
-              data['fecha_hora']['_seconds'] != null) {
-            fechaHora = DateTime.fromMillisecondsSinceEpoch(
-              data['fecha_hora']['_seconds'] * 1000,
-            );
-          } else {
-            fechaHora = DateTime.now();
-          }
-        } catch (e) {
-          fechaHora = DateTime.now();
-        }
-
+      // Convertir fechas de String ISO a DateTime
+      final citasTemp = citasData.map((data) {
         return {
           'id': data['id'],
-          'fecha_hora': fechaHora,
-          'nombre_otra_persona': nombreOtraPersona,
-          'servicio_nombre': data['servicio_nombre'] ?? 'Servicio',
+          'fecha_hora': DateTime.parse(data['fecha_hora']),
+          'nombre_otra_persona': data['nombre_otra_persona'],
+          'servicio_nombre': data['servicio_nombre'],
           'servicio_id': data['servicio_id'],
           'precio': (data['precio'] ?? 0).toDouble(),
           'estado': data['estado'] ?? 'pendiente',
           'duracion_min': data['duracion_min'] ?? 30,
           'comercio_id': data['comercio_id'],
-          'cliente_id': data['usuario_cliente_id'],
+          'cliente_id': data['cliente_id'],
         };
-      }).toList());
-
-      citasTemp.sort((a, b) {
-        final fechaA = a['fecha_hora'] as DateTime;
-        final fechaB = b['fecha_hora'] as DateTime;
-        return fechaA.compareTo(fechaB);
-      });
+      }).toList();
 
       setState(() {
         _citas = citasTemp;
@@ -512,27 +443,21 @@ class _CalendarPageState extends State<CalendarPage> {
       barrierDismissible: false,
       builder: (context) {
         return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF5EE),
-              borderRadius: BorderRadius.circular(28),
-            ),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Text(
-                    '¿Cómo deseas pagar?',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black87,
-                    ),
+                const Text(
+                  '¿Cómo deseas pagar?',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -546,51 +471,54 @@ class _CalendarPageState extends State<CalendarPage> {
                 const SizedBox(height: 4),
                 Text(
                   'Valor del servicio: L${montoFinal.toStringAsFixed(2)}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
+                    color: Colors.grey,
                   ),
                 ),
                 const SizedBox(height: 24),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context, 'local');
-                      },
-                      child: const Text(
-                        'Pagar en el local',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF5F5F5F),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pop(context, 'local');
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          'Pagar en el local',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context, 'app');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryOrange,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, 'app');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryOrange,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: const Text(
-                        'Pagar en la app',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                        child: const Text(
+                          'Pagar en la app',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -674,12 +602,14 @@ class _CalendarPageState extends State<CalendarPage> {
         _selectedTime!.minute,
       );
 
+      final duracionMin = (servicio['duracion'] as num?)?.toInt() ?? 1;
+      
       final payload = {
         'comercio_id': widget.comercioId,
         'servicio_id': servicio['id'],
         'usuario_cliente_id': _userId,
         'fecha_hora': fechaHora.toIso8601String().substring(0, 16),
-        'duracion_min': servicio['duracion_min'] ?? servicio['duracion'] ?? 60,
+        'duracion_min': duracionMin < 1 ? 1 : duracionMin,
         'precio': servicio['precio'],
         'servicio_nombre': servicio['nombre'],
         'estado': 'pendiente',

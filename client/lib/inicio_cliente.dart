@@ -409,6 +409,13 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       if (!mounted) return;
 
+      // Ordenar salones por calificación (mayor a menor)
+      salonesConFoto.sort((a, b) {
+        final calA = (a['calificacion'] as num?)?.toDouble() ?? 0.0;
+        final calB = (b['calificacion'] as num?)?.toDouble() ?? 0.0;
+        return calB.compareTo(calA);
+      });
+
       setState(() {
         _salonesDestacados = salonesConFoto;
         _salonesFiltrados = _salonesDestacados;
@@ -541,7 +548,6 @@ class _InicioClientePageState extends State<InicioClientePage> {
 
       if (citasResponse.statusCode == 200) {
         final List<dynamic> citasData = json.decode(citasResponse.body);
-        totalServicios = citasData.length;
 
         final ahora = DateTime.now();
 
@@ -551,6 +557,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
           // Contar solo citas pendientes o confirmadas que sean futuras
           if (estado == 'confirmada' || estado == 'pendiente') {
             pendientes++;
+            totalServicios++; // Servicios próximos = citas futuras
           }
 
           // Contar citas completadas
@@ -600,7 +607,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
         _promocionesActuales = _promocionesActivas.length;
       });
     } catch (e) {
-      print('❌ Error cargando estadísticas: $e');
+      print('Error cargando estadísticas: $e');
       if (!mounted) return;
       setState(() {
         _citasPendientes = 0;
@@ -1018,13 +1025,16 @@ class _InicioClientePageState extends State<InicioClientePage> {
                           Row(
                             children: [
                               const Icon(Icons.star,
-                                  size: 14, color: Color(0xFFFFB800)),
+                                  size: 16, color: Color(0xFFFFB800)),
                               const SizedBox(width: 4),
                               Text(
-                                "${salon['calificacion'] ?? 4.5}",
-                                style: AppTheme.caption,
+                                ((salon['calificacion'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(1),
+                                style: AppTheme.caption.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                               ),
-                              const SizedBox(width: 8),
+                              const Spacer(),
                               const Icon(Icons.place,
                                   size: 14, color: AppTheme.textSecondary),
                               const SizedBox(width: 4),
@@ -1250,26 +1260,15 @@ class _InicioClientePageState extends State<InicioClientePage> {
               _buildEstadisticaCard(
                 icon: Icons.event_available,
                 count: _citasPendientes,
-                label: _citasPendientes == 1
-                    ? 'Cita\npendiente'
-                    : 'Citas\npendientes',
+                label: 'Próximas\ncitas',
                 gradientColors: [Color(0xFFFF6B9D), Color(0xFFEA963A)],
               ),
               const SizedBox(width: 12),
               _buildEstadisticaCard(
-                icon: Icons.spa,
-                count: _totalServicios,
-                label: _totalServicios == 1
-                    ? 'Servicio\nreservado'
-                    : 'Servicios\nreservados',
-                gradientColors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-              ),
-              const SizedBox(width: 12),
-              _buildEstadisticaCard(
-                icon: Icons.favorite,
-                count: _favoritosCount,
-                label: _favoritosCount == 1 ? 'Favorito' : 'Favoritos',
-                gradientColors: [Color(0xFF11998E), Color(0xFF38EF7D)],
+                icon: Icons.check_circle,
+                count: _citasCompletadas,
+                label: 'Citas\ncompletadas',
+                gradientColors: [Color(0xFF56AB2F), Color(0xFFA8E063)],
               ),
             ],
           ),
@@ -1278,30 +1277,17 @@ class _InicioClientePageState extends State<InicioClientePage> {
           Row(
             children: [
               _buildEstadisticaCard(
-                icon: Icons.check_circle,
-                count: _citasCompletadas,
-                label: _citasCompletadas == 1
-                    ? 'Cita\ncompletada'
-                    : 'Citas\ncompletadas',
-                gradientColors: [Color(0xFF56AB2F), Color(0xFFA8E063)],
+                icon: Icons.favorite,
+                count: _favoritosCount,
+                label: 'Salones\nfavoritos',
+                gradientColors: [Color(0xFF11998E), Color(0xFF38EF7D)],
               ),
               const SizedBox(width: 12),
               _buildEstadisticaCard(
                 icon: Icons.rate_review,
                 count: _resenasRealizadas,
-                label: _resenasRealizadas == 1
-                    ? 'Reseña\nrealizada'
-                    : 'Reseñas\nrealizadas',
+                label: 'Reseñas\nrealizadas',
                 gradientColors: [Color(0xFFF093FB), Color(0xFFF5576C)],
-              ),
-              const SizedBox(width: 12),
-              _buildEstadisticaCard(
-                icon: Icons.local_offer,
-                count: _promocionesActuales,
-                label: _promocionesActuales == 1
-                    ? 'Promoción\nactiva'
-                    : 'Promociones\nactivas',
-                gradientColors: [Color(0xFFFA8BFF), Color(0xFF2BD2FF)],
               ),
             ],
           ),
@@ -1318,7 +1304,7 @@ class _InicioClientePageState extends State<InicioClientePage> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: gradientColors,
@@ -1338,33 +1324,35 @@ class _InicioClientePageState extends State<InicioClientePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
                 color: Colors.white,
-                size: 24,
+                size: 28,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               '$count',
               style: const TextStyle(
-                fontSize: 28,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
+                letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 14,
                 color: Colors.white,
                 height: 1.3,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

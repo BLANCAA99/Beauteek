@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:intl/intl.dart';
 import 'api_constants.dart';
 import 'theme/app_theme.dart';
 
@@ -20,6 +19,36 @@ class ActividadItem {
     required this.detalle,
     required this.timestamp,
   });
+
+  factory ActividadItem.fromJson(Map<String, dynamic> json) {
+    return ActividadItem(
+      icono: _mapearIcono(json['icono'] as String? ?? 'event'),
+      color: _parseColor(json['color'] as String? ?? '#EA963A'),
+      accion: json['accion'] as String? ?? 'Actividad',
+      detalle: json['detalle'] as String? ?? '',
+      timestamp: DateTime.parse(json['timestamp'] as String),
+    );
+  }
+
+  static IconData _mapearIcono(String nombreIcono) {
+    const iconos = {
+      'check_circle': Icons.check_circle,
+      'cancel': Icons.cancel,
+      'done_all': Icons.done_all,
+      'event_available': Icons.event_available,
+      'rate_review': Icons.rate_review,
+      'favorite': Icons.favorite,
+      'event': Icons.event,
+      'local_offer': Icons.local_offer,
+      'add_photo_alternate': Icons.add_photo_alternate,
+    };
+    return iconos[nombreIcono] ?? Icons.event;
+  }
+
+  static Color _parseColor(String hexColor) {
+    hexColor = hexColor.replaceAll('#', '');
+    return Color(int.parse('FF$hexColor', radix: 16));
+  }
 }
 
 class ActividadRecientePage extends StatefulWidget {
@@ -53,7 +82,7 @@ class _ActividadRecientePageState extends State<ActividadRecientePage> {
       final idToken = await user.getIdToken();
       final userId = user.uid;
 
-      // Obtener rol del usuario desde la API
+      // Obtener rol del usuario
       final userUrl = Uri.parse('$apiBaseUrl/api/users/uid/$userId');
       final userResponse = await http.get(
         userUrl,
@@ -71,217 +100,30 @@ class _ActividadRecientePageState extends State<ActividadRecientePage> {
       final userData = json.decode(userResponse.body);
       _userRole = userData['rol'] as String? ?? 'cliente';
 
-      List<ActividadItem> actividades = [];
-      final ahora = DateTime.now();
-      final hace7Dias = ahora.subtract(const Duration(days: 7));
+      // Llamar al endpoint de actividad con el rol
+      final actividadUrl = Uri.parse('$apiBaseUrl/api/actividad/$userId?rol=$_userRole');
+      final actividadResponse = await http.get(
+        actividadUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
 
-      if (_userRole == 'cliente') {
-        // CLIENTE: Cargar citas, reseñas y favoritos de los últimos 7 días
-        
-        // 1. Últimas citas
-        try {
-          final citasUrl = Uri.parse('$apiBaseUrl/citas/usuario/$userId');
-          final citasResponse = await http.get(
-            citasUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          ).timeout(const Duration(seconds: 5));
+      if (actividadResponse.statusCode == 200) {
+        final List<dynamic> actividadJson = json.decode(actividadResponse.body);
+        final List<ActividadItem> actividades = actividadJson
+            .map((item) => ActividadItem.fromJson(item as Map<String, dynamic>))
+            .toList();
 
-          if (citasResponse.statusCode == 200) {
-            final List<dynamic> citas = json.decode(citasResponse.body);
-            for (var cita in citas) {
-              final fechaHora = cita['fecha_hora'] != null
-                  ? DateTime.parse(cita['fecha_hora'])
-                  : DateTime.now();
-
-              // Solo incluir si es de los últimos 7 días
-              if (fechaHora.isAfter(hace7Dias)) {
-                final estado = cita['estado'] as String? ?? 'pendiente';
-                String accion = '';
-                IconData icono = Icons.event;
-                Color color = AppTheme.primaryOrange;
-
-                switch (estado) {
-                  case 'confirmada':
-                    accion = 'Cita confirmada';
-                    icono = Icons.check_circle;
-                    color = Colors.green;
-                    break;
-                  case 'cancelada':
-                    accion = 'Cita cancelada';
-                    icono = Icons.cancel;
-                    color = Colors.red;
-                    break;
-                  case 'completada':
-                    accion = 'Cita completada';
-                    icono = Icons.done_all;
-                    color = Colors.blue;
-                    break;
-                  default:
-                    accion = 'Cita agendada';
-                    icono = Icons.event_available;
-                    color = AppTheme.primaryOrange;
-                }
-
-                actividades.add(ActividadItem(
-                  icono: icono,
-                  color: color,
-                  accion: accion,
-                  detalle: 'Con ${cita['comercio_nombre'] ?? 'Salón'}',
-                  timestamp: fechaHora,
-                ));
-              }
-            }
-          }
-        } catch (e) {
-        }
-
-        // 2. Últimas reseñas
-        try {
-          final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?usuario_id=$userId');
-          final resenasResponse = await http.get(
-            resenasUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          ).timeout(const Duration(seconds: 5));
-
-          if (resenasResponse.statusCode == 200) {
-            final List<dynamic> resenas = json.decode(resenasResponse.body);
-            for (var resena in resenas) {
-              final fechaCreacion = resena['fecha_creacion'] != null
-                  ? DateTime.parse(resena['fecha_creacion'])
-                  : DateTime.now();
-
-              // Solo incluir si es de los últimos 7 días
-              if (fechaCreacion.isAfter(hace7Dias)) {
-                final calificacion = resena['calificacion'] as int? ?? 0;
-
-                actividades.add(ActividadItem(
-                  icono: Icons.rate_review,
-                  color: Colors.amber,
-                  accion: 'Reseña enviada',
-                  detalle: '$calificacion ⭐ - ${resena['comercio_nombre'] ?? 'Salón'}',
-                  timestamp: fechaCreacion,
-                ));
-              }
-            }
-          }
-        } catch (e) {
-        }
-
-        // 3. Salones favoritos agregados
-        try {
-          final favoritosUrl = Uri.parse('$apiBaseUrl/api/favoritos/usuario/$userId');
-          final favoritosResponse = await http.get(
-            favoritosUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          ).timeout(const Duration(seconds: 5));
-
-          if (favoritosResponse.statusCode == 200) {
-            final List<dynamic> favoritos = json.decode(favoritosResponse.body);
-            for (var favorito in favoritos) {
-              final fechaCreacion = favorito['fecha_creacion'] != null
-                  ? DateTime.parse(favorito['fecha_creacion'])
-                  : DateTime.now();
-
-              // Solo incluir si es de los últimos 7 días
-              if (fechaCreacion.isAfter(hace7Dias)) {
-                actividades.add(ActividadItem(
-                  icono: Icons.favorite,
-                  color: Colors.pink,
-                  accion: 'Salón agregado a favoritos',
-                  detalle: favorito['comercio_nombre'] ?? 'Salón',
-                  timestamp: fechaCreacion,
-                ));
-              }
-            }
-          }
-        } catch (e) {
-        }
-
+        setState(() {
+          _actividades.clear();
+          _actividades.addAll(actividades);
+          _isLoading = false;
+        });
       } else {
-        // SALON: Cargar citas recibidas y servicios creados
-        
-        // Obtener el comercio_id del salón
-        String? comercioId;
-        try {
-          final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
-          final comerciosResponse = await http.get(
-            comerciosUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          ).timeout(const Duration(seconds: 5));
-
-          if (comerciosResponse.statusCode == 200) {
-            final List<dynamic> comercios = json.decode(comerciosResponse.body);
-            for (var comercio in comercios) {
-              if (comercio['uid_negocio'] == userId) {
-                comercioId = comercio['id'];
-                break;
-              }
-            }
-          }
-        } catch (e) {
-        }
-
-        if (comercioId != null) {
-          // 1. Últimas citas agendadas (solo pendientes de los últimos 7 días)
-          try {
-            final citasUrl = Uri.parse('$apiBaseUrl/citas/comercio/$comercioId');
-            final citasResponse = await http.get(
-              citasUrl,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $idToken',
-              },
-            ).timeout(const Duration(seconds: 5));
-
-            if (citasResponse.statusCode == 200) {
-              final List<dynamic> citas = json.decode(citasResponse.body);
-              
-              // Solo mostrar citas pendientes de los últimos 7 días
-              for (var cita in citas) {
-                if (cita['estado'] == 'pendiente') {
-                  final fechaHora = cita['fecha_hora'] != null
-                      ? DateTime.parse(cita['fecha_hora'])
-                      : DateTime.now();
-
-                  // Solo incluir si es de los últimos 7 días
-                  if (fechaHora.isAfter(hace7Dias)) {
-                    actividades.add(ActividadItem(
-                      icono: Icons.event_available,
-                      color: AppTheme.primaryOrange,
-                      accion: 'Nueva cita agendada',
-                      detalle: 'Cliente: ${cita['usuario_nombre'] ?? 'Cliente'}',
-                      timestamp: fechaHora,
-                    ));
-                  }
-                }
-              }
-            }
-          } catch (e) {
-          }
-        }
+        setState(() => _isLoading = false);
       }
-
-      // Ordenar por fecha (más reciente primero)
-      actividades.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      setState(() {
-        _actividades.clear();
-        _actividades.addAll(actividades);
-        _isLoading = false;
-      });
-
     } catch (e) {
       setState(() => _isLoading = false);
     }
@@ -300,7 +142,7 @@ class _ActividadRecientePageState extends State<ActividadRecientePage> {
     } else if (diferencia.inDays < 7) {
       return 'Hace ${diferencia.inDays} días';
     } else {
-      return DateFormat('dd MMM yyyy', 'es').format(fecha);
+      return '${fecha.day}/${fecha.month}/${fecha.year}';
     }
   }
 

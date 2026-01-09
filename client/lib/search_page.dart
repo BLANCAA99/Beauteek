@@ -41,7 +41,7 @@ class _SearchPageState extends State<SearchPage> {
   GoogleMapController? _mapController;
   Set<Marker> _markers = {};
   Set<Circle> _circles = {};
-  bool _showMap = true; // Mostrar mapa por defecto
+  bool _showMap = false; // Empezar en lista, cambiar a mapa cuando el usuario quiera
 
   // UI: pestañas "Salones / Servicios"
   int _indicePestana = 0;
@@ -67,7 +67,7 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
-  // NUEVO: Cargar salones usando la colección ubicaciones
+  // Cargar salones cercanos usando el nuevo endpoint
   Future<void> _cargarSalonesPorPais() async {
     try {
       if (widget.userId == null) {
@@ -75,7 +75,6 @@ class _SearchPageState extends State<SearchPage> {
         return;
       }
 
-      // NUEVO: Obtener ubicación principal del cliente desde colección ubicaciones
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         setState(() => _isLoading = false);
@@ -83,6 +82,8 @@ class _SearchPageState extends State<SearchPage> {
       }
       
       final idToken = await user.getIdToken();
+      
+      // Obtener ubicación principal del cliente
       final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/${widget.userId}?tipo=cliente');
       final ubicacionResponse = await http.get(
         ubicacionUrl,
@@ -106,7 +107,6 @@ class _SearchPageState extends State<SearchPage> {
       }
 
       final ubicacionData = json.decode(ubicacionResponse.body);
-      final pais = ubicacionData['pais'];
       final userLat = (ubicacionData['lat'] as num).toDouble();
       final userLng = (ubicacionData['lng'] as num).toDouble();
 
@@ -115,82 +115,37 @@ class _SearchPageState extends State<SearchPage> {
         _userLng = userLng;
       });
       
-
-      // NUEVO: Buscar salones por país desde colección ubicaciones
-      final salonesUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/salones/pais/$pais');
-      final salonesResponse = await http.get(
-        salonesUrl,
+      // Llamar al endpoint que busca salones por país (hace todos los cálculos)
+      final buscarUrl = Uri.parse('$apiBaseUrl/api/salones/pais?userId=${widget.userId}&lat=$userLat&lng=$userLng');
+      final buscarResponse = await http.get(
+        buscarUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 30));
       
-      final List<dynamic> salones = salonesResponse.statusCode == 200 
-          ? json.decode(salonesResponse.body) 
-          : [];
-      // Calcular distancia para cada salón
-      final salonesConDistancia = salones.map<Map<String, dynamic>>((salon) {
-        final salonMap = salon as Map<String, dynamic>;
-        final ubicacionSalon = salonMap['ubicacion'] as Map<String, dynamic>?;
+      if (buscarResponse.statusCode == 200) {
+        final List<dynamic> salones = json.decode(buscarResponse.body);
         
-        if (ubicacionSalon != null) {
-          final salonLat = (ubicacionSalon['lat'] as num?)?.toDouble();
-          final salonLng = (ubicacionSalon['lng'] as num?)?.toDouble();
-          
-          if (salonLat != null && salonLng != null) {
-            final distancia = _calcularDistancia(
-              userLat, userLng, salonLat, salonLng,
-            );
-            salonMap['distancia'] = distancia;
-            salonMap['distancia_km'] = distancia;
-          } else {
-            salonMap['distancia'] = 999999.0;
-            salonMap['distancia_km'] = 999999.0;
-          }
-        }
+        setState(() {
+          _resultados = salones.cast<Map<String, dynamic>>();
+          _isLoading = false;
+        });
         
-        return salonMap;
-      }).toList();
-
-      // Ordenar por distancia (los más cercanos primero)
-      salonesConDistancia.sort((a, b) {
-        final distA = a['distancia_km'] as double? ?? double.infinity;
-        final distB = b['distancia_km'] as double? ?? double.infinity;
-        return distA.compareTo(distB);
-      });
-
-      setState(() {
-        _resultados = salonesConDistancia;
-        _isLoading = false;
-      });
-
-      
-      
-      // Actualizar marcadores inmediatamente al cargar los salones
-      _actualizarMarcadores();
+        _actualizarMarcadores();
+      } else {
+        setState(() {
+          _resultados = [];
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
 
-  // Calcular distancia usando fórmula de Haversine
-  double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371; // Radio de la Tierra en km
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-    
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
-    
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
-  }
 
-  double _toRadians(double degree) {
-    return degree * pi / 180;
-  }
 
   String _formatearDistancia(double? distancia) {
     if (distancia == null || distancia == double.infinity) {
@@ -338,17 +293,18 @@ class _SearchPageState extends State<SearchPage> {
       final ubicacion = salon['ubicacion'] as Map<String, dynamic>?;
 
       if (ubicacion != null) {
-        final lat = (ubicacion['lat'] ?? ubicacion['_latitude'] ?? ubicacion['latitude'])?.toDouble();
-        final lng = (ubicacion['lng'] ?? ubicacion['_longitude'] ?? ubicacion['longitude'])?.toDouble();
+        final lat = ((ubicacion['lat'] ?? ubicacion['_latitude'] ?? ubicacion['latitude']) as num?)?.toDouble();
+        final lng = ((ubicacion['lng'] ?? ubicacion['_longitude'] ?? ubicacion['longitude']) as num?)?.toDouble();
 
         if (lat != null && lng != null) {
+          final distancia = ((salon['distancia'] as num?) ?? 0.0).toDouble();
           _markers.add(
             Marker(
               markerId: MarkerId('salon_$i'),
               position: LatLng(lat, lng),
               infoWindow: InfoWindow(
                 title: salon['nombre'],
-                snippet: 'Toca para ver perfil • ${(salon['distancia'] as double).toStringAsFixed(1)} km',
+                snippet: 'Toca para ver perfil • ${distancia.toStringAsFixed(1)} km',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -573,9 +529,9 @@ class _SearchPageState extends State<SearchPage> {
       physics: const BouncingScrollPhysics(),
       itemBuilder: (context, index) {
         final salon = _resultados[index];
-        final distancia = salon['distancia'] as double?;
+        final distancia = (salon['distancia'] as num?)?.toDouble();
 
-        final calificacion = (salon['calificacion'] ?? 4.8).toDouble();
+        final calificacion = ((salon['calificacion'] as num?) ?? 4.8).toDouble();
         final descripcion = _descripcionSalon(salon, distancia);
 
         return GestureDetector(

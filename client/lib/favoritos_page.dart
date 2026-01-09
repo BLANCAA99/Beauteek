@@ -35,9 +35,8 @@ class _FavoritosPageState extends State<FavoritosPage> {
 
       final idToken = await user.getIdToken();
 
-      // Obtener favoritos del usuario
-      final favoritosUrl =
-          Uri.parse('$apiBaseUrl/api/favoritos?clienteId=${user.uid}');
+      // Obtener favoritos con toda la información desde el backend
+      final favoritosUrl = Uri.parse('$apiBaseUrl/api/favoritos/usuario/${user.uid}');
       final favoritosResponse = await http.get(
         favoritosUrl,
         headers: {
@@ -47,74 +46,9 @@ class _FavoritosPageState extends State<FavoritosPage> {
       );
 
       if (favoritosResponse.statusCode == 200) {
-        final List<dynamic> favoritosData =
-            json.decode(favoritosResponse.body);
-
-        // Obtener datos del comercio para cada favorito
-        final List<Map<String, dynamic>> favoritosConDatos = [];
-        for (var favorito in favoritosData) {
-          final favoritoMap = favorito as Map<String, dynamic>;
-          final comercioId = favoritoMap['salon_id'];
-
-          if (comercioId != null) {
-            try {
-              final comercioUrl =
-                  Uri.parse('$apiBaseUrl/comercios/$comercioId');
-              final comercioResponse = await http.get(
-                comercioUrl,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer $idToken',
-                },
-              );
-
-              if (comercioResponse.statusCode == 200) {
-                final comercioData =
-                    json.decode(comercioResponse.body);
-
-                // Obtener foto del propietario
-                final uidPropietario =
-                    comercioData['uid_negocio'] as String?;
-                String? fotoSalon;
-
-                if (uidPropietario != null) {
-                  try {
-                    final propietarioUrl = Uri.parse(
-                        '$apiBaseUrl/api/users/uid/$uidPropietario');
-                    final propietarioResponse = await http.get(
-                      propietarioUrl,
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer $idToken',
-                      },
-                    );
-
-                    if (propietarioResponse.statusCode == 200) {
-                      final propietarioData =
-                          json.decode(propietarioResponse.body);
-                      fotoSalon =
-                          propietarioData['foto_url'] as String?;
-                    }
-                  } catch (e) {
-                  }
-                }
-
-                favoritosConDatos.add({
-                  'favorito_id': favoritoMap['id'],
-                  'comercio_id': comercioId,
-                  'nombre': comercioData['nombre'],
-                  'foto_url': fotoSalon,
-                  'direccion': comercioData['direccion'],
-                  'calificacion': comercioData['calificacion'],
-                });
-              }
-            } catch (e) {
-            }
-          }
-        }
-
+        final List<dynamic> favoritosData = json.decode(favoritosResponse.body);
         setState(() {
-          _favoritos = favoritosConDatos;
+          _favoritos = favoritosData.cast<Map<String, dynamic>>();
           _isLoading = false;
         });
       } else {

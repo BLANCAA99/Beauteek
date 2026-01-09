@@ -58,6 +58,101 @@ export const getFavoritos = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Obtener favoritos con información completa del comercio
+export const getFavoritosConDatos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      res.status(400).json({ error: "userId es requerido" });
+      return;
+    }
+    
+    // Obtener favoritos del usuario
+    const favoritosSnapshot = await db
+      .collection("favoritos")
+      .where("usuario_cliente_id", "==", userId)
+      .get();
+    
+    const favoritosConDatos: any[] = [];
+    
+    for (const doc of favoritosSnapshot.docs) {
+      const favoritoData = doc.data();
+      const salonId = favoritoData.salon_id;
+      
+      try {
+        // Obtener datos del comercio
+        const comercioDoc = await db.collection("comercios").doc(salonId).get();
+        
+        if (comercioDoc.exists) {
+          const comercioData = comercioDoc.data();
+          let fotoUrl = null;
+          
+          // Obtener foto del propietario
+          if (comercioData?.uid_negocio) {
+            const usuarioSnapshot = await db
+              .collection("usuarios")
+              .where("uid", "==", comercioData.uid_negocio)
+              .limit(1)
+              .get();
+            
+            if (!usuarioSnapshot.empty) {
+              const usuarioData = usuarioSnapshot.docs[0].data();
+              fotoUrl = usuarioData.foto_url || null;
+            }
+          }
+          
+          // Calcular calificación promedio real desde las reseñas
+          let calificacionPromedio = 0;
+          try {
+            const resenasSnapshot = await db
+              .collection("resenas")
+              .where("comercio_id", "==", salonId)
+              .get();
+            
+            if (!resenasSnapshot.empty) {
+              let sumaCalificaciones = 0;
+              let totalResenas = 0;
+              
+              resenasSnapshot.forEach(resenaDoc => {
+                const resena = resenaDoc.data();
+                if (resena.calificacion) {
+                  sumaCalificaciones += parseFloat(resena.calificacion);
+                  totalResenas++;
+                }
+              });
+              
+              if (totalResenas > 0) {
+                calificacionPromedio = parseFloat((sumaCalificaciones / totalResenas).toFixed(1));
+              }
+            }
+          } catch (e) {
+            console.error('Error calculando calificación:', e);
+          }
+          
+          favoritosConDatos.push({
+            favorito_id: doc.id,
+            comercio_id: salonId,
+            nombre: comercioData?.nombre || 'Salón',
+            foto_url: fotoUrl,
+            direccion: comercioData?.direccion || '',
+            calificacion: calificacionPromedio,
+          });
+        }
+      } catch (e) {
+        // Si hay error obteniendo el comercio, continuar con el siguiente
+        continue;
+      }
+    }
+    
+    res.json(favoritosConDatos);
+  }
+  catch (error: any) {
+    console.error('Error obteniendo favoritos con datos:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getFavoritoById = async (req: Request, res: Response): Promise<void> => {
   try {
     const doc = await db.collection("favoritos").doc(req.params.id).get();

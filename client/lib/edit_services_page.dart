@@ -575,6 +575,24 @@ class _EditServicesPageState extends State<EditServicesPage> {
                           return;
                         }
 
+                        // Validar que no exista un servicio con el mismo nombre en la misma categoría
+                        final servicioYaExiste = _servicios.any((s) => 
+                          s['categoria_id'] == categoriaSeleccionada && 
+                          (s['nombre'] as String).toLowerCase() == servicioSeleccionado!.toLowerCase()
+                        );
+                        
+                        if (servicioYaExiste && context.mounted) {
+                          Navigator.pop(context, false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Ya tienes registrado el servicio "$servicioSeleccionado" en esta categoría'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                          return;
+                        }
+
                         try {
                           final user = FirebaseAuth.instance.currentUser;
                           if (user == null) return;
@@ -823,6 +841,20 @@ class _EditServicesPageState extends State<EditServicesPage> {
                       ),
                       ElevatedButton(
                         onPressed: () async {
+                          // Validar que el día no esté ya registrado
+                          final diaYaExiste = _horarios.any((h) => h['dia_semana'] == diaSeleccionado);
+                          if (diaYaExiste && context.mounted) {
+                            Navigator.pop(context, false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Ya tienes un horario configurado para ${_diasSemana[diaSeleccionado]}'),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                            return;
+                          }
+                          
                           try {
                             final user = FirebaseAuth.instance.currentUser;
                             if (user == null) return;

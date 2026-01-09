@@ -7,13 +7,13 @@ import { sendPushNotificationByRole } from "../services/notification.service";
 
 // Esquema robusto
 const promocionSchema = z.object({
-  comercio_id: z.string().min(1),
-  servicio_id: z.string().min(1),
-  servicio_nombre: z.string().min(1),
-  foto_url: z.string().optional(),
-  descripcion: z.string().optional(),
+  comercio_id: z.string().min(1, "comercio_id es requerido"),
+  servicio_id: z.string().min(1, "servicio_id es requerido"),
+  servicio_nombre: z.string().min(1, "servicio_nombre es requerido"),
+  foto_url: z.string().min(1, "foto_url es requerida"),
+  descripcion: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
   tipo_descuento: z.enum(["porcentaje", "monto"]),
-  valor: z.coerce.number().min(0),
+  valor: z.coerce.number().min(0).max(100, "El descuento no puede ser mayor a 100"),
   precio_original: z.coerce.number().min(0).optional(),
   precio_con_descuento: z.coerce.number().min(0).optional(),
   fecha_inicio: z.coerce.date(),

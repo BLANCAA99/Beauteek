@@ -86,9 +86,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final idToken = await user.getIdToken();
-      // Si es salón, busca ubicación del comercio (tipo=comercio)
+      // Si es salón, busca ubicación del comercio (tipo=salon)
       // Si es cliente, busca ubicación del cliente (tipo=cliente)
-      final tipo = _rolUsuario == 'salon' ? 'comercio' : 'cliente';
+      final tipo = _rolUsuario == 'salon' ? 'salon' : 'cliente';
       final url = Uri.parse(
           '$apiBaseUrl/api/ubicaciones/principal/${user.uid}?tipo=$tipo');
       final resp = await http.get(

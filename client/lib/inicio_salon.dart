@@ -200,7 +200,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
   Future<void> _cargarCitasDelDia() async {
     try {
-      if (_comercioId == null) return;
+      if (_uidUsuario == null) return;
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -210,7 +210,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       final inicioDia = DateTime(now.year, now.month, now.day);
       final finDia = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-      final url = Uri.parse('$apiBaseUrl/citas?comercio_id=$_comercioId');
+      final url = Uri.parse('$apiBaseUrl/api/citas/usuario/$_uidUsuario?rol=salon');
       final response = await http.get(
         url,
         headers: {
@@ -315,7 +315,7 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       if (user == null) return;
 
       final idToken = await user.getIdToken();
-      final url = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$_comercioId');
+      final url = Uri.parse('$apiBaseUrl/api/resenas/comercio/$_comercioId');
       final response = await http.get(
         url,
         headers: {

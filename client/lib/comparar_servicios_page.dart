@@ -31,17 +31,6 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     _buscarServicios();
   }
 
-  String _normalizarTexto(String texto) {
-    return texto
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('ú', 'u')
-        .replaceAll('ñ', 'n');
-  }
-
   Future<void> _buscarServicios() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -53,16 +42,15 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
         return;
       }
 
-      final idTokenNullable = await user.getIdToken();
-      if (idTokenNullable == null) {
+      final idToken = await user.getIdToken();
+      if (idToken == null) {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
-      final idToken = idTokenNullable;
-      // Obtener ubicación del cliente primero
+
+      // Obtener ubicación del cliente
       final userId = user.uid;
-      final ubicacionUrl = Uri.parse(
-          '$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
+      final ubicacionUrl = Uri.parse('$apiBaseUrl/api/ubicaciones/principal/$userId?tipo=cliente');
       final ubicacionResponse = await http.get(
         ubicacionUrl,
         headers: {
@@ -80,91 +68,30 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
       final userLat = (ubicacionData['lat'] as num).toDouble();
       final userLng = (ubicacionData['lng'] as num).toDouble();
 
-      // Obtener todos los comercios
-      final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
-      final comerciosResponse = await http.get(
-        comerciosUrl,
+      // Llamar al endpoint de comparar servicios que hace todo el trabajo
+      final compararUrl = Uri.parse(
+        '$apiBaseUrl/api/servicios/comparar?nombre=${Uri.encodeComponent(widget.servicioNombre)}&lat=$userLat&lng=$userLng&ordenar=$_ordenPor'
+      );
+      
+      final compararResponse = await http.get(
+        compararUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
-      if (comerciosResponse.statusCode != 200) {
+      if (compararResponse.statusCode == 200) {
+        final List<dynamic> serviciosData = json.decode(compararResponse.body);
+        
+        if (mounted) {
+          setState(() {
+            _serviciosEncontrados = serviciosData.cast<Map<String, dynamic>>();
+            _isLoading = false;
+          });
+        }
+      } else {
         if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      final List<dynamic> comercios = json.decode(comerciosResponse.body);
-      // Para cada comercio, obtener sus servicios
-      List<Map<String, dynamic>> serviciosEncontrados = [];
-
-      for (var comercio in comercios) {
-        try {
-          final serviciosUrl = Uri.parse(
-              '$apiBaseUrl/api/servicios?comercio_id=${comercio['id']}');
-          final serviciosResponse = await http.get(
-            serviciosUrl,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $idToken',
-            },
-          ).timeout(const Duration(seconds: 5));
-
-          if (serviciosResponse.statusCode == 200) {
-            final List<dynamic> servicios = json.decode(serviciosResponse.body);
-
-            // Filtrar servicios que coincidan con la búsqueda
-            for (var servicio in servicios) {
-              final nombreServicio = _normalizarTexto(servicio['nombre'] ?? '');
-              final busqueda = _normalizarTexto(widget.servicioNombre);
-
-              if (nombreServicio.contains(busqueda)) {
-                // Calcular distancia usando ubicación ya obtenida
-                final distancia = await _calcularDistanciaConUbicacion(
-                  comercio,
-                  userLat,
-                  userLng,
-                  idToken,
-                );
-
-                // Obtener calificación desde reseñas
-                final calificacion = await _obtenerCalificacionComercio(
-                  comercio['id'],
-                  idToken,
-                );
-
-                // Obtener foto del servicio desde galería
-                final fotoServicio = await _obtenerFotoServicio(
-                  comercio['id'],
-                  servicio['id'],
-                  idToken,
-                );
-
-                serviciosEncontrados.add({
-                  'servicio': servicio,
-                  'comercio': comercio,
-                  'precio': (servicio['precio'] ?? 0).toDouble(),
-                  'duracion': servicio['duracion'] ?? 0,
-                  'distancia': distancia,
-                  'rating': calificacion['promedio'],
-                  'resenas': calificacion['total'],
-                  'foto_servicio': fotoServicio,
-                });
-              }
-            }
-          }
-        } catch (e) {}
-      }
-      // Ordenar por precio (menor a mayor)
-      serviciosEncontrados.sort(
-          (a, b) => (a['precio'] as double).compareTo(b['precio'] as double));
-
-      if (mounted) {
-        setState(() {
-          _serviciosEncontrados = serviciosEncontrados;
-          _isLoading = false;
-        });
       }
     } catch (e) {
       if (mounted) {
@@ -173,181 +100,37 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
     }
   }
 
-  Future<String?> _obtenerFotoServicio(
-    String comercioId,
-    String servicioId,
-    String idToken,
-  ) async {
-    try {
-      final galeriaUrl =
-          Uri.parse('$apiBaseUrl/api/galeria-fotos/comercio/$comercioId');
-      final galeriaResponse = await http.get(
-        galeriaUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 3));
-      if (galeriaResponse.statusCode == 200) {
-        final List<dynamic> fotos = json.decode(galeriaResponse.body);
-        // Buscar primera foto que tenga el servicio_id
-        for (var foto in fotos) {
-          if (foto['servicio_id'] == servicioId) {
-            final url = foto['foto_url'] as String?;
-            return url;
-          }
-        }
-        // Si no hay foto específica del servicio, usar la primera foto del salón
-        if (fotos.isNotEmpty) {
-          final url = fotos.first['foto_url'] as String?;
-          return url;
-        }
-      }
-    } catch (e) {}
-    return null;
-  }
-
-  Future<Map<String, dynamic>> _obtenerCalificacionComercio(
-    String comercioId,
-    String idToken,
-  ) async {
-    try {
-      final resenasUrl =
-          Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
-      final resenasResponse = await http.get(
-        resenasUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 3));
-
-      if (resenasResponse.statusCode == 200) {
-        final List<dynamic> resenas = json.decode(resenasResponse.body);
-        if (resenas.isEmpty) {
-          return {'promedio': 4.5, 'total': 0};
-        }
-
-        final suma = resenas.fold<double>(
-            0, (acc, r) => acc + (r['calificacion'] ?? 0).toDouble());
-        final promedio = suma / resenas.length;
-
-        return {
-          'promedio': double.parse(promedio.toStringAsFixed(1)),
-          'total': resenas.length,
-        };
-      }
-    } catch (e) {}
-    return {'promedio': 4.5, 'total': 0};
-  }
-
-  Future<double> _calcularDistanciaConUbicacion(
-    Map<String, dynamic> comercio,
-    double userLat,
-    double userLng,
-    String idToken,
-  ) async {
-    try {
-      // Obtener ubicación del comercio desde la colección ubicaciones usando el comercioId
-      final comercioId = comercio['id'];
-      if (comercioId == null) return 999.0;
-
-      // Buscar la ubicación donde uid_usuario = comercioId
-      final ubicacionUrl =
-          Uri.parse('$apiBaseUrl/api/ubicaciones/usuario/$comercioId');
-      final ubicacionResponse = await http.get(
-        ubicacionUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      ).timeout(const Duration(seconds: 5));
-
-      if (ubicacionResponse.statusCode != 200) return 999.0;
-
-      final List<dynamic> ubicaciones = json.decode(ubicacionResponse.body);
-      if (ubicaciones.isEmpty) return 999.0;
-
-      // Tomar la primera ubicación (debería ser la principal)
-      final ubicacionComercio = ubicaciones.first;
-
-      final comercioLat = (ubicacionComercio['lat'] as num?)?.toDouble();
-      final comercioLng = (ubicacionComercio['lng'] as num?)?.toDouble();
-
-      if (comercioLat == null || comercioLng == null) return 999.0;
-
-      // Calcular distancia usando fórmula Haversine
-      return _calcularDistanciaHaversine(
-          userLat, userLng, comercioLat, comercioLng);
-    } catch (e) {
-      return 999.0;
-    }
-  }
-
-  double _calcularDistanciaHaversine(
-      double lat1, double lon1, double lat2, double lon2) {
-    const double radioTierra = 6371; // Radio de la Tierra en kilómetros
-
-    final double dLat = _gradosARadianes(lat2 - lat1);
-    final double dLon = _gradosARadianes(lon2 - lon1);
-
-    final double a = (sin(dLat / 2) * sin(dLat / 2)) +
-        (cos(_gradosARadianes(lat1)) *
-            cos(_gradosARadianes(lat2)) *
-            sin(dLon / 2) *
-            sin(dLon / 2));
-
-    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    final double distancia = radioTierra * c;
-
-    return double.parse(distancia.toStringAsFixed(1));
-  }
-
-  double _gradosARadianes(double grados) {
-    return grados * pi / 180;
-  }
-
   void _ordenarServicios() {
-    setState(() {
-      if (_ordenPor == 'Precio') {
-        _serviciosEncontrados
-            .sort((a, b) => a['precio'].compareTo(b['precio']));
-      } else if (_ordenPor == 'Distancia') {
-        _serviciosEncontrados
-            .sort((a, b) => a['distancia'].compareTo(b['distancia']));
-      } else if (_ordenPor == 'Rating') {
-        _serviciosEncontrados
-            .sort((a, b) => b['rating'].compareTo(a['rating']));
-      }
-    });
+    // Cuando cambie el orden, volver a buscar con el nuevo criterio
+    _buscarServicios();
   }
 
   // Obtener el servicio con mejor precio
   Map<String, dynamic>? _getMejorPrecio() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados
-        .reduce((a, b) => a['precio'] < b['precio'] ? a : b);
+    return _serviciosEncontrados.reduce((a, b) => 
+        (a['precio'] as num).toDouble() < (b['precio'] as num).toDouble() ? a : b);
   }
 
   // Obtener el servicio más cercano
   Map<String, dynamic>? _getMasCercano() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados
-        .reduce((a, b) => a['distancia'] < b['distancia'] ? a : b);
+    return _serviciosEncontrados.reduce((a, b) => 
+        (a['distancia'] as num).toDouble() < (b['distancia'] as num).toDouble() ? a : b);
   }
 
   // Obtener el servicio con mejor rating
   Map<String, dynamic>? _getMejorRating() {
     if (_serviciosEncontrados.isEmpty) return null;
-    return _serviciosEncontrados
-        .reduce((a, b) => a['rating'] > b['rating'] ? a : b);
+    return _serviciosEncontrados.reduce((a, b) => 
+        (a['rating'] as num).toDouble() > (b['rating'] as num).toDouble() ? a : b);
   }
 
   // Calcular ahorro respecto al precio más alto
   double _calcularAhorro(double precioActual) {
     if (_serviciosEncontrados.isEmpty) return 0;
     final precioMax =
-        _serviciosEncontrados.map((s) => s['precio'] as double).reduce(max);
+        _serviciosEncontrados.map((s) => (s['precio'] as num).toDouble()).reduce(max);
     return precioMax - precioActual;
   }
 
@@ -426,7 +209,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   icono: Icons.payments,
                   titulo: 'Mejor Precio',
                   valor: mejorPrecio != null
-                      ? 'L${mejorPrecio['precio'].toStringAsFixed(2)}'
+                      ? 'L${(mejorPrecio['precio'] as num).toDouble().toStringAsFixed(2)}'
                       : '-',
                   color: Colors.green,
                 ),
@@ -437,7 +220,7 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                   icono: Icons.location_on,
                   titulo: 'Más Cerca',
                   valor: masCercano != null
-                      ? '${masCercano['distancia'].toStringAsFixed(1)} km'
+                      ? '${(masCercano['distancia'] as num).toDouble().toStringAsFixed(1)} km'
                       : '-',
                   color: Colors.blue,
                 ),
@@ -591,16 +374,16 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                             final mejorPrecio = _getMejorPrecio();
                             final masCercano = _getMasCercano();
                             final mejorRating = _getMejorRating();
-                            final ahorro = _calcularAhorro(item['precio']);
+                            final ahorro = _calcularAhorro((item['precio'] as num).toDouble());
 
                             return _ServicioCard(
                               servicio: servicio,
                               comercio: comercio,
-                              precio: item['precio'],
-                              duracion: item['duracion'],
-                              distancia: item['distancia'],
-                              rating: item['rating'],
-                              resenas: item['resenas'],
+                              precio: (item['precio'] as num).toDouble(),
+                              duracion: (item['duracion'] as num).toInt(),
+                              distancia: (item['distancia'] as num).toDouble(),
+                              rating: (item['rating'] as num).toDouble(),
+                              resenas: (item['resenas'] as num).toInt(),
                               fotoServicio: item['foto_servicio'],
                               esMejorPrecio: mejorPrecio != null &&
                                   item['servicio']['id'] ==
@@ -609,8 +392,8 @@ class _CompararServiciosPageState extends State<CompararServiciosPage> {
                                   item['servicio']['id'] ==
                                       masCercano['servicio']['id'],
                               esMejorRating: mejorRating != null &&
-                                  item['rating'] == mejorRating['rating'] &&
-                                  item['rating'] >= 4.5,
+                                  (item['rating'] as num).toDouble() == (mejorRating['rating'] as num).toDouble() &&
+                                  (item['rating'] as num).toDouble() >= 4.5,
                               ahorro: ahorro,
                               onTap: () {
                                 // Navegar al calendario con toda la información necesaria

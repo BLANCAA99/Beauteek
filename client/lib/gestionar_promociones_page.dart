@@ -593,6 +593,9 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
   @override
   void initState() {
     super.initState();
+    print('Formulario iniciado con ${widget.servicios.length} servicios');
+    print('Comercio ID: ${widget.comercioId}');
+    
     if (widget.promocion != null) {
       _servicioSeleccionado = widget.promocion!['servicio_id']?.toString();
       _descuentoController.text = widget.promocion!['valor'].toString();
@@ -769,7 +772,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
 
               // Foto del servicio
               const Text(
-                'Foto del servicio (opcional)',
+                'Foto del servicio',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 16,
@@ -825,7 +828,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
 
               // Descripción
               const Text(
-                'Descripción (opcional)',
+                'Descripción',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 16,
@@ -836,6 +839,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
               TextFormField(
                 controller: _descripcionController,
                 maxLines: 3,
+                maxLength: 200,
                 style: const TextStyle(color: AppTheme.textPrimary),
                 decoration: InputDecoration(
                   filled: true,
@@ -846,7 +850,17 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
+                  counterStyle: const TextStyle(color: AppTheme.textSecondary),
                 ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'La descripción es requerida';
+                  }
+                  if (value.trim().length < 10) {
+                    return 'La descripción debe tener al menos 10 caracteres';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
@@ -968,9 +982,9 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (_guardando || widget.servicios.isEmpty)
-                          ? null
-                          : _guardar,
+                      onPressed: _guardando ? null : () {
+                        _guardar();
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryOrange,
                         disabledBackgroundColor: AppTheme.textSecondary,
@@ -1007,22 +1021,81 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
   }
 
   Future<void> _guardar() async {
+    
+    setState(() => _guardando = true);
+    
+    // Validar formulario
     if (!_formKey.currentState!.validate()) {
       setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor completa todos los campos requeridos correctamente'),
+          backgroundColor: AppTheme.errorRed,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
+    print('Validación de formulario OK');
 
+    // Validar servicio seleccionado
     if (_servicioSeleccionado == null) {
+      print('No hay servicio seleccionado');
       setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes seleccionar un servicio'),
+          backgroundColor: AppTheme.errorRed,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
 
+    // Validar que existan servicios
     if (widget.servicios.isEmpty) {
       setState(() => _guardando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay servicios disponibles. Primero registra servicios.'),
+          backgroundColor: AppTheme.errorRed,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
-
-    setState(() => _guardando = true);
+    
+    // Validar que tenga foto seleccionada
+    if (_fotoSeleccionada == null) {
+      setState(() => _guardando = false);
+      if (mounted) {
+        // Usar showDialog para asegurar que se muestre el mensaje
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.cardBackground,
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: AppTheme.errorRed, size: 28),
+                SizedBox(width: 12),
+                Text('Foto requerida', style: TextStyle(color: AppTheme.textPrimary)),
+              ],
+            ),
+            content: const Text(
+              'Debes seleccionar una foto para la promoción.\n\nHaz clic en el botón "Seleccionar foto" para elegir una imagen de tu galería.',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Entendido', style: TextStyle(color: AppTheme.primaryOrange)),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
 
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -1049,7 +1122,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
         'comercio_id': widget.comercioId,
         'servicio_id': _servicioSeleccionado,
         'servicio_nombre': servicio['nombre'],
-        'foto_url': _fotoSeleccionada ?? servicio['foto_url'],
+        'foto_url': _fotoSeleccionada!,
         'descripcion': _descripcionController.text.trim(),
         'tipo_descuento': 'porcentaje',
         'valor': descuento,
@@ -1063,6 +1136,8 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
       final url = widget.promocion == null
           ? Uri.parse('$apiBaseUrl/api/promociones')
           : Uri.parse('$apiBaseUrl/api/promociones/${widget.promocion!['id']}');
+      
+      
       final response = widget.promocion == null
           ? await http.post(
               url,
@@ -1080,6 +1155,7 @@ class _FormularioPromocionState extends State<_FormularioPromocion> {
               },
               body: json.encode(payload),
             );
+      
       if (response.statusCode == 201 || response.statusCode == 200) {
         if (mounted) {
           Navigator.pop(context);

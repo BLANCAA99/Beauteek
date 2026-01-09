@@ -48,19 +48,19 @@ router.post('/enviar', verifyToken, async (req: Request, res: Response) => {
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 8px 0; color: #666; font-weight: bold;">👤 Nombre:</td>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Nombre:</td>
                   <td style="padding: 8px 0; color: #333;">${nombre}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; color: #666; font-weight: bold;">📧 Email:</td>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
                   <td style="padding: 8px 0; color: #333;">${email}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; color: #666; font-weight: bold;">🆔 UID:</td>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">UID:</td>
                   <td style="padding: 8px 0; color: #333;">${uid || 'No disponible'}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; color: #666; font-weight: bold;">📅 Fecha:</td>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Fecha:</td>
                   <td style="padding: 8px 0; color: #333;">${new Date().toLocaleString('es-HN', { 
                     dateStyle: 'full', 
                     timeStyle: 'short' 

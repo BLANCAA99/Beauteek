@@ -247,8 +247,104 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
         ),
       ),
 
-      // 🔻 BottomNavigationBar dinámico por rol (ahora sin FutureBuilder)
-      bottomNavigationBar: _buildBottomNavBar(context),
+      // 🔻 BottomNavigationBar customizado igual que inicio_cliente
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.cardBackground,
+          border: Border(
+            top: BorderSide(color: AppTheme.dividerColor),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => InicioPage()),
+                  );
+                },
+                child: const _NavItem(
+                  icon: Icons.home_outlined,
+                  label: 'Inicio',
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  if (_userRole == 'salon') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EstadisticasSalonPage(),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchPage(
+                          mode: 'search',
+                          userId: _resolvedUid,
+                          userCountry: 'Honduras',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: _NavItem(
+                  icon: _userRole == 'salon' ? Icons.bar_chart_outlined : Icons.search,
+                  label: _userRole == 'salon' ? 'Estadísticas' : 'Buscar',
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  if (_userRole == 'salon') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const GestionarPromocionesPage(),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PromocionesPage(),
+                      ),
+                    );
+                  }
+                },
+                child: const _NavItem(
+                  icon: Icons.local_offer_outlined,
+                  label: 'Promociones',
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CalendarPage(),
+                    ),
+                  );
+                },
+                child: const _NavItem(
+                  icon: Icons.calendar_month_outlined,
+                  label: 'Calendario',
+                ),
+              ),
+              const _NavItem(
+                icon: Icons.person,
+                label: 'Perfil',
+                selected: true,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -588,118 +684,6 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
     return opciones;
   }
 
-  // Construir BottomNavigationBar basado en rol (ya cargado)
-  Widget _buildBottomNavBar(BuildContext context) {
-    final items = <BottomNavigationBarItem>[
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.home_outlined),
-        label: 'Inicio',
-      ),
-      if (_userRole == 'salon')
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart_outlined),
-          label: 'Estadísticas',
-        )
-      else
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.search),
-          label: 'Buscar',
-        ),
-      if (_userRole == 'salon')
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.local_offer_outlined),
-          label: 'Mis Promociones',
-        )
-      else
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.local_offer_outlined),
-          label: 'Promociones',
-        ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.calendar_month_outlined),
-        label: 'Calendario',
-      ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.person_outline),
-        label: 'Perfil',
-      ),
-    ];
-
-    return BottomNavigationBar(
-      currentIndex: 4, // Perfil seleccionado
-      items: items,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: AppTheme.cardBackground,
-      selectedItemColor: AppTheme.primaryOrange,
-      unselectedItemColor: AppTheme.textSecondary,
-      selectedLabelStyle: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-      ),
-      unselectedLabelStyle: const TextStyle(fontSize: 12),
-      elevation: 8,
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => InicioPage()),
-            );
-            break;
-          case 1:
-            if (_userRole == 'salon') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const EstadisticasSalonPage(),
-                ),
-              );
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SearchPage(
-                    mode: 'search',
-                    userId: widget.uid,
-                    userCountry: 'Honduras',
-                  ),
-                ),
-              );
-            }
-            break;
-          case 2:
-            if (_userRole == 'salon') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const GestionarPromocionesPage(),
-                ),
-              );
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const PromocionesPage(),
-                ),
-              );
-            }
-            break;
-          case 3:
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CalendarPage(),
-              ),
-            );
-            break;
-          case 4:
-            // Ya estás en Perfil
-            break;
-        }
-      },
-    );
-  }
-
   // Tarjeta con icono personalizado
   Widget _menuTileConIcono(
     BuildContext context,
@@ -747,6 +731,39 @@ class _ProfileMenuPageState extends State<ProfileMenuPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Widget personalizado para items de navegación (igual que inicio_cliente)
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppTheme.primaryOrange : AppTheme.textSecondary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }

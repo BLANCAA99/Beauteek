@@ -386,6 +386,43 @@ class _CentroAyudaPageState extends State<CentroAyudaPage> {
             const SizedBox(height: 32),
           ],
 
+          // Información para clientes
+          if (_userRole == 'cliente') ...[
+            const Text(
+              '¿Cómo podemos ayudarte?',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              icon: Icons.search,
+              titulo: 'Buscar salones',
+              descripcion: 'Explora salones cerca de ti o en tu país',
+            ),
+            const SizedBox(height: 12),
+            _InfoCard(
+              icon: Icons.calendar_today,
+              titulo: 'Agendar cita',
+              descripcion: 'Selecciona un salón, elige un servicio y reserva tu horario',
+            ),
+            const SizedBox(height: 12),
+            _InfoCard(
+              icon: Icons.star,
+              titulo: 'Dejar reseña',
+              descripcion: 'Ayuda a otros clientes compartiendo tu experiencia',
+            ),
+            const SizedBox(height: 12),
+            _InfoCard(
+              icon: Icons.favorite,
+              titulo: 'Favoritos',
+              descripcion: 'Guarda tus salones preferidos para acceso rápido',
+            ),
+            const SizedBox(height: 32),
+          ],
+
           // Botón Contactar Soporte (para todos)
           ElevatedButton(
             onPressed: _mostrarDialogoSoporte,
@@ -533,6 +570,71 @@ class _TutorialCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final String titulo;
+  final String descripcion;
+
+  const _InfoCard({
+    required this.icon,
+    required this.titulo,
+    required this.descripcion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryOrange.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: AppTheme.primaryOrange,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  descripcion,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

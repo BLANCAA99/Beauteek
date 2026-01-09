@@ -30,10 +30,7 @@ class _InicioPageState extends State<InicioPage> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
         if (!mounted) return;
-        setState(() {
-          _rolUsuario = 'cliente';
-          _isLoading = false;
-        });
+        _navegarSegunRol('cliente');
         return;
       }
 
@@ -42,6 +39,7 @@ class _InicioPageState extends State<InicioPage> {
 
       final idToken = await user.getIdToken();
       final url = Uri.parse('$apiBaseUrl/api/users/uid/$uid');
+      
       final response = await http.get(
         url,
         headers: {
@@ -54,81 +52,79 @@ class _InicioPageState extends State<InicioPage> {
           throw Exception('Timeout al obtener datos del usuario');
         },
       );
+      
       if (response.statusCode == 200) {
         final userData = json.decode(response.body) as Map<String, dynamic>;
+        final rol = userData['rol'] as String?;
+        
         if (!mounted) return;
-
-        setState(() {
-          _rolUsuario = userData['rol'];
-          _isLoading = false;
-        });
+        _navegarSegunRol(rol ?? 'cliente');
       } else {
         if (!mounted) return;
-        setState(() {
-          _rolUsuario = 'cliente';
-          _isLoading = false;
-        });
+        _navegarSegunRol('cliente');
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _rolUsuario = 'cliente';
-        _isLoading = false;
-      });
+      _navegarSegunRol('cliente');
+    }
+  }
+
+  void _navegarSegunRol(String rol) {
+    
+    if (rol == 'salon') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const InicioSalonPage()),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const InicioClientePage()),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppTheme.darkBackground,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryOrange.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/Beauteeklogin.png',
-                    fit: BoxFit.cover,
+    // Siempre mostrar el spinner mientras se determina el rol
+    return Scaffold(
+      backgroundColor: AppTheme.darkBackground,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryOrange.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
                   ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/Beauteeklogin.png',
+                  fit: BoxFit.cover,
                 ),
               ),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(
-                color: AppTheme.primaryOrange,
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(
+              color: AppTheme.primaryOrange,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Cargando...',
+              style: AppTheme.bodyLarge.copyWith(
+                color: AppTheme.textSecondary,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Cargando...',
-                style: AppTheme.bodyLarge.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    }
-
-    // Redirigir según el rol del usuario
-    if (_rolUsuario == 'salon') {
-      return const InicioSalonPage();
-    } else {
-      return const InicioClientePage();
-    }
+      ),
+    );
   }
 }

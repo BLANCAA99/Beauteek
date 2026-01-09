@@ -38,9 +38,14 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
   }
 
   Future<void> _cargarEstadisticas() async {
+    setState(() => _isLoading = true);
+
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final idToken = await user.getIdToken() ?? '';
 
@@ -76,262 +81,41 @@ class _EstadisticasSalonPageState extends State<EstadisticasSalonPage> {
         return;
       }
 
-      // Cargar datos en paralelo
-      await Future.wait([
-        _cargarCitas(comercioId, idToken),
-        _cargarServicios(comercioId, idToken),
-        _cargarResenas(comercioId, idToken),
-        _cargarPromociones(comercioId, idToken),
-      ]);
-
-      setState(() => _isLoading = false);
-    } catch (e) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _cargarCitas(String comercioId, String idToken) async {
-    try {
-      final citasUrl = Uri.parse('$apiBaseUrl/citas?comercio_id=$comercioId');
-      final citasResponse = await http.get(
-        citasUrl,
+      // Llamar al nuevo endpoint de estadísticas que retorna todo calculado
+      final estadisticasUrl = Uri.parse('$apiBaseUrl/api/estadisticas/salon/$comercioId');
+      final estadisticasResponse = await http.get(
+        estadisticasUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
       );
 
-      if (citasResponse.statusCode != 200) return;
-
-      final List<dynamic> todasLasCitas = json.decode(citasResponse.body);
-      
-      final ahora = DateTime.now();
-      final hoyInicio = DateTime(ahora.year, ahora.month, ahora.day);
-      final hoyFin = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
-      final manana = hoyInicio.add(const Duration(days: 1));
-      final fecha7Dias = hoyInicio.add(const Duration(days: 7));
-      final inicioSemanaActual = hoyInicio.subtract(Duration(days: 7));
-      final inicioSemanaAnterior = inicioSemanaActual.subtract(const Duration(days: 7));
-      final inicioMes = DateTime(ahora.year, ahora.month, 1);
-
-      int citasHoy = 0;
-      double ingresosHoy = 0;
-      int citas7Dias = 0;
-      double ingresos7Dias = 0;
-      int citasSemanaActual = 0;
-      double ingresosSemanaActual = 0;
-      int citasSemanaAnterior = 0;
-      double ingresosSemanaAnterior = 0;
-      Set<String> clientesUnicos = {};
-      List<Map<String, dynamic>> proximosList = [];
-      Map<String, int> serviciosCount = {};
-
-      for (var cita in todasLasCitas) {
-        try {
-          DateTime fechaCita;
-          final fechaHoraStr = cita['fecha_hora'];
-
-          if (fechaHoraStr is String) {
-            fechaCita = DateTime.parse(fechaHoraStr);
-          } else if (fechaHoraStr is Map && fechaHoraStr.containsKey('_seconds')) {
-            final seconds = fechaHoraStr['_seconds'] as int;
-            fechaCita = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
-          } else {
-            continue;
-          }
-
-          final precio = (cita['precio'] ?? 0).toDouble();
-          final servicioId = cita['servicio_id']?.toString() ?? '';
-          final clienteId = cita['usuario_id']?.toString() ?? '';
-
-          // Citas de hoy
-          if (fechaCita.isAfter(hoyInicio) && fechaCita.isBefore(hoyFin)) {
-            citasHoy++;
-            ingresosHoy += precio;
-          }
-
-          // Citas próximos 7 días
-          if (fechaCita.isAfter(manana) && fechaCita.isBefore(fecha7Dias)) {
-            citas7Dias++;
-            ingresos7Dias += precio;
-          }
-
-          // Citas semana actual (últimos 7 días)
-          if (fechaCita.isAfter(inicioSemanaActual) && fechaCita.isBefore(ahora)) {
-            citasSemanaActual++;
-            ingresosSemanaActual += precio;
-          }
-
-          // Citas semana anterior (7-14 días atrás)
-          if (fechaCita.isAfter(inicioSemanaAnterior) && fechaCita.isBefore(inicioSemanaActual)) {
-            citasSemanaAnterior++;
-            ingresosSemanaAnterior += precio;
-          }
-
-          // Nuevos clientes este mes
-          if (fechaCita.isAfter(inicioMes) && clienteId.isNotEmpty) {
-            clientesUnicos.add(clienteId);
-          }
-
-          // Contar servicios más solicitados
-          if (servicioId.isNotEmpty) {
-            serviciosCount[servicioId] = (serviciosCount[servicioId] ?? 0) + 1;
-          }
-
-          // Próximas citas
-          if (fechaCita.isAfter(ahora)) {
-            proximosList.add({
-              ...cita,
-              'fecha_hora_parsed': fechaCita,
-            });
-          }
-        } catch (e) {
-        }
-      }
-
-      proximosList.sort((a, b) {
-        final fechaA = a['fecha_hora_parsed'] as DateTime;
-        final fechaB = b['fecha_hora_parsed'] as DateTime;
-        return fechaA.compareTo(fechaB);
-      });
-
-      // Calcular promedios y diferencias
-      final promCitasSemanaActual = citasSemanaActual / 7;
-      final promCitasSemanaAnterior = citasSemanaAnterior > 0 ? citasSemanaAnterior / 7 : 0;
-      final difCitas = (promCitasSemanaActual - promCitasSemanaAnterior).round();
-
-      final promIngresosSemanaActual = ingresosSemanaActual / 7;
-      final promIngresosSemanaAnterior = ingresosSemanaAnterior > 0 ? ingresosSemanaAnterior / 7 : 0;
-      final difIngresos = promIngresosSemanaActual - promIngresosSemanaAnterior;
-
-      setState(() {
-        _citasHoy = citasHoy;
-        _ingresosHoy = ingresosHoy;
-        _citasProximos7Dias = citas7Dias;
-        _ingresosProximos7Dias = ingresos7Dias;
-        _proximosClientes = proximosList.take(3).toList();
-        _promCitasPorDia = promCitasSemanaActual;
-        _difCitasVsSemanaAnterior = difCitas;
-        _promIngresosPorDia = promIngresosSemanaActual;
-        _difIngresosVsSemanaAnterior = difIngresos;
-        _nuevosClientes = clientesUnicos.length;
-      });
-
-      // Guardar servicios count para usarlo después
-      _serviciosCountTemp = serviciosCount;
-    } catch (e) {
-    }
-  }
-
-  Map<String, int> _serviciosCountTemp = {};
-
-  Future<void> _cargarServicios(String comercioId, String idToken) async {
-    try {
-      final serviciosUrl = Uri.parse('$apiBaseUrl/servicios?comercio_id=$comercioId');
-      final serviciosResponse = await http.get(
-        serviciosUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      );
-
-      if (serviciosResponse.statusCode != 200) return;
-
-      final List<dynamic> servicios = json.decode(serviciosResponse.body);
-      
-      // Combinar servicios con su conteo
-      List<Map<String, dynamic>> serviciosConConteo = [];
-      int totalCitas = _serviciosCountTemp.values.fold(0, (sum, count) => sum + count);
-
-      for (var servicio in servicios) {
-        final servicioId = servicio['id']?.toString() ?? '';
-        final count = _serviciosCountTemp[servicioId] ?? 0;
+      if (estadisticasResponse.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(estadisticasResponse.body);
         
-        if (count > 0 && totalCitas > 0) {
-          serviciosConConteo.add({
-            'nombre': servicio['nombre'] ?? 'Servicio',
-            'count': count,
-            'porcentaje': (count / totalCitas),
-          });
-        }
-      }
-
-      // Ordenar por count descendente y tomar top 3
-      serviciosConConteo.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
-
-      setState(() {
-        _serviciosTop = serviciosConConteo.take(3).toList();
-      });
-    } catch (e) {
-    }
-  }
-
-  Future<void> _cargarResenas(String comercioId, String idToken) async {
-    try {
-      final resenasUrl = Uri.parse('$apiBaseUrl/api/resenas?comercio_id=$comercioId');
-      final resenasResponse = await http.get(
-        resenasUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      );
-
-      if (resenasResponse.statusCode != 200) return;
-
-      final List<dynamic> resenas = json.decode(resenasResponse.body);
-      
-      if (resenas.isEmpty) {
         setState(() {
-          _calificacionPromedio = 0;
-          _totalResenas = 0;
+          _citasHoy = data['citasHoy'] ?? 0;
+          _ingresosHoy = (data['ingresosHoy'] ?? 0).toDouble();
+          _citasProximos7Dias = data['citasProximos7Dias'] ?? 0;
+          _ingresosProximos7Dias = (data['ingresosProximos7Dias'] ?? 0).toDouble();
+          _proximosClientes = List<Map<String, dynamic>>.from(data['proximosClientes'] ?? []);
+          _promCitasPorDia = (data['promCitasPorDia'] ?? 0).toDouble();
+          _difCitasVsSemanaAnterior = data['difCitasVsSemanaAnterior'] ?? 0;
+          _promIngresosPorDia = (data['promIngresosPorDia'] ?? 0).toDouble();
+          _difIngresosVsSemanaAnterior = (data['difIngresosVsSemanaAnterior'] ?? 0).toDouble();
+          _serviciosTop = List<Map<String, dynamic>>.from(data['serviciosTop'] ?? []);
+          _nuevosClientes = data['nuevosClientes'] ?? 0;
+          _calificacionPromedio = (data['calificacionPromedio'] ?? 0).toDouble();
+          _totalResenas = data['totalResenas'] ?? 0;
+          _promocionesEfectivas = List<Map<String, dynamic>>.from(data['promocionesEfectivas'] ?? []);
+          _isLoading = false;
         });
-        return;
+      } else {
+        setState(() => _isLoading = false);
       }
-
-      double sumaCalificaciones = 0;
-      for (var resena in resenas) {
-        sumaCalificaciones += (resena['calificacion'] ?? 0).toDouble();
-      }
-
-      setState(() {
-        _calificacionPromedio = sumaCalificaciones / resenas.length;
-        _totalResenas = resenas.length;
-      });
     } catch (e) {
-    }
-  }
-
-  Future<void> _cargarPromociones(String comercioId, String idToken) async {
-    try {
-      final promocionesUrl = Uri.parse('$apiBaseUrl/api/promociones/comercio/$comercioId');
-      final promocionesResponse = await http.get(
-        promocionesUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      );
-
-      if (promocionesResponse.statusCode != 200) return;
-
-      final List<dynamic> promociones = json.decode(promocionesResponse.body);
-      
-      // Ordenar por usos (campo ficticio por ahora) y tomar top 1
-      List<Map<String, dynamic>> promocionesConUso = [];
-      for (var promo in promociones) {
-        promocionesConUso.add({
-          'titulo': promo['titulo'] ?? 'Promoción',
-          'descripcion': promo['descripcion'] ?? '',
-          'usos': 0, // TODO: implementar conteo real cuando exista la tabla de uso de promociones
-        });
-      }
-
-      setState(() {
-        _promocionesEfectivas = promocionesConUso.take(1).toList();
-      });
-    } catch (e) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -802,8 +586,9 @@ class _ServiciosTopCard extends StatelessWidget {
             if (i > 0) const SizedBox(height: 10),
             _ServicioBar(
               nombre: servicios[i]['nombre'] ?? 'Servicio',
-              porcentaje: (servicios[i]['porcentaje'] as double?) ?? 0,
-              porcentajeTexto: '${((servicios[i]['porcentaje'] as double? ?? 0) * 100).toStringAsFixed(0)}%',
+              porcentaje: (servicios[i]['porcentaje'] as num? ?? 0).toDouble() / 100,
+              solicitudes: servicios[i]['solicitudes'] ?? 0,
+              porcentajeTexto: '${servicios[i]['porcentaje'] ?? 0}%',
               colorBar: colors[i % colors.length],
             ),
           ],
@@ -816,6 +601,7 @@ class _ServiciosTopCard extends StatelessWidget {
 class _ServicioBar extends StatelessWidget {
   final String nombre;
   final double porcentaje;
+  final int solicitudes;
   final String porcentajeTexto;
   final Color? colorBar;
 
@@ -823,6 +609,7 @@ class _ServicioBar extends StatelessWidget {
     Key? key,
     required this.nombre,
     required this.porcentaje,
+    required this.solicitudes,
     required this.porcentajeTexto,
     this.colorBar,
   }) : super(key: key);

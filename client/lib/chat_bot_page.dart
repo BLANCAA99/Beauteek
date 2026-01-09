@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'theme/app_theme.dart';
 import 'api_constants.dart';
 
@@ -42,13 +42,27 @@ class _ChatBotPageState extends State<ChatBotPage> {
   
   Future<void> _loadUserRole() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userDataString = prefs.getString('userData');
-      
-      if (userDataString != null) {
-        final userData = json.decode(userDataString);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() {
+          _userRole = 'cliente';
+        });
+        return;
+      }
+
+      // Obtener el rol del usuario desde el backend
+      final url = Uri.parse('$apiBaseUrl/api/users/uid/${user.uid}');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final userData = json.decode(response.body);
         setState(() {
           _userRole = userData['rol'] as String? ?? 'cliente';
+        });
+        print('Rol del usuario cargado: $_userRole');
+      } else {
+        setState(() {
+          _userRole = 'cliente';
         });
       }
     } catch (e) {

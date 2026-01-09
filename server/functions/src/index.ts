@@ -29,6 +29,13 @@ import soporteRoutes from './routes/soporte.routes';
 import chatbotRoutes from './routes/chatbot.routes';
 import metodoPagoSalonRoutes from './routes/metodo_pago_salon.routes';
 import configuracionSalonRoutes from './routes/configuracion_salon.routes';
+import actividadRoutes from './routes/actividad.routes';
+import estadisticasRoutes from './routes/estadisticas.routes';
+import compararServiciosRoutes from './routes/comparar_servicios.routes';
+import buscarSalonesPaisRoutes from './routes/buscar_salones_pais.routes';
+import citasRoutesNew from './routes/citas.routes';
+// Funciones programadas
+export { sendDailyAppointmentReminders } from './scheduled/appointment-reminders';
 
 const app = express();
 
@@ -48,6 +55,7 @@ app.use('/comercios', comercioRoutes);
 app.use('/categorias_servicio', categoriasServicioRoutes);
 app.use('/api/tarjetas', tarjetaRoutes);
 app.use('/api/horarios', horarioRoutes);
+app.use('/api/servicios/comparar', compararServiciosRoutes); // ANTES de /api/servicios
 app.use('/api/servicios', servicioRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/favoritos', favoritoRoutes);
@@ -62,5 +70,9 @@ app.use('/api/soporte', soporteRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/metodos-pago-salon', metodoPagoSalonRoutes);
 app.use('/api/configuracion-salon', configuracionSalonRoutes);
+app.use('/api/actividad', actividadRoutes);
+app.use('/api/estadisticas', estadisticasRoutes);
+app.use('/api/salones', buscarSalonesPaisRoutes);
+app.use('/api/citas', citasRoutesNew);
 
 export const api = onRequest({ region: "us-central1" }, app);

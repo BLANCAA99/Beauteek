@@ -79,7 +79,7 @@ export const validateCloudinaryImage = (config: ImageValidationConfig) => {
           const sizeInKB = sizeInBytes / 1024;
           const maxSizeBytes = maxSizeKB * 1024;
 
-          console.log(`📸 [Validación] Imagen: ${sizeInKB.toFixed(2)} KB / ${maxSizeKB} KB máximo`);
+          console.log(`[Validación] Imagen: ${sizeInKB.toFixed(2)} KB / ${maxSizeKB} KB máximo`);
 
           if (sizeInBytes > maxSizeBytes) {
             return res.status(400).json({
@@ -93,21 +93,21 @@ export const validateCloudinaryImage = (config: ImageValidationConfig) => {
           // Agregar información del tamaño validado para logs
           req.body._image_size_kb = sizeInKB.toFixed(2);
         } else {
-          console.warn('⚠️ No se pudo determinar el tamaño de la imagen, pero se permite continuar');
+          console.warn('No se pudo determinar el tamaño de la imagen, pero se permite continuar');
         }
       } catch (error: any) {
         // Si falla la validación de tamaño (red, timeout, etc.), registrar error pero continuar
-        console.error('❌ Error al validar tamaño de imagen:', error.message);
-        console.warn('⚠️ Continuando sin validación de tamaño debido a error de red');
+        console.error('Error al validar tamaño de imagen:', error.message);
+        console.warn('Continuando sin validación de tamaño debido a error de red');
         // Podríamos decidir fallar aquí si queremos ser más estrictos
         // return res.status(500).json({ error: 'No se pudo validar el tamaño de la imagen' });
       }
 
       // Si todo está bien, continuar
-      console.log(`✅ Imagen validada correctamente: ${fieldName}`);
+      console.log(`Imagen validada correctamente: ${fieldName}`);
       next();
     } catch (error: any) {
-      console.error('❌ Error en middleware de validación de imagen:', error);
+      console.error('Error en middleware de validación de imagen:', error);
       return res.status(500).json({
         error: 'Error al validar la imagen',
         detalles: error.message,

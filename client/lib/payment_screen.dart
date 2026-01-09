@@ -532,13 +532,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context); // Cierra el diálogo
+              Navigator.pop(context, true); // Cierra PaymentScreen y retorna true
+            },
             child: const Text('Ahora no', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton.icon(
             onPressed: () async {
               await _generarYDescargarRecibo(pagoData);
-              if (mounted) Navigator.pop(context);
+              if (mounted) {
+                Navigator.pop(context); // Cierra el diálogo
+                Navigator.pop(context, true); // Cierra PaymentScreen y retorna true
+              }
             },
             icon: const Icon(Icons.download, color: Colors.white),
             label: const Text('Descargar Recibo',
