@@ -137,7 +137,9 @@ export const registerSalonStep2 = async (req: Request, res: Response): Promise<v
     }
 
     const comercioData = comercioDoc.data() as Comercio;
-    if (comercioData.uid_cliente_propietario !== uidPropietario) {
+    
+    // PERMITIR tanto al cliente propietario como al usuario salón
+    if (comercioData.uid_cliente_propietario !== uidPropietario && comercioData.uid_negocio !== uidPropietario) {
       res.status(403).json({ error: "No tienes permiso para editar este comercio" });
       return;
     }
@@ -215,7 +217,9 @@ export const registerSalonStep3 = async (req: Request, res: Response): Promise<v
     }
 
     const comercioData = comercioDoc.data() as Comercio;
-    if (comercioData.uid_cliente_propietario !== uidPropietario) {
+    
+    // PERMITIR tanto al cliente propietario como al usuario salón
+    if (comercioData.uid_cliente_propietario !== uidPropietario && comercioData.uid_negocio !== uidPropietario) {
       res.status(403).json({ error: "No tienes permiso para editar este comercio" });
       return;
     }
@@ -298,7 +302,9 @@ export const registerSalonStep4 = async (req: Request, res: Response): Promise<v
     }
 
     const comercioData = comercioDoc.data() as Comercio;
-    if (comercioData.uid_cliente_propietario !== uidPropietario) {
+    
+    // PERMITIR tanto al cliente propietario como al usuario salón
+    if (comercioData.uid_cliente_propietario !== uidPropietario && comercioData.uid_negocio !== uidPropietario) {
       res.status(403).json({ error: "No tienes permiso para editar este comercio" });
       return;
     }

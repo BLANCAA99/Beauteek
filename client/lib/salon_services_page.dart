@@ -70,7 +70,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
             return {
               'id': cat['id'],
               'nombre': cat['nombre'] ?? '',
-              'icon': cat['icon'] ?? '📋',
+              'icon': cat['icon'] ?? '',
               'servicios_sugeridos':
                   List<String>.from(cat['servicios_sugeridos'] ?? []),
             };
@@ -131,60 +131,62 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
               ),
             ),
             const SizedBox(height: 20),
-            ListView.builder(
-              shrinkWrap: true,
-              itemCount: _categorias.length,
-              itemBuilder: (context, index) {
-                final categoria = _categorias[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        categoria['icon'],
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: _primaryOrange.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.category,
-                              color: _primaryOrange,
-                              size: 20,
-                            ),
-                          );
-                        },
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _categorias.length,
+                itemBuilder: (context, index) {
+                  final categoria = _categorias[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: _cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: ListTile(
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          categoria['icon'],
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _primaryOrange.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.category,
+                                color: _primaryOrange,
+                                size: 20,
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      categoria['nombre'],
-                      style: const TextStyle(
-                        color: _textPrimary,
-                        fontWeight: FontWeight.w600,
+                      title: Text(
+                        categoria['nombre'],
+                        style: const TextStyle(
+                          color: _textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: _textSecondary,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _mostrarFormularioServicio(categoria);
+                      },
                     ),
-                    trailing: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: _textSecondary,
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _mostrarFormularioServicio(categoria);
-                    },
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 16),
           ],
@@ -382,6 +384,26 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                               const SnackBar(
                                 content: Text(
                                     'Completa todos los campos requeridos'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          // Validar si ya existe un servicio con el mismo nombre en la misma categoría
+                          final nombreServicio = nombreController.text.trim().toLowerCase();
+                          final categoriaId = categoria['id'];
+                          
+                          final existeDuplicado = _serviciosAgregados.any((servicio) {
+                            return servicio['categoria_id'] == categoriaId &&
+                                   servicio['nombre'].toString().trim().toLowerCase() == nombreServicio;
+                          });
+
+                          if (existeDuplicado) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Ya existe un servicio "${nombreController.text}" en la categoría ${categoria['nombre']}'),
+                                backgroundColor: Colors.orange,
                               ),
                             );
                             return;
@@ -628,7 +650,7 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                     color: _primaryOrange, size: 64),
                 SizedBox(height: 16),
                 Text(
-                  '¡Felicidades! 🎉',
+                  '¡Felicidades!',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _textPrimary,
@@ -727,181 +749,75 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               children: [
-                // Botón para añadir servicio
-                if (_serviciosAgregados.isEmpty)
-                  Center(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 40),
-                        GestureDetector(
-                          onTap: () => _mostrarSelectorCategorias(),
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: _cardColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _primaryOrange.withOpacity(0.5),
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              size: 40,
-                              color: _primaryOrange,
-                            ),
-                          ),
+                // Botón para añadir servicio - SIEMPRE visible
+                Center(
+                  child: GestureDetector(
+                    onTap: () => _mostrarSelectorCategorias(),
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: _cardColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _primaryOrange.withOpacity(0.5),
+                          width: 2,
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Añadir Servicio',
-                          style: TextStyle(
-                            color: _textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Toca para añadir',
-                          style: TextStyle(
-                            color: _textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        size: 40,
+                        color: _primaryOrange,
+                      ),
                     ),
-                  )
-                else
-                  // Mostrar categorías con servicios como cards
-                  Wrap(
-                    spacing: 14,
-                    runSpacing: 14,
-                    children: _categorias.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final categoria = _categorias[index];
-                      final int cantidadServicios = _serviciosAgregados
-                          .where(
-                              (s) => s['categoria_id'] == categoria['id'])
-                          .length;
-                      final bool tieneServicios = cantidadServicios > 0;
-
-                      // Solo mostrar la card si tiene servicios
-                      if (!tieneServicios) return const SizedBox.shrink();
-
-                      return InkWell(
-                        onTap: () => _mostrarFormularioServicio(categoria),
-                        borderRadius: BorderRadius.circular(22),
-                        child: Container(
-                          width: (MediaQuery.of(context).size.width - 54) / 2,
-                          height: 180,
-                          decoration: BoxDecoration(
-                            color: _cardColor,
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: _primaryOrange,
-                              width: 1.4,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.35),
-                                blurRadius: 14,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 14),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                color: _cardSoftColor,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  categoria['icon'],
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Center(
-                                      child: Icon(
-                                        Icons.category,
-                                        color: _primaryOrange,
-                                        size: 28,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                              const SizedBox(height: 10),
-                              Text(
-                                categoria['nombre'],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: _textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _primaryOrange.withOpacity(0.18),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  '$cantidadServicios servicio${cantidadServicios == 1 ? '' : 's'}',
-                                  style: const TextStyle(
-                                    color: _secondaryOrange,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
                   ),
-
-                const SizedBox(height: 22),
-
-                // Servicios agregados
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Column(
+                    children: const [
+                      Text(
+                        'Añadir Servicio',
+                        style: TextStyle(
+                          color: _textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Toca para añadir',
+                        style: TextStyle(
+                          color: _textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Si hay servicios agregados, mostrar la lista
                 if (_serviciosAgregados.isNotEmpty) ...[
+                  const SizedBox(height: 32),
                   const Text(
                     'Servicios agregados',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
                       color: _textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ..._serviciosAgregados.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final servicio = entry.value;
+                  const SizedBox(height: 16),
+                  
+                  // Lista de servicios
+                  ..._serviciosAgregados.map((servicio) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
@@ -942,15 +858,14 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                         ),
                         subtitle: Text(
                           '${servicio['duracion_min']} min • L${servicio['precio'].toStringAsFixed(2)}',
-                          style:
-                              const TextStyle(color: _textSecondary),
+                          style: const TextStyle(color: _textSecondary),
                         ),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Colors.redAccent),
                           onPressed: () {
                             setState(() {
-                              _serviciosAgregados.removeAt(index);
+                              _serviciosAgregados.remove(servicio);
                             });
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -963,8 +878,8 @@ class _SalonServicesPageState extends State<SalonServicesPage> {
                       ),
                     );
                   }).toList(),
-                  const SizedBox(height: 18),
                 ],
+                const SizedBox(height: 32),
 
                 // Horarios
                 const Text(

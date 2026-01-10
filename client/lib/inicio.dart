@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'api_constants.dart';
 import 'inicio_cliente.dart';
 import 'inicio_salon.dart';
+import 'salon_address_page.dart';
+import 'salon_services_page.dart';
 import 'theme/app_theme.dart';
 
 /// Router principal que decide qué pantalla de inicio mostrar según el rol del usuario
@@ -58,7 +60,18 @@ class _InicioPageState extends State<InicioPage> {
         final rol = userData['rol'] as String?;
         
         if (!mounted) return;
-        _navegarSegunRol(rol ?? 'cliente');
+        
+        // Si es salón, verificar estado del comercio
+        if (rol == 'salon') {
+          final token = await user.getIdToken();
+          if (token != null) {
+            await _verificarEstadoComercioYNavegar(uid, token);
+          } else {
+            _navegarSegunRol('salon');
+          }
+        } else {
+          _navegarSegunRol(rol ?? 'cliente');
+        }
       } else {
         if (!mounted) return;
         _navegarSegunRol('cliente');
@@ -66,6 +79,90 @@ class _InicioPageState extends State<InicioPage> {
     } catch (e) {
       if (!mounted) return;
       _navegarSegunRol('cliente');
+    }
+  }
+
+  Future<void> _verificarEstadoComercioYNavegar(String uid, String idToken) async {
+    try {
+      // Buscar el comercio donde uid_negocio = uid del usuario salón
+      final comerciosUrl = Uri.parse('$apiBaseUrl/comercios');
+      final comerciosResponse = await http.get(
+        comerciosUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (comerciosResponse.statusCode == 200) {
+        final List<dynamic> comercios = json.decode(comerciosResponse.body);
+        
+        // Buscar comercio donde uid_negocio coincida
+        final miComercio = comercios.firstWhere(
+          (c) => c['uid_negocio'] == uid,
+          orElse: () => null,
+        );
+
+        if (miComercio != null) {
+          final estadoComercio = miComercio['estado'] as String?;
+          final comercioId = miComercio['id_documento'] as String?;
+          
+          if (estadoComercio == 'activo') {
+            // Comercio activo, ir a inicio
+            _navegarSegunRol('salon');
+          } else {
+            // Comercio NO activo, redirigir al paso que falta
+            _redirigirSegunEstadoComercio(estadoComercio, comercioId, uid);
+          }
+        } else {
+          // No tiene comercio asociado (no debería pasar)
+          _navegarSegunRol('salon');
+        }
+      } else {
+        // Error al obtener comercios
+        _navegarSegunRol('salon');
+      }
+    } catch (e) {
+      // Error en verificación
+      _navegarSegunRol('salon');
+    }
+  }
+
+  void _redirigirSegunEstadoComercio(String? estado, String? comercioId, String uidNegocio) {
+    if (comercioId == null) {
+      _navegarSegunRol('salon');
+      return;
+    }
+
+    switch (estado) {
+      case 'paso1_completado':
+        // Falta ubicación
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => SalonAddressPage(
+              comercioId: comercioId,
+              uidNegocio: uidNegocio,
+            ),
+          ),
+        );
+        break;
+        
+      case 'paso2_completado':
+      case 'paso3_completado':
+        // Falta servicios y horarios
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => SalonServicesPage(
+              comercioId: comercioId,
+              uidNegocio: uidNegocio,
+            ),
+          ),
+        );
+        break;
+        
+      default:
+        // Estado desconocido o cualquier otro caso
+        _navegarSegunRol('salon');
     }
   }
 
