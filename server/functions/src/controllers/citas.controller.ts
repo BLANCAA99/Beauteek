@@ -11,32 +11,70 @@ export const getCitasUsuario = async (req: Request, res: Response) => {
     const { userId } = req.params;
     const { rol } = req.query;
 
+    console.log(`[getCitasUsuario] ========================================`);
+    console.log(`[getCitasUsuario] Usuario: ${userId}, Rol: ${rol}`);
+
     let citasSnapshot;
 
     // Obtener citas según el rol
     if (rol === 'salon') {
-      // Si es salón, buscar citas donde el usuario sea el comercio
-      const comerciosSnapshot = await db.collection('comercios')
-        .where('usuario_id', '==', userId)
-        .limit(1)
+      // Si es salón, buscar comercios donde el usuario sea uid_negocio o uid_cliente_propietario
+      const comerciosNegocio = await db.collection('comercios')
+        .where('uid_negocio', '==', userId)
+        .get();
+      
+      const comerciosPropietario = await db.collection('comercios')
+        .where('uid_cliente_propietario', '==', userId)
         .get();
 
-      if (comerciosSnapshot.empty) {
-        return res.status(404).json({ error: 'Comercio no encontrado' });
+      // Combinar comercios sin duplicados
+      const comercioIds = new Set<string>();
+      comerciosNegocio.docs.forEach(doc => {
+        comercioIds.add(doc.id);
+        console.log(`[getCitasUsuario] Comercio encontrado (uid_negocio): ${doc.id}`);
+      });
+      comerciosPropietario.docs.forEach(doc => {
+        comercioIds.add(doc.id);
+        console.log(`[getCitasUsuario] Comercio encontrado (uid_cliente_propietario): ${doc.id}`);
+      });
+
+      console.log(`[getCitasUsuario] Total comercios: ${comercioIds.size}`);
+
+      if (comercioIds.size === 0) {
+        console.log(`[getCitasUsuario] No se encontraron comercios para el usuario`);
+        return res.json([]);
       }
 
-      const comercioId = comerciosSnapshot.docs[0].id;
-      citasSnapshot = await db.collection('citas')
-        .where('comercio_id', '==', comercioId)
-        .get();
+      // Obtener todas las citas de todos los comercios
+      const comercioIdsArray = Array.from(comercioIds);
+      const allCitas: admin.firestore.QueryDocumentSnapshot[] = [];
+      
+      // Firestore limita 'in' a 10 elementos
+      const batchSize = 10;
+      for (let i = 0; i < comercioIdsArray.length; i += batchSize) {
+        const batch = comercioIdsArray.slice(i, i + batchSize);
+        const citasSnap = await db.collection('citas')
+          .where('comercio_id', 'in', batch)
+          .get();
+        allCitas.push(...citasSnap.docs);
+        console.log(`[getCitasUsuario] ${citasSnap.docs.length} citas encontradas para lote ${i / batchSize + 1}`);
+      }
+
+      console.log(`[getCitasUsuario] Total citas: ${allCitas.length}`);
+      
+      // Crear un snapshot simulado
+      citasSnapshot = { empty: allCitas.length === 0, docs: allCitas };
     } else {
       // Si es cliente, buscar citas donde el usuario sea el cliente
       citasSnapshot = await db.collection('citas')
         .where('usuario_cliente_id', '==', userId)
         .get();
+      
+      console.log(`[getCitasUsuario] ${citasSnapshot.docs.length} citas como cliente`);
     }
 
     if (citasSnapshot.empty) {
+      console.log(`[getCitasUsuario] No se encontraron citas`);
       return res.json([]);
     }
 

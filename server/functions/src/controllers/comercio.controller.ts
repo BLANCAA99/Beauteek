@@ -50,17 +50,53 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const salonUserRecord = await admin.auth().createUser({
-      email,
-      password,
-      displayName: nombre,
-    });
+    let uidNegocio: string;
+    let isExistingUser = false;
 
-    const uidNegocio = salonUserRecord.uid;
+    // Verificar si el usuario ya existe en Firebase Auth
+    try {
+      const existingUser = await admin.auth().getUserByEmail(email);
+      uidNegocio = existingUser.uid;
+      isExistingUser = true;
+
+      // Verificar el estado del usuario en Firestore
+      const userDoc = await db.collection("usuarios").doc(uidNegocio).get();
+      const userData = userDoc.data();
+
+      // Si el usuario existe y el registro está completo, no permitir continuar
+      if (userData && userData.estado !== "incompleto") {
+        res.status(409).json({ error: "El email ya está registrado con un salón activo" });
+        return;
+      }
+
+      // Si el registro está incompleto, permitir actualizar los datos
+      console.log(`[registerSalonStep1] Usuario ${email} existe pero con registro incompleto. Actualizando...`);
+      
+      // Actualizar el usuario existente
+      await admin.auth().updateUser(uidNegocio, {
+        displayName: nombre,
+        password: password, // Actualizar contraseña por si la cambió
+      });
+
+    } catch (error: any) {
+      if (error.code === "auth/user-not-found") {
+        // Usuario no existe, crear uno nuevo
+        const salonUserRecord = await admin.auth().createUser({
+          email,
+          password,
+          displayName: nombre,
+        });
+        uidNegocio = salonUserRecord.uid;
+      } else {
+        throw error;
+      }
+    }
+
     await admin.auth().setCustomUserClaims(uidNegocio, { role: "salon" });
 
     const now = new Date();
     
+    // Usar merge para no sobrescribir datos existentes si los hay
     await db.collection("usuarios").doc(uidNegocio).set({
       uid: uidNegocio,
       nombre_completo: nombre,
@@ -74,22 +110,54 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
       foto_url: "",
       verificacion_bancaria_status: "pending",
       fecha_creacion: now,
-    });
+    }, { merge: true });
 
-    const comercioRef = db.collection("comercios").doc();
-    const comercioId = comercioRef.id;
+    // Verificar si ya existe un comercio para este email
+    const existingComerciosQuery = await db.collection("comercios")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
 
-    await comercioRef.set({
-      id_documento: comercioId,
-      uid_cliente_propietario: uidPropietario,
-      uid_negocio: uidNegocio,
-      nombre,
-      telefono,
-      email,
-      rtn,
-      estado: "paso1_completado",
-      fecha_creacion: now,
-    });
+    let comercioId: string;
+    let comercioRef;
+
+    if (!existingComerciosQuery.empty && isExistingUser) {
+      // Actualizar comercio existente
+      const existingComercio = existingComerciosQuery.docs[0];
+      comercioId = existingComercio.id;
+      comercioRef = db.collection("comercios").doc(comercioId);
+
+      await comercioRef.update({
+        uid_cliente_propietario: uidPropietario,
+        uid_negocio: uidNegocio,
+        nombre,
+        telefono,
+        email,
+        rtn,
+        estado: "paso1_completado",
+        fecha_actualizacion: now,
+      });
+
+      console.log(`[registerSalonStep1] Comercio ${comercioId} actualizado`);
+    } else {
+      // Crear nuevo comercio
+      comercioRef = db.collection("comercios").doc();
+      comercioId = comercioRef.id;
+
+      await comercioRef.set({
+        id_documento: comercioId,
+        uid_cliente_propietario: uidPropietario,
+        uid_negocio: uidNegocio,
+        nombre,
+        telefono,
+        email,
+        rtn,
+        estado: "paso1_completado",
+        fecha_creacion: now,
+      });
+
+      console.log(`[registerSalonStep1] Nuevo comercio ${comercioId} creado`);
+    }
 
     res.status(201).json({
       message: "Paso 1 completado: Salón creado exitosamente",
@@ -98,10 +166,6 @@ export const registerSalonStep1 = async (req: Request, res: Response): Promise<v
     });
   } catch (error: any) {
     console.error("Error en registerSalonStep1:", error);
-    if (error.code === "auth/email-already-exists") {
-      res.status(409).json({ error: "El email ya está registrado" });
-      return;
-    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -275,7 +339,7 @@ const registerStep4Schema = z.object({
     z.object({
       categoria_id: z.string().min(1),
       nombre: z.string().min(1),
-      descripcion: z.string().optional(),
+      descripcion: z.string().nullable().optional().default(""),
       duracion_min: z.number().int().min(1),
       precio: z.number().min(0),
       moneda: z.string().min(1),
@@ -288,26 +352,43 @@ export const registerSalonStep4 = async (req: Request, res: Response): Promise<v
   try {
     const parsed = registerStep4Schema.safeParse(req.body);
     if (!parsed.success) {
+      console.log("[Step4] Validación fallida:", parsed.error.issues);
       res.status(400).json({ error: "Datos inválidos", details: parsed.error.issues });
       return;
     }
 
     const { comercioId, horarios, servicios } = parsed.data;
     const uidPropietario = (req as any).user?.uid;
+    
+    console.log(`[Step4] Iniciando finalización para comercioId: ${comercioId}`);
+    console.log(`[Step4] Usuario autenticado: ${uidPropietario}`);
+    console.log(`[Step4] Horarios recibidos: ${horarios.length}`);
+    console.log(`[Step4] Servicios recibidos: ${servicios.length}`);
+    
     const comercioDoc = await db.collection("comercios").doc(comercioId).get();
 
     if (!comercioDoc.exists) {
+      console.log(`[Step4] Comercio ${comercioId} no encontrado`);
       res.status(404).json({ error: "Comercio no encontrado" });
       return;
     }
 
     const comercioData = comercioDoc.data() as Comercio;
     
+    console.log(`[Step4] Comercio encontrado:`, {
+      uid_cliente_propietario: comercioData.uid_cliente_propietario,
+      uid_negocio: comercioData.uid_negocio,
+      estado: comercioData.estado
+    });
+    
     // PERMITIR tanto al cliente propietario como al usuario salón
     if (comercioData.uid_cliente_propietario !== uidPropietario && comercioData.uid_negocio !== uidPropietario) {
+      console.log(`[Step4] Acceso denegado. Usuario ${uidPropietario} no es propietario ni negocio`);
       res.status(403).json({ error: "No tienes permiso para editar este comercio" });
       return;
     }
+
+    console.log(`[Step4] Autorización exitosa. Procediendo...`);
 
     const uidNegocio = comercioData.uid_negocio;
     const batch = db.batch();
@@ -324,16 +405,21 @@ export const registerSalonStep4 = async (req: Request, res: Response): Promise<v
       });
     });
 
+    console.log(`[Step4] ${horarios.length} horarios preparados`);
+
     // 3.2 Crear servicios
     servicios.forEach((servicio) => {
       const servicioRef = db.collection("servicios").doc();
       batch.set(servicioRef, {
         ...servicio,
+        descripcion: servicio.descripcion || "", // Asegurar que nunca sea null
         usuario_id: uidNegocio,
         comercio_id: comercioId,
         fecha_creacion: now,
       });
     });
+
+    console.log(`[Step4] ${servicios.length} servicios preparados`);
 
     // 3.3 Actualizar estado del comercio a 'activo'
     const comercioRef = db.collection("comercios").doc(comercioId);
@@ -350,7 +436,9 @@ export const registerSalonStep4 = async (req: Request, res: Response): Promise<v
       fecha_actualizacion: now,
     });
 
+    console.log(`[Step4] Ejecutando batch commit...`);
     await batch.commit();
+    console.log(`[Step4] ¡Registro completado exitosamente!`);
 
     res.status(200).json({
       message: "¡Registro completado! Tu salón está activo.",

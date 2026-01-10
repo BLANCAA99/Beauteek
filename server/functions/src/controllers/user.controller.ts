@@ -453,6 +453,9 @@ export const verifyCode = async (req: Request, res: Response): Promise<void> => 
   try {
     const { email, code } = req.body;
 
+    console.log(`[verifyCode] Verificando código para email: ${email}`);
+    console.log(`[verifyCode] Código recibido: "${code}" (tipo: ${typeof code})`);
+
     if (!email || !code) {
       res.status(400).json({ error: "Email y código son requeridos" });
       return;
@@ -461,17 +464,29 @@ export const verifyCode = async (req: Request, res: Response): Promise<void> => 
     const storedData = verificationCodes.get(email);
 
     if (!storedData) {
+      console.log(`[verifyCode] No hay código almacenado para ${email}`);
+      console.log(`[verifyCode] Códigos disponibles:`, Array.from(verificationCodes.keys()));
       res.status(400).json({ error: "Código no encontrado o expirado" });
       return;
     }
 
+    console.log(`[verifyCode] Código almacenado: "${storedData.code}" (tipo: ${typeof storedData.code})`);
+
     if (Date.now() > storedData.expiresAt) {
       verificationCodes.delete(email);
+      console.log(`[verifyCode] Código expirado para ${email}`);
       res.status(400).json({ error: "El código ha expirado" });
       return;
     }
 
-    if (storedData.code !== code) {
+    // Comparar como strings y eliminar espacios en blanco
+    const codeReceived = String(code).trim();
+    const codeStored = String(storedData.code).trim();
+
+    console.log(`[verifyCode] Comparando: "${codeReceived}" === "${codeStored}"`);
+
+    if (codeStored !== codeReceived) {
+      console.log(`[verifyCode] Código incorrecto para ${email}`);
       res.status(400).json({ error: "Código incorrecto" });
       return;
     }

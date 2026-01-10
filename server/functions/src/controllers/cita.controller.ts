@@ -230,35 +230,72 @@ export const getCitasByUsuario = async (req: Request, res: Response): Promise<vo
   try {
     const { userId } = req.params;
     
-    console.log(`Buscando citas para usuario: ${userId}`);
+    console.log(`[getCitasByUsuario] ========================================`);
+    console.log(`[getCitasByUsuario] Buscando citas para usuario: ${userId}`);
     
     // Buscar citas donde el usuario sea cliente
     const citasClienteSnapshot = await db.collection("citas")
       .where("usuario_cliente_id", "==", userId)
       .get();
     
-    // CAMBIO: Buscar citas donde el usuario sea dueño del comercio
-    const comerciosSnapshot = await db.collection("comercios")
+    console.log(`[getCitasByUsuario] ${citasClienteSnapshot.docs.length} citas como cliente`);
+    
+    // Buscar comercios donde el usuario sea uid_negocio
+    const comerciosNegocioSnapshot = await db.collection("comercios")
       .where("uid_negocio", "==", userId)
       .get();
     
-    const comercioIds = comerciosSnapshot.docs.map(doc => doc.id);
+    console.log(`[getCitasByUsuario] ${comerciosNegocioSnapshot.docs.length} comercios donde es uid_negocio`);
+    
+    // Buscar comercios donde el usuario sea uid_cliente_propietario
+    const comerciosPropietarioSnapshot = await db.collection("comercios")
+      .where("uid_cliente_propietario", "==", userId)
+      .get();
+    
+    console.log(`[getCitasByUsuario] ${comerciosPropietarioSnapshot.docs.length} comercios donde es uid_cliente_propietario`);
+    
+    // Combinar los IDs de comercios sin duplicados
+    const comercioIds = new Set<string>();
+    comerciosNegocioSnapshot.docs.forEach(doc => {
+      comercioIds.add(doc.id);
+      console.log(`[getCitasByUsuario] Comercio encontrado (negocio): ${doc.id}`);
+    });
+    comerciosPropietarioSnapshot.docs.forEach(doc => {
+      comercioIds.add(doc.id);
+      console.log(`[getCitasByUsuario] Comercio encontrado (propietario): ${doc.id}`);
+    });
+    
+    console.log(`[getCitasByUsuario] Total comercios únicos: ${comercioIds.size}`);
     
     let citasComercio: any[] = [];
     
     // Si el usuario tiene comercios, buscar citas de esos comercios
-    if (comercioIds.length > 0) {
+    if (comercioIds.size > 0) {
+      const comercioIdsArray = Array.from(comercioIds);
+      console.log(`[getCitasByUsuario] Buscando citas para comercios:`, comercioIdsArray);
+      
       // Firestore limita 'in' a 10 elementos, así que hacemos queries por lotes
       const batchSize = 10;
-      for (let i = 0; i < comercioIds.length; i += batchSize) {
-        const batch = comercioIds.slice(i, i + batchSize);
+      for (let i = 0; i < comercioIdsArray.length; i += batchSize) {
+        const batch = comercioIdsArray.slice(i, i + batchSize);
+        console.log(`[getCitasByUsuario] Buscando citas con comercio_id IN`, batch);
+        
         const citasSnapshot = await db.collection("citas")
           .where("comercio_id", "in", batch)
           .get();
         
+        console.log(`[getCitasByUsuario] ${citasSnapshot.docs.length} citas encontradas en este lote`);
+        
+        citasSnapshot.docs.forEach(doc => {
+          const citaData = doc.data();
+          console.log(`[getCitasByUsuario] Cita encontrada: ${doc.id}, comercio_id: ${citaData.comercio_id}, estado: ${citaData.estado}`);
+        });
+        
         citasComercio.push(...citasSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       }
     }
+    
+    console.log(`[getCitasByUsuario] Total citas de comercios: ${citasComercio.length}`);
     
     // Combinar ambas búsquedas sin duplicados
     const citasMap = new Map();
@@ -275,7 +312,8 @@ export const getCitasByUsuario = async (req: Request, res: Response): Promise<vo
     
     const citas = Array.from(citasMap.values());
     
-    console.log(`${citas.length} citas encontradas para usuario ${userId}`);
+    console.log(`[getCitasByUsuario] TOTAL FINAL: ${citas.length} citas para usuario ${userId}`);
+    console.log(`[getCitasByUsuario] ========================================`);
     
     if (citas.length === 0) {
       res.status(404).json({ mensaje: "No se encontraron citas para este usuario" });
@@ -284,7 +322,7 @@ export const getCitasByUsuario = async (req: Request, res: Response): Promise<vo
     
     res.json(citas);
   } catch (error: any) {
-    console.error("Error obteniendo citas del usuario:", error);
+    console.error("[getCitasByUsuario] Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

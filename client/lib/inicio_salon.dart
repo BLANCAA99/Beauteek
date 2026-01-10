@@ -200,10 +200,18 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
 
   Future<void> _cargarCitasDelDia() async {
     try {
-      if (_uidUsuario == null) return;
+      if (_uidUsuario == null) {
+        print('[InicioSalon] _uidUsuario es null, no se pueden cargar citas');
+        return;
+      }
 
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        print('[InicioSalon] Usuario no autenticado');
+        return;
+      }
+
+      print('[InicioSalon] Cargando citas para usuario: $_uidUsuario');
 
       final idToken = await user.getIdToken();
       final now = DateTime.now();
@@ -211,6 +219,8 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
       final finDia = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
       final url = Uri.parse('$apiBaseUrl/api/citas/usuario/$_uidUsuario?rol=salon');
+      print('[InicioSalon] URL de citas: $url');
+      
       final response = await http.get(
         url,
         headers: {
@@ -218,6 +228,9 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           'Authorization': 'Bearer $idToken',
         },
       ).timeout(const Duration(seconds: 5));
+
+      print('[InicioSalon] Response status: ${response.statusCode}');
+      print('[InicioSalon] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> citasData = json.decode(response.body);
@@ -247,8 +260,12 @@ class _InicioSalonPageState extends State<InicioSalonPage> {
           _citasDelDia = citasHoy.cast<Map<String, dynamic>>();
           _citasPorConfirmar = porConfirmar;
         });
+        
+        print('[InicioSalon] Citas cargadas: ${citasHoy.length}, Por confirmar: $porConfirmar');
       }
-    } catch (e) {}
+    } catch (e) {
+      print('[InicioSalon] Error cargando citas: $e');
+    }
   }
 
   Future<void> _cargarPromociones() async {

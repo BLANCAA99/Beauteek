@@ -47,3 +47,4 @@ app.*.map.json
 # Dialogflow credentials - NO SUBIR A GIT
 assets/dialogflow/credentials.json
 .env
+.firebase_options.dart
